@@ -1,0 +1,62 @@
+name: Public acceptance audit
+
+# Optional evidence job, not a production release gate. Only the audit PR
+# and explicit manual dispatch run it; ordinary changes keep existing CI.
+on:
+  pull_request:
+    branches: [wecare.digital]
+    paths:
+      - 'scripts/audit_public_acceptance.mjs'
+      - '.github/workflows/public-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-acceptance:
+    name: Public acceptance (${{ matrix.engine }}, ${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        engine: [chromium, firefox, webkit]
+        profile: [desktop, phone, fold]
+        include:
+          - engine: chromium
+            profile: landscape
+          - engine: chromium
+            profile: stress
+          - engine: chromium
+            profile: wide
+    env:
+      PUBLIC_QA_BASE: https://wecare.digital
+      PUBLIC_QA_ENGINE: ${{ matrix.engine }}
+      PUBLIC_QA_PROFILE: ${{ matrix.profile }}
+      PUBLIC_QA_OUTPUT: ${{ runner.temp }}/public-acceptance
+      PUBLIC_QA_REVISION: dcaf7fcaf8242a53b8bce781356218eff6769e51
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Install isolated audit tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/public-qa-deps" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.1 @axe-core/playwright@4.14.1
+          ln -s "$RUNNER_TEMP/public-qa-deps/node_modules" node_modules
+          "$RUNNER_TEMP/public-qa-deps/node_modules/.bin/playwright" install --with-deps "$PUBLIC_QA_ENGINE"
+      - name: Run public acceptance
+        run: |
+          node --check scripts/audit_public_acceptance.mjs
+          node scripts/audit_public_acceptance.mjs
+      - name: Retain reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-${{ matrix.engine }}-${{ matrix.profile }}
+          path: ${{ runner.temp }}/public-acceptance
+          retention-days: 7
