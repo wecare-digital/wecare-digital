@@ -106,3 +106,10 @@ from committed source; repeat with `--verify` to check the staged files without
 rebuilding. This step performs no network requests or deployment. The manifest
 must not be edited to enable provider access. A separate approved CloudFormation
 change set and the live integration checklist are required for provider activation.
+
+Production Amplify builds now retain the verified ZIP, exact template and manifest
+at `customer-commerce/arogya-booking-release/<production commit>/` in the existing
+private asset bucket after the exact-commit CI gate. This is staging only. Review
+and execute the provider-disabled change set separately; keep the previous
+content-addressed S3 key for rollback. Compare the deployed Lambda CodeSha256 with
+the manifest before testing the authenticated form.
