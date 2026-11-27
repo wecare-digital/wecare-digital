@@ -1830,14 +1830,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       {/* UNIFIED TOP HERO (owner 2026-10-13): every public page carries the same frame + lime pill
-          + sub via the shared RotatingHero. A SINGLE word is passed so the pill is static (no
-          2400ms rotation) - a cart is a task screen, so the house look without indefinite motion
-          keeps WCAG 2.2.2. The global action dock is mounted once by _app after route policy. */}
+          + sub via the shared RotatingHero. The rotation has a visible pause control and
+          respects reduced motion. The global action dock is mounted once by _app. */}
       <RotatingHero
         badgeLabel="Checkout"
         ariaLabel="WECARE.DIGITAL customer"
-        frame="WECARE Shop."
-        words={ [ { word: 'checkout', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        frame="Checkout: review and"
+        words={ [
+          { word: 'confirm', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'verify', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'pay', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
         sub="Review your order. Choose how to pay."
         mobileFoundation
         compact

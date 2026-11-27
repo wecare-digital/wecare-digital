@@ -701,7 +701,11 @@ export default function OrdersPage (): React.ReactElement {
         badgeLabel="Orders"
         compact
         frame="Your"
-        words={ [ { word: 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
+        words={ [
+          { word: 'orders', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'payments', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'invoices', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
         sub="Purchases, payments and invoices."
         ariaLabel="Your orders"
       >

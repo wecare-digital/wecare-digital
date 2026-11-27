@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
  * THE ROTATING LIME PILL, EXTRACTED SO EVERY HERO SHARES ONE IMPLEMENTATION.
@@ -25,9 +25,8 @@ import React, { useEffect, useRef, useState } from 'react';
  * confirmed motion is allowed. Starting at 'final' is what makes the entrance ADDITIVE rather than
  * shipping a pill nobody can see.
  *
- * STATIC PILL: a one-element `words` array never advances (the interval does not start) and the
- * host can simply leave `phase` at its 'final' default, giving a motionless lime pill - the
- * pattern the transactional pages rely on for WCAG 2.2.2.
+ * A one-element words array stays static. Multiword heroes expose a separate pause
+ * control and respect reduced motion. Intrinsic grid sizing reserves the full word set.
  */
 
 export interface CycleWord {
@@ -46,6 +45,8 @@ export interface RotatingPillProps {
    * it. Omit it entirely for a static pill.
    */
   phase?: 'final' | 'armed' | 'shown';
+  /** User-controlled pause; reduced motion and hidden tabs also stop the timer. */
+  paused?: boolean;
   /**
    * When set, the pill drops to its OWN LINE (display:block, width fit-content) below 375px. The
    * Grahak OS hero needs this: its headline reads "Reach customers / across <pill>", and the
@@ -56,36 +57,54 @@ export interface RotatingPillProps {
   blockBelow?: number;
 }
 
-const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', blockBelow } ) => {
+/** Visible, keyboard-accessible control outside the headline. */
+export function HeroRotationControl( { paused, onToggle, count }: { paused: boolean; onToggle: () => void; count: number } ) {
+  const [ ready, setReady ] = useState( false );
+  useEffect( () => { setReady( true ); }, [] );
+  if ( count <= 1 ) return null;
+  return (
+    <>
+      <button type="button" className="rp-control" disabled={ !ready } onClick={ onToggle }>
+        { paused ? 'Resume headline rotation' : 'Pause headline rotation' }
+      </button>
+      <style jsx>{`
+        .rp-control{display:inline-flex;align-items:center;align-self:flex-start;justify-content:center;min-height:var(--tap-min,44px);min-width:var(--tap-min,44px);max-width:100%;margin-top:8px;padding:4px 10px;border:1px solid var(--public-hairline);border-radius:10px;background:var(--public-bg);color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);text-align:start;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+        .rp-control:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+        .rp-control:disabled{opacity:.65;cursor:default}
+        @media(hover:hover) and (pointer:fine){.rp-control:not(:disabled):hover{background:var(--public-lime-tint)}}
+        @media(prefers-reduced-motion:reduce){.rp-control{display:none}}
+        @media(forced-colors:active){.rp-control:focus-visible{outline:3px solid Highlight}}
+      `}</style>
+    </>
+  );
+}
+
+const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', blockBelow, paused = false } ) => {
   const [ cycleIndex, setCycleIndex ] = useState( 0 );
-  const [ cycleW, setCycleW ] = useState<number | null>( null );
-  const wordRefs = useRef<( HTMLSpanElement | null )[]>( [] );
 
-  // THE ROTATION, browser-only and reduced-motion-aware. A one-word list never advances.
+  // Respect motion preference changes while mounted, background-tab visibility,
+  // and the explicit user pause. No visual rotation is announced repeatedly.
   useEffect( () => {
-    if ( typeof window.matchMedia === 'function'
-      && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return undefined;
-    if ( words.length <= 1 ) return undefined;
-    const id = window.setInterval( () => setCycleIndex( i => ( i + 1 ) % words.length ), 2400 );
-    return () => window.clearInterval( id );
-  }, [ words.length ] );
-
-  // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes (the clamp(...vw...) size
-  // and the late Inter swap both change a word's width). Observe the active WORD, not the pill
-  // this sets; guarded for jsdom which implements neither ResizeObserver nor document.fonts.
-  useEffect( () => {
-    const el = wordRefs.current[ cycleIndex ];
-    if ( !el ) return undefined;
-    const measure = () => setCycleW( el.offsetWidth );
-    measure();
-    if ( typeof document !== 'undefined' && ( document as any ).fonts?.ready?.then ) {
-      ( document as any ).fonts.ready.then( () => measure() );
-    }
-    if ( typeof ResizeObserver === 'undefined' ) return undefined;
-    const ro = new ResizeObserver( measure );
-    ro.observe( el );
-    return () => ro.disconnect();
-  }, [ cycleIndex ] );
+    if ( paused || words.length <= 1 ) return undefined;
+    const media = typeof window.matchMedia === 'function' ? window.matchMedia( '(prefers-reduced-motion: reduce)' ) : null;
+    let timer: number | undefined;
+    const sync = () => {
+      if ( timer !== undefined ) window.clearInterval( timer );
+      timer = undefined;
+      if ( media?.matches || document.visibilityState === 'hidden' ) return;
+      timer = window.setInterval( () => setCycleIndex( i => ( i + 1 ) % words.length ), 2400 );
+    };
+    sync();
+    document.addEventListener( 'visibilitychange', sync );
+    if ( media?.addEventListener ) media.addEventListener( 'change', sync );
+    else media?.addListener?.( sync );
+    return () => {
+      if ( timer !== undefined ) window.clearInterval( timer );
+      document.removeEventListener( 'visibilitychange', sync );
+      if ( media?.removeEventListener ) media.removeEventListener( 'change', sync );
+      else media?.removeListener?.( sync );
+    };
+  }, [ words.length, paused ] );
 
   const active = words.length ? cycleIndex % words.length : 0;
   const phaseClass = [
@@ -101,13 +120,12 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
   return (
     <span className={ phaseClass } style={ { background: words[ active ]?.tint } }>
       <i className="rp-mark-dot" style={ { background: words[ active ]?.dot } } aria-hidden="true" />
-      <span className="rp-cycle" style={ cycleW ? { width: `${cycleW}px` } : undefined }>
+      <span className="rp-cycle">
         {/* The rotation is visual only: screen readers get the list once; every animated copy is hidden. */}
         <span className="rp-sr-only">{ words.map( w => w.word ).join( ', ' ) }</span>
         { words.map( ( w, i ) => (
           <span
             key={ w.word }
-            ref={ el => { wordRefs.current[ i ] = el; } }
             className={ `rp-cyc-word${i === active ? ' on' : ''}` }
             data-wc-translate="true"
             aria-hidden="true"
@@ -120,18 +138,15 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
            inherits the host h1's clamp. Values are the heroes' shared ones - the shutter wipe, the
            dot pop and the width glide, with the FINISHED state as the CSS default so a no-JS /
            reduced-motion render shows a complete pill. */
+        /* Reserve the maximum intrinsic word width/height, capped by the
+           actual headline. A word can wrap without clipping; the surrounding
+           page does not shift when a different length becomes active. */
         .rp-mark{
-          position:relative;display:inline-block;border-radius:9999px;
-          padding:.02em .3em .02em .22em;margin-top:.08em;white-space:nowrap;
+          position:relative;display:inline-flex;align-items:center;gap:.18em;
+          box-sizing:border-box;border-radius:9999px;
+          padding:.02em .3em .02em .22em;margin-top:.08em;white-space:normal;
           transition:background-color .52s cubic-bezier(.16,1,.3,1);
-          /* ZOOM CONTAINMENT (unified-mobile Phase 1). max-width:100% caps the lozenge to its
-             host at a 200%-zoom reflow (a ~160-188 CSS-px layout viewport) so the nowrap pill
-             cannot set a page min-width floor. The host hero carries overflow-x:clip, so at that
-             extreme the pill overflows its own box rather than pushing the page into horizontal
-             scroll. The measured-width glide is untouched (the effect still writes an inline
-             width); this only caps the visual box, and normal-zoom layout is unchanged because
-             the pill never reaches 100% there. NO backtick in this comment. */
-          max-width:100%;
+          max-width:100%;min-width:0;
         }
         /* The white shutter. scaleX(0) (finished) by default, so the tint is never left covered. */
         .rp-mark::before{
@@ -142,26 +157,27 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
         .rp-mark.is-armed::before{transform:scaleX(1)}
         .rp-mark.is-armed.is-shown::before{transform:scaleX(0)}
         .rp-mark-dot{
-          position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
-          background:#3da35a;border-radius:50%;margin-inline-end:.18em;vertical-align:.14em;
+          position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;flex:0 0 .33em;
+          background:#3da35a;border-radius:50%;margin-inline-end:0;
           transform:scale(1);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
         }
         .rp-mark.is-armed .rp-mark-dot{transform:scale(0)}
         .rp-mark.is-armed.is-shown .rp-mark-dot{transform:scale(1)}
-        /* Width glides from the measured word; overflow:hidden clips the outgoing word.
-           width:max-content is the RESTING width so the first render (cycleW null) is not 0. */
+        /* All words share one grid cell, including the invisible ones.
+           Intrinsic sizing follows late fonts and translations without JS
+           measurement; short words cannot change the headline's line count. */
         .rp-cycle{
-          width:max-content;position:relative;z-index:1;display:inline-block;
-          height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
-          transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+          position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr);
+          width:max-content;max-width:100%;min-width:0;height:auto;min-height:1.06em;
+          line-height:1.1;overflow:hidden;
         }
         .rp-cyc-word{
-          position:absolute;left:0;top:0;white-space:nowrap;opacity:0;transform:translateY(.42em);
+          grid-area:1/1;position:relative;display:block;min-width:0;align-self:center;
+          white-space:normal;overflow-wrap:anywhere;opacity:0;transform:translateY(.42em);
           transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
         }
-        /* The ACTIVE word returns to flow (position:static + inline-block) so the box above has a
-           real intrinsic width; the inactive words stay absolute and stacked. */
-        .rp-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+        .rp-cyc-word.on{opacity:1;transform:translateY(0);position:relative;display:block}
+        .rp-cyc-word.on{max-width:100%;white-space:normal;overflow-wrap:anywhere}
         .rp-sr-only{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
@@ -172,20 +188,9 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           .rp-mark.is-armed .rp-mark-dot{transform:scale(1)}
           .rp-cycle,.rp-cyc-word{transition:none}
         }
-        /* NARROW-WIDTH FIX, opt-in via blockBelow (adds .is-block-narrow). Below 375px the pill
-           drops to its own line so a width swing between words cannot re-break the headline and
-           change its height on every rotation. Static rule - no interpolation inside this
-           styled-jsx block, because a backtick here would end the CSS literal early. The Grahak OS
-           hero is the one caller that needs it. */
+        /* Retain the opt-in narrow separate-line behavior for callers. */
         @media(max-width:374px){
-          .rp-mark.is-block-narrow{display:block;width:fit-content}
-        }
-        /* Extreme reflow: preserve the full rotating word. */
-        @media(max-width:279px){
-          .rp-mark,.rp-mark.is-block-narrow{display:inline-flex;align-items:center;gap:.18em;white-space:normal}
-          .rp-mark-dot{flex:0 0 .33em;margin-inline-end:0}
-          .rp-cycle{width:auto!important;min-width:0;max-width:100%;height:auto;line-height:1.1;transition:none}
-          .rp-cyc-word.on{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+          .rp-mark.is-block-narrow{display:flex;width:fit-content}
         }
       `}</style>
     </span>

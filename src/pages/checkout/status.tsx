@@ -155,13 +155,13 @@ export default function CheckoutStatus (): React.ReactElement {
       <RotatingHero
         badgeLabel="Payment status"
         ariaLabel="WECARE.DIGITAL customer"
-        frame="One account."
+        frame="Review payment"
         words={ [
-          { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
-          { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
-          { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
+          { word: 'status', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'confirmation', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'details', tint: '#ede9fe', dot: '#9849e8' },
         ] }
-        sub="Pick up where you left off."
+        sub="Check the verified status of your payment."
         mobileFoundation
         compact
       >

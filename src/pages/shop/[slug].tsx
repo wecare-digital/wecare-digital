@@ -96,8 +96,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
       <ShopProductHead product={ product } />
       <RotatingHero
         badgeLabel={ `Shop · ${product.name}` }
-        frame="Explore"
-        words={ [ { word: product.name, tint: '#e0f7c8', dot: '#3da35a' } ] }
+        frame={ `Explore ${product.name}` }
+        words={ [
+          { word: 'details', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'options', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'pricing', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
         sub={ product.tagline }
         ariaLabel={ product.name }
       >
