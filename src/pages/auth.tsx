@@ -196,7 +196,7 @@ const AuthPage: React.FC = () => {
                       } }
                       disabled={ busy }
                     >
-                      <span>{ dialCode }</span><span aria-hidden="true">⌄</span>
+                      <span>{ dialCode }</span><span className="country-arrow" aria-hidden="true">⌄</span>
                     </button>
                     { countryOpen && (
                       <div className="country-panel">
@@ -339,11 +339,12 @@ const AuthPage: React.FC = () => {
         .phone-control:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
         .country-picker{position:relative;display:flex;flex:0 0 auto;min-width:0}
         .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:0;display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);white-space:nowrap;touch-action:manipulation;cursor:pointer}
+        .country-arrow{color:var(--public-nav-arrow)}
         .country-trigger:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px;z-index:2}
         .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);text-overflow:ellipsis;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
         .phone-control>input::placeholder,.code-control::placeholder{color:var(--public-muted)}
         .phone-control>input:focus-visible,.code-control:focus-visible{outline:0}
-        .country-search input:focus-visible,.country-row:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
+        .country-row:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .code-control{border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;box-shadow:none;transition:border-color .2s,box-shadow .2s}
         .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
@@ -351,7 +352,8 @@ const AuthPage: React.FC = () => {
         .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
         .country-search input::-webkit-search-cancel-button,.country-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .country-search input::-ms-clear{display:none}
-        .country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}
+        @media (forced-colors: active){.country-search input:focus{outline:2px solid Highlight;outline-offset:-2px}}
         .country-list{min-height:0;max-height:336px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
         .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
         .country-row>span:first-child{min-width:0;overflow-wrap:anywhere;white-space:normal}
