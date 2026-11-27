@@ -273,7 +273,7 @@
       "DependsOn": "Logs",
       "Properties": {
         "FunctionName": "wecare-arogya-booking",
-        "Runtime": "python3.12",
+        "Runtime": "python3.14",
         "Architectures": [
           "arm64"
         ],
