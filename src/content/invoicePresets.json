@@ -26,13 +26,13 @@
   {
     "id": "fixed-03",
     "name": "Arogya Yatra",
-    "basePaise": 85000,
-    "supplyGstPaise": 15300,
-    "delightPaise": 501,
+    "basePaise": 55000,
+    "supplyGstPaise": 9900,
+    "delightPaise": 324,
     "expressPaise": 4500,
-    "convenienceFeePaise": 2607,
-    "convenienceGstPaise": 469,
-    "totalPayablePaise": 107375,
+    "convenienceFeePaise": 1727,
+    "convenienceGstPaise": 311,
+    "totalPayablePaise": 71114,
     "workflow": "collect"
   },
   {

@@ -284,7 +284,7 @@ class UnifiedShopPricingTests(unittest.TestCase):
         from typing import Dict, Any
         path=Path(__file__).resolve().parents[1]/'amplify/functions/ecommerce/checkout/handler.py'
         node=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='_cart_order_details')
-        env={'Dict':Dict,'Any':Any,'_native_product_reader':lambda:lambda pid:{'title':'Sample'},'EXPECTED_CONFIGURATION_NAME':'offline'}
+        env={'Dict':Dict,'Any':Any,'checkout_pricing':checkout_pricing,'_native_product_reader':lambda:lambda pid:{'title':'Sample'},'EXPECTED_CONFIGURATION_NAME':'offline'}
         exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),env)
         for quantity in (1,2,3):
             items=[{'lineItemId':'sku-one','productId':'one','variantId':'sku-one','quantity':quantity,'unitPricePaise':9900}]
