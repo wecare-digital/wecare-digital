@@ -29,9 +29,11 @@ FIELDS = {
                      ('multispecialityname', 'specialityname', 'specialtyname', 'name')),
     'doctors': (('doctorid', 'id'), ('doctorname', 'doctorfullname', 'name')),
     'healthChecks': (('healthcheckid', 'id'), ('healthcheckname', 'name')),
+    'appointmentTypes': (('appointmenttypeid', 'id'), ('appointmenttypename', 'appointmenttype', 'name')),
+    'salutations': (('salutationid', 'id'), ('salutationname', 'salutation', 'name')),
 }
 WRAPPERS = ('data', 'result', 'items', 'hospitals', 'specialities', 'doctors',
-            'healthchecks', 'dates', 'appointmentdates', 'availabledates')
+            'healthchecks', 'dates', 'appointmentdates', 'availabledates', 'appointmenttypes', 'salutations', 'hours', 'minutes')
 
 
 class CatalogueUnavailable(RuntimeError):
@@ -85,6 +87,9 @@ def _date(value):
                        ('appointmentdate', 'availabledate', 'date'))
     if not isinstance(value, str):
         raise CatalogueUnavailable('Invalid Apollo availability date')
+    # Date-only values or an exact midnight without an offset (provider-local).
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}T00:00:00(?:\.0+)?', value):
+        value = value[:10]
     for pattern in ('%Y-%m-%d', '%d/%m/%Y'):
         try:
             parsed = dt.datetime.strptime(value, pattern).date()
@@ -112,7 +117,19 @@ def normalize(kind, raw, *, now):
             identifier = str(_identifier(_first(row, ids)))
         except InvalidCatalogueRequest:
             raise CatalogueUnavailable('Invalid Apollo catalogue identifier') from None
-        option = {'id': identifier, 'label': _label(_first(row, labels))}
+        label = _label(_first(row, labels))
+        if kind == 'appointmentTypes':
+            canonical = {'consultation': 'Consultation', 'health checks': 'Health Checks',
+                         'health check': 'Health Checks', 'admission': 'Admission'}
+            label = canonical.get(label.casefold())
+            if label is None:
+                continue  # only the supported draft workflows are enabled
+        if kind == 'salutations':
+            canonical = {'master': 'Master', 'mr': 'Mr.', 'mrs': 'Mrs.', 'ms': 'Ms.', 'dr': 'Dr'}
+            label = canonical.get(label.casefold().rstrip('.'))
+            if label is None:
+                continue
+        option = {'id': identifier, 'label': label}
         city = _first(row, ('city', 'cityname', 'hospitalcity'))
         if kind == 'hospitals' and city:
             option['city'] = _label(city, 80)
@@ -120,6 +137,30 @@ def normalize(kind, raw, *, now):
             raise CatalogueUnavailable('Ambiguous Apollo catalogue identifier')
         result[identifier] = option
     return sorted(result.values(), key=lambda item: item['id'] if kind == 'dates' else item['label'].casefold())
+
+
+def _time_parts(raw, *, hour):
+    """Read the provider's time-component choices, not appointment slot inventory."""
+    names = ('hour', 'hours', 'hourname', 'ichour', 'ichours', 'value', 'name', 'id') if hour else (
+        'minute', 'minutes', 'minutename', 'icminute', 'icminutes', 'value', 'name', 'id')
+    options = set()
+    for row in _rows(raw):
+        value = _first({k.lower(): v for k, v in row.items()}, names) if isinstance(row, dict) else row
+        if type(value) is int:
+            value = str(value)
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9]{1,2}', value.strip()):
+            raise CatalogueUnavailable('Unrecognized Apollo time choices')
+        number = int(value)
+        if (hour and 1 <= number <= 23) or (not hour and 0 <= number <= 55 and number % 5 == 0):
+            options.add(number)
+    return sorted(options)
+
+
+def _preferred_times(provider, token):
+    hours = _time_parts(provider.catalog('hours', token=token), hour=True)
+    minutes = _time_parts(provider.catalog('minutes', token=token), hour=False)
+    return [{'id': f'{h:02}:{m:02}', 'label': f'{h:02}:{m:02}'}
+            for h in hours for m in minutes]
 
 
 def _secret(arn):
@@ -195,11 +236,11 @@ def read_catalog(body, *, now=None, session=None):
     if now is None:
         now = int(time.time())
     kind = body.get('kind')
-    if kind not in (*FIELDS, 'dates'):
+    if kind not in (*FIELDS, 'dates', 'times'):
         raise InvalidCatalogueRequest('Invalid catalogue kind')
     allowed = {'action', 'kind'}
     params = {}
-    if kind != 'hospitals':
+    if kind in ('specialities', 'doctors', 'healthChecks', 'dates'):
         allowed.add('hospitalId')
         params['hospital_id'] = _identifier(body.get('hospitalId'))
     if kind == 'doctors':
@@ -217,6 +258,8 @@ def read_catalog(body, *, now=None, session=None):
     token = ''
     try:
         provider, token = (session or _provider_session)(now)
+        if kind == 'times':
+            return {'options': _preferred_times(provider, token), 'observedAt': now, 'preferredOnly': True}
         raw = provider.available_dates(category, token=token, **params) if kind == 'dates' else provider.catalog(kind, token=token, **params)
         return {'options': normalize(kind, raw, now=now), 'observedAt': now}
     except ApolloSessionExpired:
