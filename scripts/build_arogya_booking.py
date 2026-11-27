@@ -108,7 +108,15 @@ def verify(output, *, expected_commit=None):
     return manifest
 
 
-def build(output, *, commit=None):
+def build(output):
+    commit = source_commit()
+    source_paths = ['amplify/functions/ecommerce/arogya-booking',
+                    'amplify/functions/shared/lambda_utils',
+                    'amplify/infra/arogya-booking.json', 'scripts/build_arogya_booking.py']
+    changed = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all',
+        '--', *source_paths], cwd=ROOT, text=True)
+    if changed.strip():
+        raise ValueError('Commit source changes before building the release artifact')
     output.mkdir(parents=True, exist_ok=True)
     sources = {'handler.py': ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py'}
     shared = ROOT / 'amplify/functions/shared'
@@ -129,7 +137,7 @@ def build(output, *, commit=None):
     manifest = {'stack': STACK, 'account': ACCOUNT, 'region': REGION,
         's3Bucket': BUCKET, 's3Key': key, 'codeSha256': base64.b64encode(digest).decode(),
         'sha256': digest.hex(), 'bytes': archive.stat().st_size,
-        'templateSha256': _sha(template), 'sourceCommit': commit or source_commit(),
+        'templateSha256': _sha(template), 'sourceCommit': commit,
         'parameters': {'CodeBucket': BUCKET, 'CodeKey': key,
             'ApolloAutomationEnabled': 'false', 'ApolloRegistryTableName': '',
             'ApolloTokenKeyArn': '', 'ApolloGmailGrantOwner': '', 'ApolloGoogleOAuthSecretArn': ''}}
