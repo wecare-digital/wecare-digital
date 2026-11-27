@@ -1,6 +1,7 @@
 import { buildPageTitle } from '../lib/page-title';
 import React, { useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 
 const NotFound: React.FC = () => {
   useEffect( () => {
@@ -21,7 +22,7 @@ const NotFound: React.FC = () => {
       <main style={ { maxWidth: 680, margin: '80px auto', padding: '24px' } }>
         <h1>Page not found</h1>
         <p>This page is no longer available.</p>
-        <a href="/">Visit WECARE.DIGITAL</a>
+        <Link href="/">Visit WECARE.DIGITAL</Link>
       </main>
     </>
   );
