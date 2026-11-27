@@ -34,7 +34,7 @@ Resources:
     Properties:
       FunctionName: wecare-log-retention-enforcer
       Role: !GetAtt RetentionRole.Arn
-      Runtime: python3.12
+      Runtime: python3.14
       Handler: index.handler
       Timeout: 60
       MemorySize: 128
