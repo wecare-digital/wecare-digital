@@ -49,3 +49,9 @@ Cognito GetUser is authorized by the customer's access token and does not evalua
 Both Function URL permissions are required under the current AWS model. `InvokePermission` has `InvokedViaFunctionUrl: true`, which prevents that permission from authorizing direct SDK invocation. CORS does not authenticate any request; the handler always checks Cognito. See [Function URL access](https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html).
 
 Saves intentionally require an existing row to remain DRAFT. A future provider-submission state must not be editable through the draft API; sharing the DRAFT literal in the condition preserves that guard.
+
+## Deployed evidence, 27 November 2026
+
+PR #2449 merged at `f98024bb98bdeb66d27562f31e91cd2ebd99f270`. CloudFormation `wecare-arogya-booking` reached CREATE_COMPLETE. Function `wecare-arogya-booking` is Active with code SHA256 `0grJ0awEzho/YJCMbInDZnWkER2dMRB2rK17GRFEiew=`, Python 3.12 arm64, 128 MB and 15 seconds. Table `wecare-arogya-bookings` is ACTIVE, fixed at 5 RCU/5 WCU; TTL on `expiresAt` is ENABLED.
+
+The public endpoint is pinned in `src/content/arogyaBookingConfig.json` and the website CSP permits only that exact Lambda Function URL host. Saved drafts reuse the existing WhatsApp customer login inline so patient details need not be saved in browser storage or discarded during a redirect.

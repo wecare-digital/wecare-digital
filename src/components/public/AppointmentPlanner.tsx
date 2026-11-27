@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { appointmentPlanError, appointmentPlanSummary, indiaDate, type AppointmentPlan } from '../../lib/appointmentPlan';
 import { APOLLO_HOSPITALS, GREAMS_GENERAL_SURGEONS, GREAMS_SPECIALITIES } from '../../content/apolloAppointmentCatalog';
 import PublicNotice from './PublicNotice';
+import SavedAppointmentDrafts from './SavedAppointmentDrafts';
 import styles from './AppointmentPlanner.module.css';
 
 const EMPTY_PLAN: AppointmentPlan = {
@@ -20,6 +21,7 @@ export default function AppointmentPlanner (): React.ReactElement {
   const [ error, setError ] = useState( '' );
   const [ copied, setCopied ] = useState( false );
   const [ today, setToday ] = useState( '' );
+  const [ draftVersion, setDraftVersion ] = useState( 0 );
   const heading = useRef<HTMLHeadingElement>( null );
   const previousStep = useRef( step );
   const isGreams = plan.hospital === APOLLO_HOSPITALS[0][1];
@@ -90,10 +92,11 @@ export default function AppointmentPlanner (): React.ReactElement {
       <p className={ styles.eyebrow }>Your next appointment</p>
       <h2 id="ay-title">Request an appointment</h2>
       <p>Choose your hospital, appointment and patient details. Review everything before continuing.</p>
-      <p className={ styles.help }>This form prepares a request locally. Online submission and live availability are not available yet. * Indicates mandatory fields.</p>
+      <p className={ styles.help }>Prepare and review your request here. Apollo submission and live availability are not available yet. * Indicates mandatory fields.</p>
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
+      <SavedAppointmentDrafts key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 4 ); setError( '' ); } } />
       <div className={ styles.panel }>
         <h3 ref={ heading } tabIndex={ -1 }>{ STEPS[step - 1] }</h3>
         { step < 4 ? (
@@ -190,11 +193,11 @@ export default function AppointmentPlanner (): React.ReactElement {
           </dl> }
           { plan.userType === 'Registered User' && <p className={ styles.help }>Patient lookup pending: { plan.uhid || plan.mobile }</p> }
           { plan.remarks && <p className={ styles.help }>Remarks: { plan.remarks }</p> }
-          <PublicNotice mode="inline" message="Draft only. No patient details have been sent, no payment taken and no appointment booked. Online submission will be enabled after the provider connection is verified." />
+          <PublicNotice mode="inline" message="Draft only. No request has been sent to Apollo, no payment taken and no appointment booked. Provider submission will be enabled after the connection is verified." />
           <div className={ styles.actions }>
             <button type="button" onClick={ () => { setError( '' ); setCopied( false ); setStep( 1 ); } }>Edit request</button>
             <button className={ styles.primary } type="button" onClick={ () => { void copySummary(); } }>Copy appointment summary</button>
-            <button type="button" onClick={ () => { setPlan( EMPTY_PLAN ); setError( '' ); setCopied( false ); setStep( 1 ); } }>Clear draft</button>
+            <button type="button" onClick={ () => { setPlan( EMPTY_PLAN ); setDraftVersion( value => value + 1 ); setError( '' ); setCopied( false ); setStep( 1 ); } }>Clear this form</button>
           </div>
           { copied && <PublicNotice mode="inline" tone="success" message="Appointment summary copied. Patient identifiers and contact details were excluded." /> }
           { error && <PublicNotice mode="inline" tone="error" message={ error } /> }

@@ -200,6 +200,7 @@ customHeaders:
           https://maps.googleapis.com https://maps.gstatic.com
           https://connect.facebook.net;
           connect-src 'self' https://wecare.digital
+          https://udjoxscuuvmn6lz2j535atwmnu0xdmjo.lambda-url.us-east-1.on.aws
           https://*.execute-api.us-east-1.amazonaws.com
           https://cognito-idp.us-east-1.amazonaws.com
           https://cognito-identity.us-east-1.amazonaws.com
