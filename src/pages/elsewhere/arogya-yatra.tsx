@@ -4,46 +4,13 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../../components/RotatingHero';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
+import AppointmentPlanner from '../../components/public/AppointmentPlanner';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
-/**
- * /elsewhere/arogya-yatra — the Arogya Yatra product page.
- *
- * WHY THIS EXISTS: Arogya Yatra was moved into the Products column of the mega menu but had
- * no page, so the row pointed at the generic Customer service landing page. A product listed
- * beside Relay OS and Nano Climate and then landing somewhere unrelated is worse than not
- * listing it.
- *
- * ROUTING: '/elsewhere/arogya-yatra' must be in the EXACT-MATCH allowlist in _app.tsx or this renders
- * an empty body with HTTP 200. trailingSlash means the URL is /elsewhere/arogya-yatra/.
- *
- * NO MEDICINE RETAIL. Confirmed by the owner: Arogya Yatra does not sell or deliver medicines.
- * I had briefly added an "Order medicines" track - prescription upload, stock and pricing,
- * doorstep delivery, refill reminders - after misreading the note that this page was "only
- * about appointments, not about ordering medicine" as a gap to fill rather than a statement
- * of scope. It was the second reading. The track is gone, the licensed-pharmacy line it
- * required is gone, and "medicines" is out of the rotating headline.
- *
- * WHAT IT DOES INSTEAD IS STILL PARTLY OPEN. The page describes the shape of the service -
- * a request, a qualified professional, a tracked record - which Terms sections 8 and 17
- * already support. The owner began to say what Arogya Yatra will have and the message ended
- * mid-sentence, so the specific proposition is still outstanding and is NOT invented here.
- *
- * COPY IS NON-COMMITTAL ABOUT CLINICAL CLAIMS, deliberately. Nothing states what Rx
- * diagnoses, prescribes or advises, because a health-adjacent page is the wrong place to
- * guess and the wrong place to be wrong.
- *
- * NO PRODUCT SCHEMA, ON PURPOSE. Relay OS carries SoftwareApplication because it is a
- * real, describable product with a feature list. Marking this up the same way while the
- * copy is provisional would put claims into structured data that the page does not make -
- * and Google's guidelines require structured data to represent the page's actual content.
- * _app.tsx gives it a WebPage plus a breadcrumb, which is accurate.
+/** Arogya Yatra: local appointment planning plus the existing service checkout.
+ * Provider inventory and confirmed booking require a verified server integration.
+ * This route covers appointments and medical travel; it does not retail medicines.
  */
-
-// NO "medicines". The owner has confirmed Arogya Yatra does not do medicine retail, so a
-// rotating headline that leads with the word would promise a product that does not exist -
-// which is the most expensive kind of copy error, because it is the first thing read.
-// Tints and dots are reused verbatim from the Relay OS hero - no new colours.
 const CYCLE_WORDS: CycleWord[] = [
   { word: 'appointments', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'bookings', tint: '#dbeafe', dot: '#2563eb' },
@@ -76,6 +43,7 @@ const SehatPage: React.FC = () => (
           _app.tsx owns the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
       <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Arogya Yatra' } ] } />
       <section className="brx" aria-label="About Arogya Yatra">
+        <AppointmentPlanner />
         {/* ONE FLOW, and deliberately not a retail one. This briefly had a second "Order
             medicines" track with prescriptions, stock, pricing and doorstep delivery. That
             was my misreading of the owner's note that the page was "only about appointments,
@@ -115,7 +83,9 @@ const SehatPage: React.FC = () => (
         </ol>
 
         {/* One checkout entry. Payment mode is chosen after cart review. */}
-        <ProductBuyBox slug="sehat" />
+        <h3 className="sht-step-t">WECARE website service fee</h3>
+        <p className="sht-p">₹550 base service fee, plus 18% GST. Checkout applies the existing Express and Delight rules, a 2.5% convenience fee and GST on that fee. Hospital consultation, registration, treatment and travel charges are separate.</p>
+        <ProductBuyBox slug="sehat" offerNote="Base service fee; taxes and checkout charges apply. A service purchase does not reserve a hospital appointment." />
 
         <div className="sht-commerce">
           <p className="sht-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="sht-sku-value">{ PRODUCT_SKU_BY_SLUG['sehat'] }</span></p>
