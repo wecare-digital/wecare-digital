@@ -36,5 +36,7 @@ test('immutable acceptance shares a verified exact export, never proxies transac
   const fixture=read('scripts/verify_checkout_fixture.mjs');
   assert.match(fixture,/Contributions cannot be taken right now\. Nothing has been charged\./);
   assert.match(fixture,/if\(snapshot\) return route\.continue\(\)/);
+  assert.doesNotMatch(fixture,/function snapshot\(/);
+  assert.match(fixture,/async function captureSnapshot\(label\)/);
   assert.match(fixture,/await verifyAppointmentGate\(\)/);
 });

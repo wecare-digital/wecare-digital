@@ -117,7 +117,7 @@ async function scenario(width,mode) {
       return route.abort();
     });
     const page=await context.newPage();page.setDefaultTimeout(20000);
-    async function snapshot(label){
+    async function captureSnapshot(label){
       const geom=await page.evaluate(()=>{
         const width=document.documentElement.clientWidth,scroll=document.documentElement.scrollWidth;
         // Record geometry only, not page content or customer data. Include shared chrome.
@@ -137,16 +137,16 @@ async function scenario(width,mode) {
     }
     await page.goto(new URL('/checkout/?contribute=1',origin).href,{waitUntil:'domcontentloaded'});
     await page.locator('.cart-contribution-review').waitFor({state:'visible'});
-    await snapshot('review');
+    await captureSnapshot('review');
     assert.equal(prepare,0);
     await page.getByRole('button',{name:'Review contribution',exact:true}).click();
     await page.getByRole('link',{name:'Sign in to continue',exact:true}).waitFor({state:'visible'});
     assert.equal(await page.getByRole('button',{name:'Pay on WhatsApp',exact:true}).count(),0);
     assert.equal(await page.locator('.cart-pay-website').isDisabled(),true);
-    await snapshot('signed-out');
+    await captureSnapshot('signed-out');
     await page.getByRole('link',{name:'Sign in to continue',exact:true}).click();
     await page.locator('#auth-code').waitFor({state:'visible'});
-    await snapshot('auth');
+    await captureSnapshot('auth');
     await page.evaluate(()=>sessionStorage.setItem('qa-sign-in','yes'));
     await page.locator('#auth-code').fill('000000');
     await page.getByRole('button',{name:'Verify',exact:true}).click();
@@ -154,7 +154,7 @@ async function scenario(width,mode) {
     if(mode==='profile'){
       await page.getByRole('region',{name:'Checkout details'}).waitFor({state:'visible'});
       await page.getByLabel('Full name',{exact:true}).fill('Synthetic Customer');
-      await snapshot('name-only-profile');
+      await captureSnapshot('name-only-profile');
       await page.getByRole('button',{name:'Save & continue',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('.checkout-profile'));
       assert.ok(profileBootstrap&&profileSaved);
@@ -167,11 +167,11 @@ async function scenario(width,mode) {
       assert.ok(events.includes('quote'),'A mismatched quote must actually have been requested');
       assert.ok(await pay.isDisabled(),'Wrong total must disable payment');
       assert.equal(prepare,0);
-      await snapshot('wrong-quote');
+      await captureSnapshot('wrong-quote');
       return;
     }
     await page.waitForFunction(()=>{const b=document.querySelector('.cart-pay-website');return b&&!b.disabled;});
-    await snapshot('quoted');
+    await captureSnapshot('quoted');
     assert.match(await page.locator('.receipt-total').innerText(),/300(?:\.00)?/);
     assert.equal(await page.getByRole('button',{name:'Pay on WhatsApp',exact:true}).count(),0);
     await pay.click();
@@ -181,13 +181,13 @@ async function scenario(width,mode) {
     assert.equal(prepare,1);
     await page.evaluate(()=>window.__qaDismiss());
     await page.waitForFunction(()=>{const b=document.querySelector('.cart-pay-website');return b&&!b.disabled;});
-    await snapshot('dismissed');
+    await captureSnapshot('dismissed');
     await pay.click();
     await page.waitForFunction(()=>window.__qaRazorpayOpen===2);
     await page.evaluate(()=>window.__qaCapture());
     await page.waitForURL('**/orders/**',{timeout:30000});
     await page.getByText(order,{exact:true}).waitFor({state:'visible'});
-    await snapshot('mock-paid-orders');
+    await captureSnapshot('mock-paid-orders');
     assert.equal(verify,1);
     assert.equal(native,0);
     assert.equal(await page.evaluate(()=>localStorage.getItem('wecare.cart.v1')),null);
