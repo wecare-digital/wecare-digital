@@ -9,6 +9,8 @@ import argparse
 import base64
 import hashlib
 import json
+import os
+import re
 from pathlib import Path
 import subprocess
 import zipfile
@@ -30,7 +32,19 @@ REQUIRED_MODULES = {
 
 
 def source_commit():
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    # Amplify may provide a source snapshot without a .git directory. Trust only
+    # the production build's commit identifier, after its exact-commit CI gate.
+    if (ROOT / '.git').exists():
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        if os.environ.get('AWS_BRANCH') == 'wecare.digital' and os.environ.get('AWS_COMMIT_ID') != commit:
+            raise ValueError('Amplify source commit does not match checkout')
+    elif os.environ.get('AWS_BRANCH') == 'wecare.digital' and os.environ.get('AWS_APP_ID') == 'd22dm4b0jn71jw':
+        commit = os.environ.get('AWS_COMMIT_ID', '')
+    else:
+        raise ValueError('A git checkout or the production Amplify source snapshot is required')
+    if not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('Invalid source revision')
+    return commit
 
 
 def _sha(data):
@@ -113,10 +127,11 @@ def build(output):
     source_paths = ['amplify/functions/ecommerce/arogya-booking',
                     'amplify/functions/shared/lambda_utils',
                     'amplify/infra/arogya-booking.json', 'scripts/build_arogya_booking.py']
-    changed = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all',
-        '--', *source_paths], cwd=ROOT, text=True)
-    if changed.strip():
-        raise ValueError('Commit source changes before building the release artifact')
+    if (ROOT / '.git').exists():
+        changed = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all',
+            '--', *source_paths], cwd=ROOT, text=True)
+        if changed.strip():
+            raise ValueError('Commit source changes before building the release artifact')
     output.mkdir(parents=True, exist_ok=True)
     sources = {'handler.py': ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py'}
     shared = ROOT / 'amplify/functions/shared'
