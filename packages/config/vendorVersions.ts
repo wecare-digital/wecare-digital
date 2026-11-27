@@ -232,9 +232,10 @@ export const NODE_RUNTIME: VendorVersion = {
   evidence: 'LIVE',
   drift: 'lag-allowed-with-reason',
   upgradeBlockedReason:
-    'Node 26 passes every local gate, but the Amplify build image cannot run it: `node` exits 127 ' +
-    '(libatomic.so.1 missing) on Amplify jobs 779-784, which failed every build. Node 24 is LTS ' +
-    'until 2028-04. Move only after the image ships libatomic or the build installs it.',
+    'Node 26 Linux binaries need libatomic.so.1, which the Amplify build image does not have: ' +
+    '`node` exited 127 on Amplify jobs 779-783. The build user is not root, so `dnf install ' +
+    'libatomic` failed as well (jobs 784 and 786). Node 24 is supported until 2028-04-30. Move ' +
+    'only after a preview build proves Node 26 starts on the build image (e.g. a custom image).',
   rederive: 'node -v against .nvmrc and package.json engines.node',
 } as const;
 
