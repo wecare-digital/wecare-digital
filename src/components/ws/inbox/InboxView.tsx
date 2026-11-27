@@ -431,10 +431,10 @@ const InboxView: React.FC = () => {
         .ib-note{ margin:0; font-size:14px; color:var(--text-muted,#6b7280); }
         .ib-error{
           display:grid; gap:10px; justify-items:start; padding:12px;
-          border:1px solid var(--danger,#dc2626); border-radius:var(--radius-lg,12px);
-          background:var(--danger-bg,#fef2f2);
+          border:1px solid var(--danger,#374151); border-radius:var(--radius-lg,12px);
+          background:var(--danger-bg,#f5f5f5);
         }
-        .ib-error p{ margin:0; font-size:14px; color:var(--danger,#dc2626); }
+        .ib-error p{ margin:0; font-size:14px; color:var(--danger,#374151); }
 
         /* ---- LIST pane ---- */
         .ib-list-pane{ min-width:0; display:grid; gap:14px; align-content:start; }

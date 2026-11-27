@@ -318,7 +318,7 @@ const PushPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                         <td><span className={ `push-badge ${l.platform}` }>{ l.platform === 'all' ? 'All' : l.platform === 'ios' ? 'iOS' : 'Android' }</span></td>
                         <td style={ { fontSize: 'var(--text-xs)' } }>{ l.targetType }</td>
                         <td style={ { fontWeight: 600, color: 'var(--accent)' } }>{ l.sent }</td>
-                        <td style={ { fontWeight: 600, color: l.failed > 0 ? '#dc2626' : 'var(--text-muted)' } }>{ l.failed }</td>
+                        <td style={ { fontWeight: 600, color: l.failed > 0 ? '#374151' : 'var(--text-muted)' } }>{ l.failed }</td>
                         <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ new Date( l.sentAt ).toLocaleString() }</td>
                       </tr>
                     ) ) }
@@ -413,7 +413,7 @@ const pushStyles = `
 .push-badge.android{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
 .push-badge.all{background:var(--bg-secondary);color:var(--accent);border:1px solid var(--border)}
 .push-icon-btn{width:32px;height:32px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
-.push-icon-btn:hover{border-color:#dc2626;color:#dc2626;background:#fef2f2}
+.push-icon-btn:hover{border-color:#374151;color:#374151;background:#f5f5f5}
 .push-empty{text-align:center;padding:48px 20px;color:var(--text-muted)}
 .push-empty h4{margin:12px 0 4px;color:var(--accent);font-size:var(--text-base)}
 .push-empty p{margin:0;font-size:var(--text-sm);max-width:360px;margin:0 auto;line-height:1.5}

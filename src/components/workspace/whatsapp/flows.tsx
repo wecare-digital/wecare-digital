@@ -13,7 +13,7 @@ import { publishedFlowById } from '../../../lib/canonicalFlows';
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const statusColor = (status: string): string =>
-  status === 'PUBLISHED' ? 'var(--accent)' : status === 'THROTTLED' ? '#92400e' : '#991b1b';
+  status === 'PUBLISHED' ? 'var(--accent)' : status === 'THROTTLED' ? '#92400e' : '#374151';
 
 const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => {
   const toast = useToastContext();
@@ -87,7 +87,7 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
           {retainedFlows.length} of 7 retained Flows found on the primary Messaging Account. Legacy Meta designs are not available from Workspace.
         </p>
         {loading ? <p>Loading Flows...</p> : loadError ? (
-          <p style={{ color: '#991b1b' }}>{loadError}</p>
+          <p style={{ color: '#374151' }}>{loadError}</p>
         ) : retainedFlows.length === 0 ? (
           <p>No retained Flows were returned by Meta. Check live provider status.</p>
         ) : (
@@ -117,7 +117,7 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
             <p>JSON version: {flowDetail.json_version || 'N/A'} · Data API: {flowDetail.data_api_version || 'N/A'}</p>
             <p>Endpoint: {flowDetail.endpoint_uri || 'Not configured'}</p>
             {flowDetail.validation_errors?.length > 0 &&
-              <p style={{ color: '#991b1b' }}>Validation errors: {JSON.stringify(flowDetail.validation_errors)}</p>}
+              <p style={{ color: '#374151' }}>Validation errors: {JSON.stringify(flowDetail.validation_errors)}</p>}
           </div>
         )}
       </div>

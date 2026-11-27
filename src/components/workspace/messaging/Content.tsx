@@ -33,7 +33,7 @@ const CH: Record<string, { label: string; fg: string; bg: string; create: string
 const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     approved: { fg: '#15803d', bg: '#f0fdf4' },
     pending: { fg: '#b45309', bg: '#fffbeb' },
-    rejected: { fg: '#b91c1c', bg: '#fef2f2' },
+    rejected: { fg: '#1f2937', bg: '#f5f5f5' },
 };
 const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
     { value: 'all', label: 'All channels' },

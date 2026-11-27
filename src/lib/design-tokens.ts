@@ -37,9 +37,9 @@ export const colors = {
     borderLight: '#f0f0f0',
 
     // Destructive
-    danger: '#dc2626',
-    dangerHover: '#b91c1c',
-    dangerLight: '#fef2f2',
+    danger: '#374151',
+    dangerHover: '#1f2937',
+    dangerLight: '#f5f5f5',
 
     // Greyscale ramp
     grey50: '#fafafa',
@@ -65,7 +65,7 @@ export const status = {
     read: { fg: '#15803d', bg: '#f0fdf4', solid: '#22c55e' }, // green
     pending: { fg: '#b45309', bg: '#fffbeb', solid: '#f59e0b' }, // amber
     queued: { fg: '#6b7280', bg: '#f9fafb', solid: '#9ca3af' }, // grey
-    failed: { fg: '#b91c1c', bg: '#fef2f2', solid: '#ef4444' }, // red
+    failed: { fg: '#1f2937', bg: '#f5f5f5', solid: '#52635a' }, // charcoal
 } as const;
 
 /* ── Typography ────────────────────────────────────────────────────────── */

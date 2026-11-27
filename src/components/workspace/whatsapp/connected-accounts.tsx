@@ -32,8 +32,8 @@ interface Tenant {
 }
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 20, marginBottom: 16 };
-const tag = ( c: string ): React.CSSProperties => ( { display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 700, background: c === 'CONNECTED' ? '#e6f6ea' : '#fbeaea', color: c === 'CONNECTED' ? 'var(--accent)' : '#a11' } );
-const btnDanger: React.CSSProperties = { padding: '6px 12px', background: '#7a1a1a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' };
+const tag = ( c: string ): React.CSSProperties => ( { display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 700, background: c === 'CONNECTED' ? '#e6f6ea' : '#f5f5f5', color: c === 'CONNECTED' ? 'var(--accent)' : '#374151' } );
+const btnDanger: React.CSSProperties = { padding: '6px 12px', background: '#374151', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' };
 
 const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
@@ -175,7 +175,7 @@ const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded =
                                                 { t.steps && t.steps.length > 0 && (
                                                     <div style={ { fontSize: 'var(--text-xs)', marginTop: 6 } }>
                                                         { t.steps.map( ( s, i ) => (
-                                                            <span key={ i } style={ { marginRight: 10, color: s.ok === true ? 'var(--accent)' : s.ok === false ? '#a11' : '#a60' } }>
+                                                            <span key={ i } style={ { marginRight: 10, color: s.ok === true ? 'var(--accent)' : s.ok === false ? '#374151' : '#a60' } }>
                                                                 { s.ok === true ? '✓' : s.ok === false ? '✕' : '•' } { s.step }
                                                             </span>
                                                         ) ) }
@@ -191,7 +191,7 @@ const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded =
                                                 Wallet: { wallets[ t.wabaId || '' ] ? `${wallets[ t.wabaId! ].balance} ${wallets[ t.wabaId! ].currency}` : '—' }
                                             </span>
                                             { wallets[ t.wabaId || '' ]?.status === 'SUSPENDED' && (
-                                                <span style={ { ...tag( '' ), background: '#fbeaea', color: '#a11' } }>SUSPENDED (low balance)</span>
+                                                <span style={ { ...tag( '' ), background: '#f5f5f5', color: '#374151' } }>SUSPENDED (low balance)</span>
                                             ) }
                                             <input value={ topupAmt[ t.wabaId || '' ] || '' } onChange={ e => setTopupAmt( m => ( { ...m, [ t.wabaId || '' ]: e.target.value } ) ) }
                                                 placeholder="amount" type="number"

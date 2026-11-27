@@ -37,7 +37,7 @@ const C = {
   bg: '#fff', bgSoft: 'var(--bg-secondary)', bgDark: 'var(--accent)', lime: 'var(--lime)', limeDark: '#b8dc5a',
   text: '#374151', textDark: 'var(--accent)', textMuted: 'var(--text-muted)', textLight: '#9ca3af',
   border: '#f3f4f6', borderActive: 'var(--lime)',
-  green: '#059669', greenBg: '#f0fdf4', red: '#dc2626', redBg: '#fef2f2',
+  green: '#059669', greenBg: '#f0fdf4', red: '#374151', redBg: '#f5f5f5',
   amber: '#d97706', amberBg: '#fffbeb', blue: '#2563eb', blueBg: '#eff6ff',
   radius: 13, radiusSm: 10,
 };
@@ -909,7 +909,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           { title: 'Messaging', count: 22, items: [ 'inbound-whatsapp', 'outbound-whatsapp', 'outbound-sms', 'outbound-email', 'plivo-answer', 'whatsapp-calling', '...+16 more' ], color: C.blue },
           { title: 'AI / ML', count: 3, items: [ 'ai-query-kb', 'ai-config-management', 'agent-action-group' ], color: '#7c3aed' },
           { title: 'Payments', count: 3, items: [ 'razorpay-webhook', 'payments-read', 'invoice-engine' ], color: C.amber },
-          { title: 'Operations', count: 6, items: [ 'bulk-job-create', 'bulk-job-control', 'bulk-worker', 'dlq-replay', 'system-cleanup', 'billing' ], color: '#ec4899' },
+          { title: 'Operations', count: 6, items: [ 'bulk-job-create', 'bulk-job-control', 'bulk-worker', 'dlq-replay', 'system-cleanup', 'billing' ], color: '#6b7280' },
           { title: 'Ecommerce', count: 3, items: [ 'native-catalog-admin', 'catalog-management', 'product-image-gen' ], color: '#06b6d4' },
         ].map( cat => (
           <div key={ cat.title } style={ card() }>
@@ -1369,7 +1369,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             { ENV_VARS.map( e => {
               const displayValue = e.sensitive ? 'Server-side / redacted' : e.value;
               return (
-                <tr key={ e.key } style={ { borderBottom: `1px solid ${C.border}`, background: e.risk?.startsWith( 'CRITICAL' ) ? '#fef2f2' : 'transparent' } }>
+                <tr key={ e.key } style={ { borderBottom: `1px solid ${C.border}`, background: e.risk?.startsWith( 'CRITICAL' ) ? '#f5f5f5' : 'transparent' } }>
                   <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 'var(--text-xs)' } }>{ e.key }</td>
                   <td style={ { padding: '10px 12px', ...mono, color: e.sensitive ? C.amber : C.textMuted, fontSize: 'var(--text-xs)', wordBreak: 'break-all', maxWidth: 340 } }>{ displayValue }</td>
                   <td style={ { padding: '4px 6px', width: 36 } } />

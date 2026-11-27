@@ -854,7 +854,7 @@ response = requests.post(
           .code-header{display:flex;align-items:center;padding:10px 14px;background:#000}
           .dots{display:flex;gap:5px}
           .dot-red,.dot-yellow,.dot-green{width:10px;height:10px;border-radius:50%}
-          .dot-red{background:#ff5f57}
+          .dot-red{background:#52635a}
           .dot-yellow{background:#febc2e}
           .dot-green{background:#28c840}
           .file-name{margin-left:auto;font-size:15px;color:#fff}
@@ -1437,7 +1437,7 @@ response = requests.post(
           .pp-pill--blue{border-color:#2563eb;background:#fff}
           .pp-pill--green{border-color:#3da35a;background:#fff}
           .pp-pill--purple{border-color:#9849e8;background:#fff}
-          .pp-pill--red{border-color:#dc2626;background:#fff}
+          .pp-pill--red{border-color:#374151;background:#fff}
           .pp-pill--lime{border-color:var(--public-brand-lime);background:#fff;color:var(--public-brand-green)}
           .pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
 

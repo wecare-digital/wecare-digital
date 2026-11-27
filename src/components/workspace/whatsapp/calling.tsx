@@ -1265,7 +1265,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                 </div>
                 { smsTestResult?.aws && (
                   <div style={ { marginTop: '6px', fontSize: 'var(--text-xs)', fontFamily: 'monospace' } }>
-                    <div style={ { color: smsTestResult.aws.startsWith( '✓' ) ? '#1e40af' : '#dc2626' } }>{ smsTestResult.aws }</div>
+                    <div style={ { color: smsTestResult.aws.startsWith( '✓' ) ? '#1e40af' : '#374151' } }>{ smsTestResult.aws }</div>
                   </div>
                 ) }
               </div>
@@ -1552,7 +1552,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                               { log.status || '-' }
                             </span>
                           </td>
-                          <td style={ { ...tdStyle, fontSize: 'var(--text-xs)', color: log.errorCode ? '#dc2626' : 'var(--text-muted)' } } title={ log.errorCode ? `Meta error ${log.errorCode}` : '' }>
+                          <td style={ { ...tdStyle, fontSize: 'var(--text-xs)', color: log.errorCode ? '#374151' : 'var(--text-muted)' } } title={ log.errorCode ? `Meta error ${log.errorCode}` : '' }>
                             { log.terminateReason || log.errorCode || '-' }
                           </td>
                           <td style={ tdStyle }>{ log.duration ? `${log.duration}s` : '-' }</td>
@@ -2090,8 +2090,8 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                       onChange={ e => { setVoicemailJson( e.target.value ); setVoicemailError( '' ); } }
                       placeholder={ '{\n  "status": "ENABLED",\n  "timeout_seconds": 30\n}' }
                       rows={ 7 }
-                      style={ { width: '100%', padding: '8px 12px', border: `1px solid ${voicemailError ? '#ef4444' : '#ddd'}`, borderRadius: 6, fontSize: 'var(--text-xs)', fontFamily: 'monospace' } } />
-                    { voicemailError && <div style={ { fontSize: 'var(--text-xs)', color: '#ef4444', marginTop: 4 } }>{ voicemailError }</div> }
+                      style={ { width: '100%', padding: '8px 12px', border: `1px solid ${voicemailError ? '#52635a' : '#ddd'}`, borderRadius: 6, fontSize: 'var(--text-xs)', fontFamily: 'monospace' } } />
+                    { voicemailError && <div style={ { fontSize: 'var(--text-xs)', color: '#52635a', marginTop: 4 } }>{ voicemailError }</div> }
                     <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Leave empty to omit voicemail settings. Must be a valid JSON object.</div>
                   </div>
                 </details>

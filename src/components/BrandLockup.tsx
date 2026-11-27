@@ -15,7 +15,7 @@ interface BrandLockupProps {
  * header's 60px/23px scale - which is why the footer's signature was exactly as large as
  * the header's primary brand and the page had no brand hierarchy. Compact steps the lockup
  * down to 44px/18px for secondary placements (the footer) while keeping the identical
- * shape: same logo, same two-line split on the dot, same red accent. Size is the only
+ * shape: same logo, same two-line split on the dot, forest-green accent. Size is the only
  * difference, so the two read as one brand at two levels rather than as two brands.
  */
 /**
@@ -106,7 +106,7 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
         visible, like neon". At 26px, one glyph of #991b1b reads as near-black: it is
         high-contrast but it does not read as a COLOUR, so the accent stopped registering
         as an accent. Contrast and vividness are not the same measurement.
-        It is now #ff0040. That measures about 3.9:1 on white - lower than the dark red,
+        The previous red dot was #ff0040; it is retired by the no-red interface standard. That measures about 3.9:1 on white - lower than the dark red,
         deliberately, and still comfortably past the 3:1 that WCAG asks of a non-text
         graphic, which is the right bar for a decorative glyph in a wordmark rather than
         the 4.5:1 for body text. The gain is that it is unmistakably red on screen instead
@@ -129,7 +129,7 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
          shared variants below so every PUBLIC route inherits the same stronger branding without
          silently resizing internal workspace chrome. */
       .brand-lockup{display:inline-flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
-      .brand-lockup img{height:60px;width:auto;border-radius:12px;flex-shrink:0;display:block;object-fit:contain}
+      .brand-lockup img{height:60px;width:auto;border-radius:12px;flex-shrink:0;display:block;object-fit:contain;filter:grayscale(1)}
       .brand-copy{display:flex;flex-direction:column;justify-content:center;line-height:1.08}
       .brand-copy>span{font-size:23px;font-weight:800;color:#1a1a1a;letter-spacing:-.5px}
       /* PUBLIC HEADER: common across all public pages. 64px/24px strengthens the brand inside
@@ -138,13 +138,13 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
          menu + 44px shopping-bag target still fit the measured narrow-foldable row. */
       .brand-lockup.public-header img{height:64px}
       .brand-lockup.public-header .brand-copy>span{font-size:24px}
-      /* The accent is on the dot only, and it is the one place this site uses red. Kept to
+      /* The dot uses the shared forest-green brand token. Kept to
          a single glyph so it never competes with lime for meaning: lime marks interaction
          and state, this marks the brand.
          No glow, deliberately. A text-shadow halo is the usual way to make a colour look
          "neon", and at 26px on white it would just blur the one glyph that has to stay
          crisp - the saturation is doing the work instead. */
-      .brand-dot{color:#ff0040}
+      .brand-dot{color:var(--public-brand-green,#1a3a2a)}
       .brand-stack{display:flex;align-items:center;gap:2px}
       /* Mobile steps DOWN from desktop, and it has to move whenever desktop does.
          Desktop went 68 -> 60px logo and 26 -> 23px type; mobile was 60px/24px, which

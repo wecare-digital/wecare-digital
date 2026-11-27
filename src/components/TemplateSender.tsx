@@ -1404,7 +1404,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         }
         .bulk-progress { font-size: 12px; color: #1a3a2a; font-weight: 600; }
         .bulk-pers { font-size: 11px; color: rgba(0, 0, 0, 0.54); font-weight: 500; }
-        .bulk-failed { font-size: 11px; color: #b91c1c; margin-top: 4px; word-break: break-word; }
+        .bulk-failed { font-size: 11px; color: #1f2937; margin-top: 4px; word-break: break-word; }
         .loc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .place-search { position: relative; margin-bottom: 8px; }
         .place-dropdown {
@@ -1562,8 +1562,8 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         .required-tag {
           font-size: 10px;
           font-weight: 500;
-          color: #b91c1c;
-          background: #fee2e2;
+          color: #1f2937;
+          background: #e5e7eb;
           padding: 1px 6px;
           border-radius: 8px;
         }
@@ -1601,7 +1601,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         .clear-header {
           background: none;
           border: none;
-          color: #b91c1c;
+          color: #1f2937;
           font-size: 16px;
           cursor: pointer;
           line-height: 1;

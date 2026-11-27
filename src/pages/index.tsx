@@ -152,7 +152,7 @@ const CYCLE_WORDS = [
   { word: 'consumers', tint: '#fef3c7', dot: '#f0a818' },
   { word: 'enterprises', tint: '#ede9fe', dot: '#9849e8' },
   { word: 'climate tech', tint: '#e0f7c8', dot: '#3da35a' },
-  { word: 'frontier tech', tint: '#fee2e2', dot: '#dc2626' },
+  { word: 'frontier tech', tint: '#e5e7eb', dot: '#374151' },
 ];
 
 const HomePage: React.FC = () => {

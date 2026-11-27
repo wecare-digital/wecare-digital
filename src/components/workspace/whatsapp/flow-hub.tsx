@@ -230,11 +230,11 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const formatPaise = ( p: number ) => `₹${( p / 100 ).toFixed( 0 )}`;
   const formatDate = ( ts: number ) => ts ? new Date( ts * 1000 ).toLocaleString( 'en-IN' ) : '—';
   const statusColor = ( s: string ) => {
-    const m: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: 'var(--text-muted)', cancelled: '#ef4444' };
+    const m: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: 'var(--text-muted)', cancelled: '#52635a' };
     return m[ s ] || 'var(--text-muted)';
   };
   const payColor = ( s: string ) => {
-    const m: Record<string, string> = { none: '#9ca3af', pending: '#f59e0b', captured: '#10b981', failed: '#ef4444', refunded: '#8b5cf6' };
+    const m: Record<string, string> = { none: '#9ca3af', pending: '#f59e0b', captured: '#10b981', failed: '#52635a', refunded: '#8b5cf6' };
     return m[ s ] || '#9ca3af';
   };
 

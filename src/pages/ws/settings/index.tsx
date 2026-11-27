@@ -115,9 +115,9 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             transition:border-color var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease),background var(--transition-normal,0.15s ease);
           }
           .ws-settings-signout:hover:not(:disabled){
-            border-color:var(--danger,#dc2626);
-            color:var(--danger,#dc2626);
-            background:var(--danger-light,#fef2f2);
+            border-color:var(--danger,#374151);
+            color:var(--danger,#374151);
+            background:var(--danger-light,#f5f5f5);
           }
           .ws-settings-signout:disabled{opacity:.55;cursor:not-allowed}
           .ws-settings-signout:focus-visible{

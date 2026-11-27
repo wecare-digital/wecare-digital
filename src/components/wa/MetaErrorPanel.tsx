@@ -23,12 +23,12 @@ export const MetaErrorPanel: React.FC<{ error: any; title?: string }> = ( { erro
     const friendly = err.error_user_msg || err.message || ( typeof error === 'string' ? error : 'Unknown error' );
 
     return (
-        <div style={ { border: '1px solid #f3c2c2', background: '#fdf3f3', borderRadius: 8, padding: 12, marginTop: 10 } }>
-            <div style={ { fontWeight: 700, color: '#a11', fontSize: 13, marginBottom: 4 } }>
+        <div style={ { border: '1px solid #d1d5db', background: '#f5f5f5', borderRadius: 8, padding: 12, marginTop: 10 } }>
+            <div style={ { fontWeight: 700, color: '#374151', fontSize: 13, marginBottom: 4 } }>
                 ⚠ { err.error_user_title || title }
             </div>
-            <div style={ { fontSize: 13, color: '#7a1a1a', marginBottom: 6 } }>{ friendly }</div>
-            <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#9a4a4a', marginBottom: 4 } }>
+            <div style={ { fontSize: 13, color: '#374151', marginBottom: 6 } }>{ friendly }</div>
+            <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#52635a', marginBottom: 4 } }>
                 { err.code !== undefined && <span>code: { err.code }</span> }
                 { err.error_subcode !== undefined && <span>subcode: { err.error_subcode }</span> }
                 { err.type && <span>type: { err.type }</span> }

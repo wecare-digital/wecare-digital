@@ -153,7 +153,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <button style={S.toggle(t.enabled)} onClick={() => updateTrig(k, 'enabled', !t.enabled)}><span style={S.dot(t.enabled)} /></button>
                   <button style={{ ...S.btn, padding: '3px 7px' }} onClick={() => setEditTrig(editTrig === k ? null : k)}>{editTrig === k ? '▲' : '▼'}</button>
-                  <button style={{ ...S.btn, padding: '3px 7px', color: '#dc2626' }} onClick={() => delTrig(k)}>×</button>
+                  <button style={{ ...S.btn, padding: '3px 7px', color: '#374151' }} onClick={() => delTrig(k)}>×</button>
                 </div>
               </div>
               {editTrig === k && (

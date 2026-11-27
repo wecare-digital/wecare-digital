@@ -243,7 +243,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
                                         <td>{ e.event }</td>
                                         <td>{ e.value != null ? `${e.currency || ''} ${e.value}` : '—' }</td>
                                         <td>{ e.phone || '—' }</td>
-                                        <td style={ { color: e.ok ? '#065f46' : '#b91c1c', fontWeight: 600 } }>{ e.ok ? 'OK' : 'FAILED' }</td>
+                                        <td style={ { color: e.ok ? '#065f46' : '#1f2937', fontWeight: 600 } }>{ e.ok ? 'OK' : 'FAILED' }</td>
                                     </tr>
                                 ) ) }
                             </tbody>

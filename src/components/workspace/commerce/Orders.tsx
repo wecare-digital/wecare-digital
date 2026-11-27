@@ -185,12 +185,12 @@ function safeTrackingUrl ( value?: string ): string | null {
 function statusColor ( status: string ): { bg: string; fg: string } {
   const map: Record<string, { bg: string; fg: string }> = {
     active: { bg: '#dbeafe', fg: '#1e40af' }, fulfilled: { bg: 'var(--lime)', fg: 'var(--accent)' },
-    cancelled: { bg: '#fee2e2', fg: '#991b1b' }, pending: { bg: '#fef3c7', fg: '#92400e' },
+    cancelled: { bg: '#e5e7eb', fg: '#374151' }, pending: { bg: '#fef3c7', fg: '#92400e' },
     processing: { bg: '#dbeafe', fg: '#1e40af' }, 'partially-shipped': { bg: '#e0e7ff', fg: '#3730a3' },
     shipped: { bg: '#cffafe', fg: '#155e75' }, completed: { bg: 'var(--lime)', fg: 'var(--accent)' },
-    canceled: { bg: '#fee2e2', fg: '#991b1b' },
+    canceled: { bg: '#e5e7eb', fg: '#374151' },
     captured: { bg: 'var(--lime)', fg: 'var(--accent)' }, paid: { bg: 'var(--lime)', fg: 'var(--accent)' },
-    failed: { bg: '#fee2e2', fg: '#991b1b' }, refunded: { bg: '#f3e8ff', fg: '#6b21a8' },
+    failed: { bg: '#e5e7eb', fg: '#374151' }, refunded: { bg: '#f3e8ff', fg: '#6b21a8' },
     open: { bg: '#dbeafe', fg: '#1e40af' }, in_progress: { bg: '#fef3c7', fg: '#92400e' },
     resolved: { bg: '#d1fae5', fg: '#065f46' }, closed: { bg: '#f3f4f6', fg: '#374151' },
     none: { bg: '#f3f4f6', fg: 'var(--text-muted)' },
@@ -850,7 +850,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
               placeholder="https://carrier.example/track/..." style={ inputStyle } />
           </label>
         </div>
-        { trackingError && <div role="alert" style={ { color: 'var(--danger, #b91c1c)', fontSize: 'var(--text-sm)', marginTop: 8 } }>{ trackingError }</div> }
+        { trackingError && <div role="alert" style={ { color: 'var(--danger, #1f2937)', fontSize: 'var(--text-sm)', marginTop: 8 } }>{ trackingError }</div> }
         <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 } }>
           <Button variant="primary" loading={ trackingSaving } onClick={ saveTracking }>Save tracking</Button>
           { savedTrackingUrl && (

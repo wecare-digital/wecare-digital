@@ -237,7 +237,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                                 <div key={ i } style={ { border: '1px solid #eee', borderRadius: 6, padding: 8, marginBottom: 8 } }>
                                     <div style={ { display: 'flex', justifyContent: 'space-between' } }>
                                         <strong style={ { fontSize: 'var(--text-xs)' } }>{ b.type }</strong>
-                                        <button onClick={ () => removeButton( i ) } style={ { border: 'none', background: 'none', color: '#a11', cursor: 'pointer' } }>remove</button>
+                                        <button onClick={ () => removeButton( i ) } style={ { border: 'none', background: 'none', color: '#374151', cursor: 'pointer' } }>remove</button>
                                     </div>
                                     <input style={ inp } placeholder="Button text (≤25)" maxLength={ 25 } value={ b.text } onChange={ e => updateButton( i, { text: e.target.value } ) } />
                                     { b.type === 'URL' && <input style={ inp } placeholder="https://…" value={ b.url || '' } onChange={ e => updateButton( i, { url: e.target.value } ) } /> }

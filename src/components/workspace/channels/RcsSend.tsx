@@ -132,7 +132,7 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
             <Button variant="primary" onClick={ handleSend } loading={ sending } disabled={ sending || !phone || ( messageType === 'template' && ( !templateId || !templateOptions.some( option => option.value === templateId ) ) ) }>Send RCS</Button>
 
             { result && (
-                <div style={ { marginTop: 16, padding: 12, background: result.success || result.messageId || result.message_id ? '#f0fdf4' : '#fef2f2', border: `1px solid ${result.success || result.messageId || result.message_id ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, fontSize: 'var(--text-xs)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' } }>
+                <div style={ { marginTop: 16, padding: 12, background: result.success || result.messageId || result.message_id ? '#f0fdf4' : '#f5f5f5', border: `1px solid ${result.success || result.messageId || result.message_id ? '#bbf7d0' : '#d1d5db'}`, borderRadius: 8, fontSize: 'var(--text-xs)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' } }>
                     { JSON.stringify( result, null, 2 ) }
                 </div>
             ) }
