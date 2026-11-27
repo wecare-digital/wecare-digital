@@ -261,8 +261,8 @@
 .workspace-shell .workspace-main select[aria-invalid="true"],
 .workspace-shell .workspace-main .ui-select-trigger[aria-invalid="true"],
 .workspace-shell .workspace-main button[role="combobox"][aria-invalid="true"]{
-  border-bottom-color:var(--danger,#b42318)!important;
-  box-shadow:0 1px 0 0 var(--danger,#b42318)!important;
+  border-bottom-color:var(--danger,#374151)!important;
+  box-shadow:0 1px 0 0 var(--danger,#374151)!important;
 }
 
 .workspace-shell .workspace-main [data-address-preview][aria-readonly="true"]{

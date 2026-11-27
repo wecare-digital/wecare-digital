@@ -73,7 +73,7 @@ const BlogManager: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
       </div>
 
       { loading && <p style={ { color: 'var(--text-muted)' } }>Loading posts…</p> }
-      { error && <div role="alert" style={ { color: '#b91c1c', marginTop: 16 } }>{ error }</div> }
+      { error && <div role="alert" style={ { color: '#1f2937', marginTop: 16 } }>{ error }</div> }
 
       { !loading && !error && (
         <div style={ { marginTop: 18, overflowX: 'auto' } }>

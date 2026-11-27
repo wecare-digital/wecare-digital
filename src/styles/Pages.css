@@ -1848,7 +1848,7 @@
   border: 2px solid #e5e7eb;
   border-radius: 10px;
   /* --danger. Was the success green on a DELETE ALL control. */
-  color: #dc2626;
+  color: #374151;
   cursor: pointer;
   transition: all 0.15s ease;
   flex-shrink: 0;
@@ -2073,7 +2073,7 @@
   background: none;
   border: none;
   /* --danger, not the success green - this deletes a contact. */
-  color: #dc2626;
+  color: #374151;
   cursor: pointer;
   font-size: var(--text-xs);
   padding: 4px;
@@ -2340,7 +2340,7 @@
 .delete-msg-btn {
   background: transparent;
   border: none;
-  color: #dc2626;
+  color: #374151;
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -2349,8 +2349,8 @@
 }
 
 .delete-msg-btn:hover {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #f5f5f5;
+  color: #1f2937;
 }
 
 /* Media in messages */
@@ -3239,7 +3239,7 @@ pre code {
 
 /* Syntax highlighting */
 .code-keyword { color: #569cd6; }
-.code-string { color: #ce9178; }
+.code-string { color: #b8d7a7; }
 .code-number { color: #b5cea8; }
 .code-comment { color: #6a9955; }
 .code-function { color: #dcdcaa; }
@@ -4499,8 +4499,8 @@ pre code {
 .action-buttons .btn-icon-danger {
   /* --danger #dc2626. This was #1a3a2a, the success green, on a destructive icon
      button - see the note on .delete-options in Dashboard.css. */
-  color: #dc2626;
-  border-color: #dc2626;
+  color: #374151;
+  border-color: #374151;
 }
 
 .action-buttons .btn-icon-danger:hover {

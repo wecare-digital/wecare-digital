@@ -329,7 +329,7 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
 
         .cas-lock{
           margin:0; padding:10px 12px; border-radius:var(--radius-md,8px);
-          background:var(--danger-bg,#fef2f2); color:var(--danger,#dc2626);
+          background:var(--danger-bg,#f5f5f5); color:var(--danger,#374151);
           font-size:12px; line-height:1.5;
         }
 
@@ -347,7 +347,7 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
           border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-lg,12px);
           background:var(--surface,#fff); color:var(--text,#1a1a1a); font:inherit; cursor:pointer;
         }
-        .cas-field:hover:not(:disabled){ border-color:var(--danger,#dc2626); color:var(--danger,#dc2626); }
+        .cas-field:hover:not(:disabled){ border-color:var(--danger,#374151); color:var(--danger,#374151); }
         .cas-field:disabled{ opacity:0.5; cursor:not-allowed; }
         .cas-field:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
         .cas-field-label{ flex:0 0 auto; font-weight:600; font-size:14px; }
@@ -374,9 +374,9 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         .cas-btn:disabled{ opacity:0.5; cursor:not-allowed; }
         .cas-btn:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
         .cas-danger{
-          border-color:var(--danger,#dc2626); color:var(--danger,#dc2626);
+          border-color:var(--danger,#374151); color:var(--danger,#374151);
         }
-        .cas-danger:hover:not(:disabled){ background:var(--danger-bg,#fef2f2); }
+        .cas-danger:hover:not(:disabled){ background:var(--danger-bg,#f5f5f5); }
 
         @media (min-width:768px){
           .cas-backdrop{ align-items:center; padding:20px; }

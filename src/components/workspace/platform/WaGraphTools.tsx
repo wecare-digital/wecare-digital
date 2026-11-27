@@ -343,7 +343,7 @@ function LinkPreviewTab ( { toast }: { toast: any } ) {
                     <p style={ { fontWeight: 600, color: result.ok ? '#166534' : '#92400e' } }>{ result.ok ? '✓ Looks good for WhatsApp previews' : '⚠ Issues found' }</p>
                     <table style={ { fontSize: 'var(--text-sm)', marginTop: 8 } }>
                         <tbody>{ Object.entries( result.og || {} ).map( ( [ k, v ] ) => (
-                            <tr key={ k }><td style={ { color: 'var(--text-muted)', paddingRight: 12 } }>{ k }</td><td>{ v || <em style={ { color: '#b91c1c' } }>missing</em> }</td></tr>
+                            <tr key={ k }><td style={ { color: 'var(--text-muted)', paddingRight: 12 } }>{ k }</td><td>{ v || <em style={ { color: '#1f2937' } }>missing</em> }</td></tr>
                         ) ) }</tbody>
                     </table>
                     { result.warnings?.length > 0 && (
@@ -373,7 +373,7 @@ function ThroughputTab ( { phoneId, toast }: { phoneId: string; toast: any } ) {
         HIGH: 'High (1,000 msg/sec)',
         NOT_APPLICABLE: 'WhatsApp Business app number (fixed 20 msg/sec)',
     };
-    const qualityColor: Record<string, string> = { GREEN: '#166534', YELLOW: '#92400e', RED: '#b91c1c' };
+    const qualityColor: Record<string, string> = { GREEN: '#166534', YELLOW: '#92400e', RED: '#1f2937' };
 
     return (
         <div style={ card }>
@@ -478,7 +478,7 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
             </div>
             { resultMsg && (
                 <div style={ { marginTop: 12, fontSize: 'var(--text-sm)' } }>
-                    <p style={ { fontWeight: 600, color: resultMsg.ok ? '#166534' : '#b91c1c' } }>{ resultMsg.text }</p>
+                    <p style={ { fontWeight: 600, color: resultMsg.ok ? '#166534' : '#1f2937' } }>{ resultMsg.text }</p>
                     { resultMsg.hint && <p style={ { color: '#92400e', marginTop: 4 } }>{ resultMsg.hint }</p> }
                 </div>
             ) }

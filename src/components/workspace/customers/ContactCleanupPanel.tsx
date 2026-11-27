@@ -220,7 +220,7 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
 
       <style jsx>{`
         .cleanup-note{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-secondary);font-size:var(--text-xs)}
-        .cleanup-error{padding:10px 12px;border:1px solid var(--danger, #b91c1c);border-radius:10px;color:var(--danger, #b91c1c);font-size:var(--text-sm)}
+        .cleanup-error{padding:10px 12px;border:1px solid var(--danger, #1f2937);border-radius:10px;color:var(--danger, #1f2937);font-size:var(--text-sm)}
         .cleanup-label{display:block;margin-top:12px;font-size:var(--text-xs);color:var(--text-muted)}
         .cleanup-text{width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font:inherit;font-size:var(--text-sm)}
         .cleanup-actions{margin-top:10px;display:flex;gap:8px}

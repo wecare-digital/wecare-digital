@@ -66,8 +66,8 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 { name: 'Text Muted', hex: '#9ca3af', fg: '#1a1a1a' },
                                 { name: 'Border', hex: '#e5e7eb', fg: '#1a1a1a' },
                                 { name: 'Border Dark', hex: '#d1d5db', fg: '#1a1a1a' },
-                                { name: 'Danger', hex: '#dc2626', fg: '#fff' },
-                                { name: 'Danger Light', hex: '#fef2f2', fg: '#dc2626' },
+                                { name: 'Danger', hex: '#374151', fg: '#fff' },
+                                { name: 'Danger Light', hex: '#f5f5f5', fg: '#374151' },
                             ].map( ( c, i ) => (
                                 <div key={ i } style={ { textAlign: 'center' } }>
                                     <div style={ { width: '100%', height: 72, borderRadius: 12, background: c.hex, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.fg, fontSize: 11, fontWeight: 600, border: '1px solid #e5e7eb' } }>{ c.hex }</div>
@@ -249,8 +249,8 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                             </div>
                             <div className="form-group">
                                 <label style={ { display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 8 } }>Error State</label>
-                                <input type="text" defaultValue="Invalid phone" className="error" style={ { width: '100%', borderColor: '#dc2626' } } readOnly />
-                                <span style={ { fontSize: 12, color: '#dc2626', marginTop: 4, display: 'block' } }>Phone number must start with +91</span>
+                                <input type="text" defaultValue="Invalid phone" className="error" style={ { width: '100%', borderColor: '#374151' } } readOnly />
+                                <span style={ { fontSize: 12, color: '#374151', marginTop: 4, display: 'block' } }>Phone number must start with +91</span>
                             </div>
                             <div className="form-group" style={ { gridColumn: '1 / -1' } }>
                                 <label style={ { display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 8 } }>Textarea</label>
@@ -441,7 +441,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 { label: 'Published', bg: C.lime, color: C.primary },
                                 { label: 'Archived', bg: '#e5e7eb', color: '#6b7280' },
                                 { label: 'Online', bg: '#d1f470', color: '#1a3a2a' },
-                                { label: 'Offline', bg: '#fef2f2', color: '#dc2626' },
+                                { label: 'Offline', bg: '#f5f5f5', color: '#374151' },
                             ].map( ( b, i ) => (
                                 <span key={ i } style={ { display: 'inline-block', padding: '4px 12px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: b.bg, color: b.color, border: '1px solid ' + ( b.bg === '#fff' ? '#e5e7eb' : 'transparent' ) } }>{ b.label }</span>
                             ) ) }
@@ -459,7 +459,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 <span className="toast-message">Message sent successfully to +91 98765 43210</span>
                                 <button className="toast-close">✕</button>
                             </div>
-                            <div className="toast toast-error" style={ { position: 'static', animation: 'none', borderColor: '#dc2626' } }>
+                            <div className="toast toast-error" style={ { position: 'static', animation: 'none', borderColor: '#374151' } }>
                                 <div className="toast-icon" style={ { background: C.dangerLight, color: C.danger } }>!</div>
                                 <span className="toast-message">Failed to deliver — recipient blocked</span>
                                 <button className="toast-close">✕</button>
@@ -1090,7 +1090,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 { [
                                     { name: 'Rahul Sharma', msg: 'Thanks for the update!', time: '2m', active: true, color: '#4f46e5' },
                                     { name: 'Priya Patel', msg: 'When will my order arrive?', time: '15m', active: false, color: '#059669' },
-                                    { name: 'Amit Kumar', msg: 'Payment confirmed ✓', time: '1h', active: false, color: '#dc2626' },
+                                    { name: 'Amit Kumar', msg: 'Payment confirmed ✓', time: '1h', active: false, color: '#374151' },
                                     { name: 'Neha Singh', msg: 'Can I reschedule?', time: '3h', active: false, color: '#d97706' },
                                 ].map( ( c, i ) => (
                                     <div key={ i } style={ { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: c.active ? '#f3f4f6' : 'transparent', borderLeft: c.active ? `3px solid ${C.primary}` : '3px solid transparent', cursor: 'pointer' } }>
@@ -1244,7 +1244,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                     <tr><td>19</td><td>Mobile inputs</td><td>font-size: 16px (prevent iOS zoom)</td><td>✅</td></tr>
                                     <tr><td>20</td><td>Focus rings</td><td>0 0 0 3px rgba(26,58,42,0.3)</td><td>✅</td></tr>
                                     <tr><td>21</td><td>Hover states</td><td>border-color → #1a3a2a, bg → #f9fafb</td><td>✅</td></tr>
-                                    <tr><td>22</td><td>Danger actions</td><td>Red border/text, never lime for errors</td><td>✅</td></tr>
+                                    <tr><td>22</td><td>Danger actions</td><td>Charcoal border/text, neutral error surfaces</td><td>✅</td></tr>
                                     <tr><td>23</td><td>One primary CTA</td><td>Max 1 lime-filled button per section</td><td>✅</td></tr>
                                     <tr><td>24</td><td>Responsive grid</td><td>auto-fill minmax, stack on mobile</td><td>✅</td></tr>
                                     <tr><td>25</td><td>Max content width</td><td>1400px centered on wide screens</td><td>✅</td></tr>
@@ -1383,7 +1383,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                     <span style={ { fontSize: 13, fontWeight: 600, color: C.primary } }>3 selected</span>
                                     <div style={ { display: 'flex', gap: 8 } }>
                                         <button style={ { padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.primary}`, background: '#fff', fontSize: 12, cursor: 'pointer' } }>Tag</button>
-                                        <button style={ { padding: '6px 12px', borderRadius: 8, border: '1px solid #dc2626', background: '#fff', color: '#dc2626', fontSize: 12, cursor: 'pointer' } }>Delete</button>
+                                        <button style={ { padding: '6px 12px', borderRadius: 8, border: '1px solid #374151', background: '#fff', color: '#374151', fontSize: 12, cursor: 'pointer' } }>Delete</button>
                                         <button style={ { padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.primary}`, background: '#fff', fontSize: 12, cursor: 'pointer' } }>Export</button>
                                     </div>
                                 </div>
@@ -1587,7 +1587,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 <div style={ { fontSize: 12, lineHeight: 2, color: '#374151' } }>
                                     Primary: #1a3a2a<br />
                                     Lime: #d1f470<br />
-                                    Danger: #dc2626<br />
+                                    Danger: #374151<br />
                                     BG: #fff / #f9fafb
                                 </div>
                             </div>

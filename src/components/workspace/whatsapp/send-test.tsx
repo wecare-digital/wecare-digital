@@ -306,7 +306,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         </div>
                         <button style={ btn } onClick={ runValidateTtl }>Validate TTL</button>
                         { ttlResult && (
-                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: ttlResult.ok ? 'var(--accent)' : '#a11' } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: ttlResult.ok ? 'var(--accent)' : '#374151' } }>
                                 { ttlResult.ok ? `Valid — ${ttlResult.human}` : ttlResult.error }
                                 { ttlResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>{ w }</div> ) }
                             </div>
@@ -320,8 +320,8 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <button style={ btn } onClick={ runValidateTemplate }>Validate template</button>
                         { validateResult && (
                             <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
-                                <div style={ { color: validateResult.ok ? 'var(--accent)' : '#a11', fontWeight: 600 } }>{ validateResult.ok ? 'Valid' : 'Invalid' }</div>
-                                { validateResult.errors?.map( ( e, i ) => <div key={ i } style={ { color: '#a11' } }>• { e }</div> ) }
+                                <div style={ { color: validateResult.ok ? 'var(--accent)' : '#374151', fontWeight: 600 } }>{ validateResult.ok ? 'Valid' : 'Invalid' }</div>
+                                { validateResult.errors?.map( ( e, i ) => <div key={ i } style={ { color: '#374151' } }>• { e }</div> ) }
                                 { validateResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>⚠ { w }</div> ) }
                             </div>
                         ) }
@@ -355,7 +355,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <input style={ input } value={ mmLookupId } onChange={ e => setMmLookupId( e.target.value ) } placeholder="media id" />
                         <div style={ { display: 'flex', gap: 8 } }>
                             <button style={ btn } onClick={ lookupMedia }>Get info</button>
-                            <button style={ { ...btn, background: '#7a1a1a' } } onClick={ removeMedia }>Delete</button>
+                            <button style={ { ...btn, background: '#374151' } } onClick={ removeMedia }>Delete</button>
                         </div>
                         { mmInfo && (
                             <div style={ { marginTop: 10, fontSize: 'var(--text-xs)', color: '#444' } }>
@@ -380,8 +380,8 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <button style={ btn } disabled={ busy } onClick={ submitFlowAsset }>Upload asset</button>
                         { faAssetResult && (
                             <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
-                                <div style={ { color: faAssetResult.hasErrors ? '#a11' : 'var(--accent)', fontWeight: 600 } }>{ faAssetResult.hasErrors ? 'Validation errors' : 'Uploaded' }</div>
-                                { ( faAssetResult.validationErrors || [] ).map( ( v: any, i: number ) => <div key={ i } style={ { color: '#a11' } }>• { typeof v === 'string' ? v : JSON.stringify( v ) }</div> ) }
+                                <div style={ { color: faAssetResult.hasErrors ? '#374151' : 'var(--accent)', fontWeight: 600 } }>{ faAssetResult.hasErrors ? 'Validation errors' : 'Uploaded' }</div>
+                                { ( faAssetResult.validationErrors || [] ).map( ( v: any, i: number ) => <div key={ i } style={ { color: '#374151' } }>• { typeof v === 'string' ? v : JSON.stringify( v ) }</div> ) }
                             </div>
                         ) }
                     </div>

@@ -1780,8 +1780,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-id-chip { display: inline-block; margin-left: 6px; font-size: var(--text-xs); font-weight: 600; color: ${colors.primary}; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 1px 7px; cursor: help; }
         .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; cursor: pointer; flex-shrink: 0; }
         .ui-icon-btn:hover { background: ${colors.bgHover}; border-color: ${colors.primary}; }
-        .ui-icon-danger { color: #b91c1c; }
-        .ui-icon-danger:hover { background: #fef2f2; border-color: #b91c1c; }
+        .ui-icon-danger { color: #1f2937; }
+        .ui-icon-danger:hover { background: #f5f5f5; border-color: #1f2937; }
         .ui-unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${colors.primary}; margin-right: 6px; vertical-align: middle; }
         .ui-conv.unread .ui-conv-name { font-weight: 800; }
         .ui-conv.unread { background: #f7fee7; }
@@ -1845,7 +1845,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-st-accepted { color: ${colors.textMuted}; opacity: 0.65; }
         .ui-st-delivered { color: #2563eb; }
         .ui-st-read { color: #15803d; }
-        .ui-st-failed { color: #b91c1c; cursor: help; }
+        .ui-st-failed { color: #1f2937; cursor: help; }
         .ui-msg-act { background: none; border: none; cursor: pointer; font-size: var(--text-xs); opacity: 0.5; padding: 0 2px; }
         .ui-msg-act:hover { opacity: 1; }
         .ui-msg-act:disabled { opacity: 0.2; cursor: not-allowed; }
@@ -1894,7 +1894,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-pay-lock { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         .ui-pay-lock .ui-pay-in { flex: 1; }
         .ui-pay-unlock { background: ${colors.lime}; color: var(--accent); border: none; border-radius: 9px; padding: 8px 14px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
-        .ui-pay-err { color: #b91c1c; font-size: var(--text-xs); width: 100%; }
+        .ui-pay-err { color: #1f2937; font-size: var(--text-xs); width: 100%; }
         .ui-pay-item { display: flex; flex-direction: column; gap: 6px; border: 1px dashed ${colors.borderLight}; border-radius: 10px; padding: 8px; }
         .ui-pay-gst { max-width: 110px; }
         .ui-pay-rm { background: #fff; border: 1px solid ${colors.border}; border-radius: 8px; padding: 0 10px; cursor: pointer; color: ${colors.textMuted}; }

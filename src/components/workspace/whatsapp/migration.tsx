@@ -159,7 +159,7 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                   <span style={{ color: '#9ca3af', marginLeft: 8, fontSize: 'var(--text-xs)' }}>{w.id}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: w.enableSending ? '#16a34a' : '#dc2626' }}>{w.enableSending ? 'Send ON' : 'Send OFF'}</span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: w.enableSending ? '#16a34a' : '#374151' }}>{w.enableSending ? 'Send ON' : 'Send OFF'}</span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{w.phoneNumbers?.length || 0} phones</span>
                 </div>
               </div>
@@ -248,7 +248,7 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           <button onClick={handleRegister} disabled={processing || !phoneId} style={{ padding: '8px 16px', background: '#374151', color: '#fff', border: 'none', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', opacity: processing ? 0.5 : 1 }}>
             3. Register
           </button>
-          <button onClick={handleMigrate} disabled={processing || !phoneId || !targetWaba} style={{ padding: '8px 16px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', opacity: processing ? 0.5 : 1 }}>
+          <button onClick={handleMigrate} disabled={processing || !phoneId || !targetWaba} style={{ padding: '8px 16px', background: '#374151', color: '#fff', border: 'none', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', opacity: processing ? 0.5 : 1 }}>
             4. Migrate
           </button>
         </div>

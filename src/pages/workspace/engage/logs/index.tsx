@@ -84,8 +84,8 @@ const STATUS_BADGES: Record<string, { bg: string; color: string; label: string }
   delivered: { bg: '#f0fdfa', color: '#0f766e', label: 'Delivered' },
   read: { bg: '#f0fdf4', color: '#15803d', label: 'Read' },
   received: { bg: '#f0fdf4', color: '#15803d', label: 'Received' },
-  failed: { bg: '#fef2f2', color: '#b91c1c', label: 'Failed' },
-  undelivered: { bg: '#fef2f2', color: '#b91c1c', label: 'Undelivered' },
+  failed: { bg: '#f5f5f5', color: '#1f2937', label: 'Failed' },
+  undelivered: { bg: '#f5f5f5', color: '#1f2937', label: 'Undelivered' },
 };
 
 const FAILED_STATUSES = [ 'failed', 'undelivered' ];
@@ -440,7 +440,7 @@ const MessageLogsPage: React.FC<PageProps> = ( { channel, embedded } ) => {
           border:1px solid var(--border);border-radius:13px;padding:16px 18px;
         }
         .card-value{font-size:var(--text-3xl);font-weight:700;color:#000;line-height:1.2}
-        .card-value-bad{color:#b91c1c}
+        .card-value-bad{color:#1f2937}
         .card-label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
 
         .reasons{
@@ -475,7 +475,7 @@ const MessageLogsPage: React.FC<PageProps> = ( { channel, embedded } ) => {
         .content{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .when{color:rgba(0,0,0,.54);font-size:var(--text-sm);white-space:nowrap}
         .why,.raw-err{
-          margin-left:8px;font-size:var(--text-sm);color:#b91c1c;text-decoration:underline;
+          margin-left:8px;font-size:var(--text-sm);color:#1f2937;text-decoration:underline;
           cursor:help;
         }
         .state-cell{text-align:center;padding:40px;color:rgba(0,0,0,.54)}

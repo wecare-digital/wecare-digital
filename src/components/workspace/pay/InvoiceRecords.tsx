@@ -46,7 +46,7 @@ const PAID: Record<string, { bg: string; fg: string }> = {
   captured: { bg: '#f0fdf4', fg: '#15803d' },
   paid: { bg: '#f0fdf4', fg: '#15803d' },
   pending: { bg: '#fffbeb', fg: '#b45309' },
-  failed: { bg: '#fef2f2', fg: '#b91c1c' },
+  failed: { bg: '#f5f5f5', fg: '#1f2937' },
   refunded: { bg: '#eff6ff', fg: '#1d4ed8' },
   cancelled: { bg: 'var(--bg-secondary)', fg: 'rgba(0,0,0,.54)' },
 };
@@ -533,7 +533,7 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
         .ir-log li{font-size:var(--text-md);line-height:1.6;color:rgba(0,0,0,.898)}
         /* --danger, not the success green: a failed delivery must not read as
            a confirmation. */
-        .ir-err{color:#dc2626}
+        .ir-err{color:#374151}
         .ir-note{
           font-size:var(--text-md);line-height:1.5;color:rgba(0,0,0,.54);margin:0;max-width:720px;
         }

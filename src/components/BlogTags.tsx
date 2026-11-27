@@ -168,7 +168,7 @@ const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags
         .tags :global(.tag-h0)::before{background:#3da35a}
         .tags :global(.tag-h1)::before{background:#2563eb}
         .tags :global(.tag-h2)::before{background:#9849e8}
-        .tags :global(.tag-h3)::before{background:#dc2626}
+        .tags :global(.tag-h3)::before{background:#374151}
         /* THE HOME PAGE'S HOVER, EXACTLY. Lime border, the .22 state tint, a 2px lift and the one
            shadow this design language uses - the same four properties .category-switch and the
            home closing CTA move, at the same .2s. The label also goes from the muted

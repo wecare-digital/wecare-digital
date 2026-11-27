@@ -287,7 +287,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           ))}
         </nav>
 
-        {error && <div role="alert" style={{ color: '#a11', margin: '10px 0' }}>{error}</div>}
+        {error && <div role="alert" style={{ color: '#374151', margin: '10px 0' }}>{error}</div>}
         {message && <div role="status" style={{ color: '#176440', margin: '10px 0' }}>{message}</div>}
         {busy && <div role="status" style={{ marginBottom: 12 }}><Spinner size="sm" /> Updating...</div>}
 

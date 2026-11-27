@@ -1229,7 +1229,7 @@ const WorkflowTerminal: React.FC = () => {
         /* THE ERROR (step 17, queue, only). Red #dc2626 (4.35:1 on #000) - it is a transient failure
            that the next line recovers, so it reads as a logged error, not an alarm. The error
            TEXT is kept readable by pairing the red glyph with brighter white text. */
-        .wt-error .wt-glyph{flex:0 0 auto;color:#dc2626;font-weight:700}
+        .wt-error .wt-glyph{flex:0 0 auto;color:#374151;font-weight:700}
         .wt-error .wt-line-text{color:rgba(255,255,255,.82);font-size:15px}
         /* THE INLINE AI DECISION. The "ai >" tag is the one place lime is spent in the panel
            body as a thread marker; the decision TEXT stays white at .82 (~16:1 on #000) so it

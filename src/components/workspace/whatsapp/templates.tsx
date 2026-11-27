@@ -1311,8 +1311,8 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .btn-delete {
           background: #fff;
-          border: 1px solid #DC3545;
-          color: #DC3545;
+          border: 1px solid #374151;
+          color: #374151;
         }
 
         .btn-delete:hover {
@@ -1404,7 +1404,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .btn-danger {
-          background: #DC3545;
+          background: #374151;
           color: white;
           border: none;
           padding: 10px 20px;
@@ -1413,7 +1413,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .btn-danger:hover:not(:disabled) {
-          background: #c82333;
+          background: #1f2937;
         }
 
         .btn-danger:disabled {
@@ -1516,7 +1516,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .btn-remove {
-          background: #DC3545;
+          background: #374151;
           color: white;
           border: none;
           width: 32px;
@@ -1542,7 +1542,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .warning {
-          color: #DC3545;
+          color: #374151;
           font-size: var(--text-md);
         }
 
@@ -2051,8 +2051,8 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .btn-cancel {
           background: none;
-          border: 1px solid #DC3545;
-          color: #DC3545;
+          border: 1px solid #374151;
+          color: #374151;
           padding: 6px 14px;
           border-radius: 6px;
           font-size: var(--text-xs);
@@ -2061,7 +2061,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .btn-cancel:hover {
-          background: #DC3545;
+          background: #374151;
           color: white;
         }
 

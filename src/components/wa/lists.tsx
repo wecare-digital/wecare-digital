@@ -15,10 +15,10 @@ function fmt ( e: ValErr ): string {
 export const ValidationErrorList: React.FC<{ errors?: ValErr[]; title?: string }> = ( { errors, title = 'Validation errors' } ) => {
     if ( !errors || errors.length === 0 ) return null;
     return (
-        <div style={ { border: '1px solid #f3c2c2', background: '#fdf3f3', borderRadius: 8, padding: 12, marginTop: 10 } }>
-            <div style={ { fontWeight: 700, color: '#a11', fontSize: 13, marginBottom: 6 } }>⚠ { title } ({ errors.length })</div>
+        <div style={ { border: '1px solid #d1d5db', background: '#f5f5f5', borderRadius: 8, padding: 12, marginTop: 10 } }>
+            <div style={ { fontWeight: 700, color: '#374151', fontSize: 13, marginBottom: 6 } }>⚠ { title } ({ errors.length })</div>
             <ul style={ { margin: 0, paddingLeft: 18 } }>
-                { errors.map( ( e, i ) => <li key={ i } style={ { fontSize: 13, color: '#7a1a1a', marginBottom: 2 } }>{ fmt( e ) }</li> ) }
+                { errors.map( ( e, i ) => <li key={ i } style={ { fontSize: 13, color: '#374151', marginBottom: 2 } }>{ fmt( e ) }</li> ) }
             </ul>
         </div>
     );

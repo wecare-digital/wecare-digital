@@ -167,7 +167,7 @@ const CLASS_LABEL: Record<MergeClassification, string> = {
 const CLASS_COLOR: Record<MergeClassification, string> = {
   'safe': 'var(--success, #15803d)',
   'needs-review': 'var(--warning, #b45309)',
-  'blocked-by-financial-history': 'var(--danger, #b91c1c)',
+  'blocked-by-financial-history': 'var(--danger, #1f2937)',
 };
 
 const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer, onChanged } ) => {

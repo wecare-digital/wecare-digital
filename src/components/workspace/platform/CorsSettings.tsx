@@ -105,7 +105,7 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                             { status?.apis?.map( a => (
                                 <div key={ a.apiId } style={ { fontSize: 'var(--text-xs)', color: '#374151', marginBottom: 4 } }>
                                     <strong>{ a.name || a.apiId }</strong>{ ' ' }
-                                    { a.error ? <span style={ { color: '#b91c1c' } }>error: { a.error }</span>
+                                    { a.error ? <span style={ { color: '#1f2937' } }>error: { a.error }</span>
                                         : a.allowAll ? <span style={ { color: '#b45309' } }>● allows ALL origins (*)</span>
                                             : <span style={ { color: '#166534' } }>● { ( a.allowOrigins || [] ).length } origins allowed</span> }
                                 </div>

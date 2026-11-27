@@ -96,7 +96,7 @@ const FlowPublishChecklist: React.FC<PageProps> = ( { signOut, user, embedded = 
                         </div>
                         { checks.map( ( c, i ) => (
                             <div key={ i } style={ { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i ? '1px solid #f5f5f5' : 'none' } }>
-                                <span style={ { fontSize: 'var(--text-base)', color: c.ok ? '#1a7a3a' : '#a11' } }>{ c.ok ? '✓' : '✕' }</span>
+                                <span style={ { fontSize: 'var(--text-base)', color: c.ok ? '#1a7a3a' : '#374151' } }>{ c.ok ? '✓' : '✕' }</span>
                                 <span style={ { fontSize: 'var(--text-md)', flex: 1 } }>{ c.label }</span>
                                 <span style={ { fontSize: 'var(--text-xs)', color: '#888' } }>{ c.detail }</span>
                             </div>

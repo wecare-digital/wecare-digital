@@ -192,7 +192,7 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
               <div key={ fn.name } style={ { border: '2px solid ' + ( isExpanded ? 'var(--lime)' : '#f3f4f6' ), borderRadius: 13, background: '#fff', overflow: 'hidden', transition: 'border-color 0.15s' } }>
                 {/* Card Header */ }
                 <button onClick={ () => setExpandedFn( isExpanded ? null : fn.name ) } style={ { width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' } }>
-                  <span style={ { fontSize: 'var(--text-xs)', color: fn.status === 'active' ? '#059669' : fn.status === 'warning' ? '#d97706' : '#dc2626' } }>●</span>
+                  <span style={ { fontSize: 'var(--text-xs)', color: fn.status === 'active' ? '#059669' : fn.status === 'warning' ? '#d97706' : '#374151' } }>●</span>
                   <div style={ { flex: 1, minWidth: 0 } }>
                     <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
                       <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--accent)' } }>{ fn.displayName }</span>
@@ -223,7 +223,7 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
                       </div>
                       <div style={ { padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 10 } }>
                         <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Status</div>
-                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: fn.status === 'active' ? '#059669' : '#dc2626', marginTop: 2 } }>{ fn.status }</div>
+                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: fn.status === 'active' ? '#059669' : '#374151', marginTop: 2 } }>{ fn.status }</div>
                       </div>
                     </div>
 

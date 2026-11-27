@@ -10,7 +10,7 @@ export const CostWarningBanner: React.FC<{ resource: string; risk?: 'low' | 'med
     const colors = {
         low: { bg: '#f0f7ff', border: '#cfe2ff', fg: '#1a4a7a' },
         medium: { bg: '#fff9ec', border: '#f0dca0', fg: '#9a6300' },
-        high: { bg: '#fdf3f3', border: '#f3c2c2', fg: '#a11' },
+        high: { bg: '#f5f5f5', border: '#d1d5db', fg: '#374151' },
     }[ risk ];
     return (
         <div style={ { background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12, marginBottom: 12 } }>

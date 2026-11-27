@@ -884,11 +884,11 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .event-reason {
-          color: #DC3545;
+          color: #374151;
         }
 
         .restriction {
-          color: #DC3545;
+          color: #374151;
         }
 
         .event-time {
@@ -1011,12 +1011,12 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .sns-btn.unsubscribe {
-          background: #fee2e2;
-          color: #991b1b;
+          background: #e5e7eb;
+          color: #374151;
         }
 
         .sns-btn.unsubscribe:hover:not(:disabled) {
-          background: #fecaca;
+          background: #d1d5db;
         }
 
         .sns-btn.refresh {

@@ -174,7 +174,7 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
         .filters { margin-bottom:14px; }
         .filters input,.filters select { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
         .filters input { min-width:260px; }
-        .error { margin:10px 0; padding:10px; border:1px solid #fecaca; border-radius:8px; }
+        .error { margin:10px 0; padding:10px; border:1px solid #d1d5db; border-radius:8px; }
         .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:10px; margin-bottom:12px; }
         table { width:100%; border-collapse:collapse; }
         th,td { padding:9px 10px; border-bottom:1px solid #f3f4f6; font-size:var(--text-xs); text-align:left; white-space:nowrap; }

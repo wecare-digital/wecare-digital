@@ -252,7 +252,7 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
     {/* Status filters */}
     <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
       {([['all', `All (${stats.total})`], ['noseo', `No SEO (${noSeoCount})`], ['pending', `Pending (${stats.pending})`], ['audited', `Review (${stats.audited})`], ['approved', `Approved (${stats.approved})`], ['applied', `Applied (${stats.applied})`]] as [StatusFilter, string][]).map(([f, l]) => (
-        <button key={f} onClick={() => { setStatusFilter(f); selNone(); }} style={{ padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', background: statusFilter === f ? (f === 'noseo' as any ? '#fee2e2' : 'var(--lime)') : '#f3f4f6', color: statusFilter === f ? (f === 'noseo' as any ? '#991b1b' : 'var(--accent)') : 'var(--text-muted)', fontWeight: statusFilter === f ? 600 : 400 }}>{l}</button>
+        <button key={f} onClick={() => { setStatusFilter(f); selNone(); }} style={{ padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', background: statusFilter === f ? (f === 'noseo' as any ? '#e5e7eb' : 'var(--lime)') : '#f3f4f6', color: statusFilter === f ? (f === 'noseo' as any ? '#374151' : 'var(--accent)') : 'var(--text-muted)', fontWeight: statusFilter === f ? 600 : 400 }}>{l}</button>
       ))}
       <div style={{ flex: 1 }} />
       {selected.size > 0 && (<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -278,11 +278,11 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
             <td style={td}>{i + 1}</td>
             <td style={{ ...td, maxWidth: 180 }}><a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'var(--text-xs)' }}>{p.name}</a><div style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>{p.path}</div></td>
             <td style={td}><span style={{ padding: '2px 8px', background: '#f0fdf4', color: '#166534', borderRadius: 6, fontSize: 'var(--text-xs)' }}>{p.type}</span></td>
-            <td style={{ ...td, maxWidth: 200 }}><div style={{ fontSize: 'var(--text-xs)' }}>{p.title || '-'}</div>{p.title && <div style={{ fontSize: 'var(--text-xs)', color: p.title.length > 60 ? '#ef4444' : '#22c55e' }}>{p.title.length}ch</div>}</td>
-            <td style={{ ...td, maxWidth: 180, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{p.metaDescription ? p.metaDescription.substring(0, 60) + '...' : <span style={{ color: '#ef4444' }}>missing</span>}{p.metaDescription && <div style={{ fontSize: 'var(--text-xs)', color: p.metaDescription.length > 160 ? '#ef4444' : '#22c55e' }}>{p.metaDescription.length}ch</div>}</td>
-            <td style={{ ...td, textAlign: 'center' }}>{p.hasJsonLd ? <span style={{ color: '#22c55e', fontSize: 'var(--text-xs)' }}>{p.jsonLdTypes.join(', ')}</span> : <span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>missing</span>}</td>
-            <td style={{ ...td, textAlign: 'center', fontSize: 'var(--text-xs)' }}>{p.keywords?.length || <span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>0</span>}</td>
-            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
+            <td style={{ ...td, maxWidth: 200 }}><div style={{ fontSize: 'var(--text-xs)' }}>{p.title || '-'}</div>{p.title && <div style={{ fontSize: 'var(--text-xs)', color: p.title.length > 60 ? '#52635a' : '#22c55e' }}>{p.title.length}ch</div>}</td>
+            <td style={{ ...td, maxWidth: 180, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{p.metaDescription ? p.metaDescription.substring(0, 60) + '...' : <span style={{ color: '#52635a' }}>missing</span>}{p.metaDescription && <div style={{ fontSize: 'var(--text-xs)', color: p.metaDescription.length > 160 ? '#52635a' : '#22c55e' }}>{p.metaDescription.length}ch</div>}</td>
+            <td style={{ ...td, textAlign: 'center' }}>{p.hasJsonLd ? <span style={{ color: '#22c55e', fontSize: 'var(--text-xs)' }}>{p.jsonLdTypes.join(', ')}</span> : <span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>missing</span>}</td>
+            <td style={{ ...td, textAlign: 'center', fontSize: 'var(--text-xs)' }}>{p.keywords?.length || <span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>0</span>}</td>
+            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
               <button onClick={() => onCleanAudit(p.path, p.name, p.type)} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
@@ -323,7 +323,7 @@ function SystemPagesTab({ pages, auditingSlug, bulkRunning, onAudit, onCleanAudi
             <td style={{ ...td, fontWeight: 600 }}>{p.name}</td>
             <td style={{ ...td, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{p.path}</td>
             <td style={{ ...td, textAlign: 'center' }}><span style={{ padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 6, fontSize: 'var(--text-xs)', fontWeight: 600 }}>noindex</span></td>
-            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
+            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
               <button onClick={() => onCleanAudit(p.path, p.name, 'system')} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
@@ -370,7 +370,7 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
     {/* No SEO filter */}
     <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
       <button onClick={() => setShowNoSeo(false)} style={{ ...btn, background: !showNoSeo ? 'var(--lime)' : '#f3f4f6', fontWeight: !showNoSeo ? 600 : 400 }}>All ({products.length})</button>
-      <button onClick={() => setShowNoSeo(true)} style={{ ...btn, background: showNoSeo ? '#fee2e2' : '#f3f4f6', color: showNoSeo ? '#991b1b' : 'var(--text-muted)', fontWeight: showNoSeo ? 600 : 400 }}>No SEO ({noSeoCount})</button>
+      <button onClick={() => setShowNoSeo(true)} style={{ ...btn, background: showNoSeo ? '#e5e7eb' : '#f3f4f6', color: showNoSeo ? '#374151' : 'var(--text-muted)', fontWeight: showNoSeo ? 600 : 400 }}>No SEO ({noSeoCount})</button>
     </div>
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-xs)' }}>
@@ -386,9 +386,9 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
               <div><a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'var(--text-xs)' }}>{p.name}</a><div style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>/{p.slug}</div></div>
             </div></td>
             <td style={{ ...td, fontWeight: 600 }}>{p.price || `${p.currency} ${p.priceAmount}`}</td>
-            <td style={td}><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 'var(--text-xs)', fontWeight: 600, background: p.inStock ? '#dcfce7' : '#fee2e2', color: p.inStock ? '#166534' : '#991b1b' }}>{p.inStock ? 'In Stock' : 'Out'}</span></td>
-            <td style={{ ...td, textAlign: 'center' }}>{p.hasJsonLd ? <span style={{ color: '#22c55e', fontSize: 'var(--text-xs)' }}>{p.jsonLdType || 'Product'}</span> : <span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>missing</span>}</td>
-            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#ef4444', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
+            <td style={td}><span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 'var(--text-xs)', fontWeight: 600, background: p.inStock ? '#dcfce7' : '#e5e7eb', color: p.inStock ? '#166534' : '#374151' }}>{p.inStock ? 'In Stock' : 'Out'}</span></td>
+            <td style={{ ...td, textAlign: 'center' }}>{p.hasJsonLd ? <span style={{ color: '#22c55e', fontSize: 'var(--text-xs)' }}>{p.jsonLdType || 'Product'}</span> : <span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>missing</span>}</td>
+            <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
               <button onClick={() => onCleanAudit(productPath, p.name, 'product')} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
@@ -453,7 +453,7 @@ function NewPagesTab({ customPages, newPageUrl, newPageName, setNewPageUrl, setN
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
               <button onClick={() => onCleanAudit(p.path, p.name, 'custom')} disabled={busy} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
               <button onClick={() => onAudit(p.path, p.name, 'custom')} disabled={busy} style={{ ...btn, background: busy ? 'var(--border)' : 'var(--lime)' }}>{busy ? 'Running...' : 'Audit'}</button>
-              <button onClick={() => onRemove(p.path)} style={{ ...btn, background: '#fee2e2', color: '#991b1b' }}>Remove</button>
+              <button onClick={() => onRemove(p.path)} style={{ ...btn, background: '#e5e7eb', color: '#374151' }}>Remove</button>
             </div></td>
           </tr>); })}</tbody>
       </table>
@@ -471,7 +471,7 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
     <div style={{ display: 'grid', gap: 8 }}>{audits.slice(0, 30).map(a => (
       <button key={a.id} onClick={() => onSelect(a)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
         <div><div style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{a.blogTitle}</div><div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>/{a.blogSlug} — <span style={{ padding: '1px 6px', background: '#f0fdf4', borderRadius: 4, fontSize: 'var(--text-xs)' }}>{a.pageType}</span> — {new Date(a.createdAt).toLocaleString()} — <StatusBadge status={a.status} /></div></div>
-        <div><span style={{ color: '#ef4444' }}>{a.seoScoreBefore}</span> {'>'} <span style={{ color: '#22c55e', fontWeight: 700 }}>{a.seoScoreAfter}</span></div>
+        <div><span style={{ color: '#52635a' }}>{a.seoScoreBefore}</span> {'>'} <span style={{ color: '#22c55e', fontWeight: 700 }}>{a.seoScoreAfter}</span></div>
       </button>))}</div>}</div>);
 
   const ai = audit.fullAiResponse || {};
@@ -517,18 +517,18 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
 
     {/* Score Card + Actions */}
     <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-      <div style={{ textAlign: 'center' }}><div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>BEFORE</div><div style={{ fontSize: 'var(--h1)', fontWeight: 800, color: '#ef4444' }}>{audit.seoScoreBefore}</div></div>
+      <div style={{ textAlign: 'center' }}><div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>BEFORE</div><div style={{ fontSize: 'var(--h1)', fontWeight: 800, color: '#52635a' }}>{audit.seoScoreBefore}</div></div>
       <div style={{ fontSize: 'var(--text-3xl)', color: '#9ca3af' }}>{'>'}</div>
       <div style={{ textAlign: 'center' }}><div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>AFTER</div><div style={{ fontSize: 'var(--h1)', fontWeight: 800, color: '#22c55e' }}>{audit.seoScoreAfter}</div></div>
       <div style={{ flex: 1 }} />
-      {audit.status === 'pending_review' && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => onAction(audit.id, 'approve')} style={{ ...btn, background: 'var(--lime)', fontWeight: 600, padding: '6px 16px' }}>Approve</button><button onClick={() => onAction(audit.id, 'reject')} style={{ ...btn, background: '#fee2e2', padding: '6px 16px' }}>Reject</button></div>}
+      {audit.status === 'pending_review' && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => onAction(audit.id, 'approve')} style={{ ...btn, background: 'var(--lime)', fontWeight: 600, padding: '6px 16px' }}>Approve</button><button onClick={() => onAction(audit.id, 'reject')} style={{ ...btn, background: '#e5e7eb', padding: '6px 16px' }}>Reject</button></div>}
       {audit.status === 'approved' && <span style={{ padding: '6px 14px', background: '#dbeafe', color: '#1e40af', borderRadius: 8, fontSize: 'var(--text-xs)', fontWeight: 600 }}>Approved — apply is available for blog posts only</span>}
       {audit.status === 'applied' && <span style={{ padding: '6px 14px', background: '#dcfce7', color: '#166534', borderRadius: 8, fontSize: 'var(--text-xs)', fontWeight: 600 }}>Applied {audit.appliedAt ? new Date(audit.appliedAt).toLocaleString() : ''}</span>}
     </div>
 
     {/* Current vs AI Suggested */}
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <div className="card" style={{ padding: 16 }}><h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: '#ef4444', marginBottom: 12 }}>Current</h3><CF label="SEO Title" value={audit.currentSeoTitle} max={60} /><CF label="Meta Description" value={audit.currentMetaDescription} max={160} /></div>
+      <div className="card" style={{ padding: 16 }}><h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: '#52635a', marginBottom: 12 }}>Current</h3><CF label="SEO Title" value={audit.currentSeoTitle} max={60} /><CF label="Meta Description" value={audit.currentMetaDescription} max={160} /></div>
       <div className="card" style={{ padding: 16 }}><h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: '#22c55e', marginBottom: 12 }}>AI Suggested</h3><CF label="SEO Title" value={audit.suggestedSeoTitle} max={60} /><CF label="Meta Description" value={audit.suggestedMetaDescription} max={160} /></div>
     </div>
 
@@ -545,7 +545,7 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
       <div style={{ display: 'grid', gap: 4 }}>{metaTags.map(([prop, val], i) => (
         <div key={i} style={{ display: 'flex', gap: 8, padding: '3px 8px', background: i % 2 === 0 ? 'var(--bg-secondary)' : '#fff', borderRadius: 4, fontSize: 'var(--text-xs)' }}>
           <span style={{ color: 'var(--text-muted)', minWidth: 160, fontFamily: 'monospace', flexShrink: 0 }}>{prop}</span>
-          <span style={{ color: 'var(--text)', flex: 1, wordBreak: 'break-word' }}>{val || <span style={{ color: '#ef4444' }}>(empty)</span>}</span>
+          <span style={{ color: 'var(--text)', flex: 1, wordBreak: 'break-word' }}>{val || <span style={{ color: '#52635a' }}>(empty)</span>}</span>
         </div>
       ))}</div>
     </div>
@@ -573,7 +573,7 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
       <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8 }}>📊 Score Breakdown</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
         {Object.entries(audit.scoreBreakdown).map(([k, v]: any) => <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 'var(--text-xs)' }}>
-          <span style={{ color: 'var(--text-muted)' }}>{k}</span><span><span style={{ color: '#ef4444' }}>{v.before}</span>{' > '}<span style={{ color: '#22c55e', fontWeight: 600 }}>{v.after}</span>/{v.max}</span>
+          <span style={{ color: 'var(--text-muted)' }}>{k}</span><span><span style={{ color: '#52635a' }}>{v.before}</span>{' > '}<span style={{ color: '#22c55e', fontWeight: 600 }}>{v.after}</span>/{v.max}</span>
         </div>)}
       </div>
     </div>}
@@ -713,7 +713,7 @@ function LogsView({ logs }: { logs: any[] }) {
           <td style={{ ...td, fontSize: 'var(--text-xs)' }}>{l.model?.split('.').pop()?.substring(0, 25)}</td>
           <td style={{ ...td, textAlign: 'center' }}>{l.inputTokens}+{l.outputTokens}</td>
           <td style={{ ...td, textAlign: 'center', fontWeight: 600 }}>${l.costEstimate}</td>
-          <td style={{ ...td, textAlign: 'center', color: l.status === 'success' ? '#22c55e' : '#ef4444' }}>{l.status}{l.errorMessage && <div style={{ fontSize: 'var(--text-xs)' }}>{l.errorMessage}</div>}</td>
+          <td style={{ ...td, textAlign: 'center', color: l.status === 'success' ? '#22c55e' : '#52635a' }}>{l.status}{l.errorMessage && <div style={{ fontSize: 'var(--text-xs)' }}>{l.errorMessage}</div>}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -728,7 +728,7 @@ function CF({ label, value, max }: { label: string; value: string; max: number }
   return (<div style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text)', lineHeight: 1.5 }}>{value || '(empty)'}</div>
-    {value && <div style={{ fontSize: 'var(--text-xs)', color: len > max ? '#ef4444' : '#22c55e', marginTop: 2 }}>{len}/{max} {len > max ? 'over limit' : 'ok'}</div>}
+    {value && <div style={{ fontSize: 'var(--text-xs)', color: len > max ? '#52635a' : '#22c55e', marginTop: 2 }}>{len}/{max} {len > max ? 'over limit' : 'ok'}</div>}
   </div>);
 }
 

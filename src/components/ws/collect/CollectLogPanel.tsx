@@ -312,7 +312,7 @@ const CollectLogPanel: React.FC<Props> = ( { revision, onPreview } ) => {
         .cl-chip.is-read{ color:var(--status-read-fg,#15803d); background:var(--status-read-bg,#f0fdf4); }
         .cl-chip.is-delivered{ color:var(--status-delivered-fg,#0f766e); background:var(--status-delivered-bg,#f0fdfa); }
         .cl-chip.is-pending{ color:var(--status-pending-fg,#b45309); background:var(--status-pending-bg,#fffbeb); }
-        .cl-chip.is-failed{ color:var(--status-failed-fg,#b91c1c); background:var(--status-failed-bg,#fef2f2); }
+        .cl-chip.is-failed{ color:var(--status-failed-fg,#1f2937); background:var(--status-failed-bg,#f5f5f5); }
         .cl-chip.is-queued{ color:var(--status-queued-fg,#6b7280); background:var(--status-queued-bg,#f9fafb); }
         .cl-detail{ border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-xl,14px); padding:18px; min-width:0; }
         .cl-dl{ margin:0; display:grid; gap:0; }

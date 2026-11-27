@@ -25,7 +25,7 @@ const SOURCES = [ 'DASHBOARD', 'WEB_FORM', 'FLOW_SUBMISSION', 'WHATSAPP_REPLY', 
 // is unchanged where a token is absent.
 const STATE_COLOR: Record<api.ConsentState, string> = {
   OPTED_IN: 'var(--success, #15803d)',
-  OPTED_OUT: 'var(--danger, #b91c1c)',
+  OPTED_OUT: 'var(--danger, #1f2937)',
   PENDING: 'var(--warning, #b45309)',
 };
 
@@ -146,7 +146,7 @@ const ConsentPanel: React.FC<Props> = ( { contactId } ) => {
         .cp-head h4{margin:0;font-size:var(--text-md);font-weight:700;color:var(--text,#111)}
         .cp-head p{margin:4px 0 12px;font-size:var(--text-xs);color:var(--text-muted,#6b7280);line-height:1.5}
         .cp-muted{font-size:var(--text-xs);color:var(--text-muted,#9ca3af)}
-        .cp-error{font-size:var(--text-xs);color:var(--danger,#b91c1c)}
+        .cp-error{font-size:var(--text-xs);color:var(--danger,#1f2937)}
         .cp-channels{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
         .cp-channel{border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:10px 12px}
         .cp-channel-head{display:flex;justify-content:space-between;align-items:center}

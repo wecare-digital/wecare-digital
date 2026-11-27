@@ -162,7 +162,7 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                     <div style={ row }>
                         <span style={ key }>Prepaid balance</span>
                         <span style={ { fontWeight: 700 } }>{ wallet ? `${wallet.balance} ${wallet.currency}` : '—' }
-                            { wallet?.status === 'SUSPENDED' && <span style={ { color: '#a11', marginLeft: 8, fontSize: 'var(--text-xs)' } }>SUSPENDED — top up to resume</span> }
+                            { wallet?.status === 'SUSPENDED' && <span style={ { color: '#374151', marginLeft: 8, fontSize: 'var(--text-xs)' } }>SUSPENDED — top up to resume</span> }
                         </span>
                     </div>
                     <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: '#555' } }>Recent activity</div>
@@ -172,7 +172,7 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                                 { ledger.slice( 0, 10 ).map( ( l, i ) => (
                                     <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', padding: '4px 0', borderBottom: '1px solid #f5f5f5' } }>
                                         <span style={ { color: '#666' } }>{ l.ts ? new Date( l.ts ).toLocaleString() : '' } · { l.type }{ l.category ? ` (${l.category})` : '' }</span>
-                                        <span style={ { color: l.type === 'topup' ? 'var(--accent)' : '#a11' } }>{ l.type === 'topup' ? '+' : '−' }{ l.amount } · bal { l.balanceAfter }</span>
+                                        <span style={ { color: l.type === 'topup' ? 'var(--accent)' : '#374151' } }>{ l.type === 'topup' ? '+' : '−' }{ l.amount } · bal { l.balanceAfter }</span>
                                     </div>
                                 ) ) }
                             </div>

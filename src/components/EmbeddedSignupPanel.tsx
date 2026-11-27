@@ -167,12 +167,12 @@ const EmbeddedSignupPanel: React.FC<Props> = ( { admin = false, mode = 'onboard'
                 <div style={ { marginTop: 16, fontSize: 14, color: GREEN } }>Account received (WABA { result.wabaId || '—' }). Finalizing…</div>
             ) }
             { ( status === 'done' || status === 'error' ) && (
-                <div style={ { marginTop: 16, fontSize: 14, color: status === 'done' ? GREEN : '#a11' } }>{ message }</div>
+                <div style={ { marginTop: 16, fontSize: 14, color: status === 'done' ? GREEN : '#374151' } }>{ message }</div>
             ) }
             { status === 'done' && steps.length > 0 && (
                 <ul style={ { marginTop: 12, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 } }>
                     { steps.map( ( s, i ) => (
-                        <li key={ i } style={ { color: s.ok === true ? GREEN : s.ok === false ? '#a11' : '#a60' } }>
+                        <li key={ i } style={ { color: s.ok === true ? GREEN : s.ok === false ? '#374151' : '#a60' } }>
                             { s.ok === true ? '✓' : s.ok === false ? '✕' : '•' } { STEP_LABELS[ s.step ] || s.step }
                             { s.detail ? ` — ${s.detail}` : '' }
                         </li>

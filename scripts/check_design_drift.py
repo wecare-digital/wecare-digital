@@ -270,6 +270,24 @@ def strip_comments(text: str, suffix: str) -> str:
     return text
 
 
+# Owner-approved no-red interface palette. Historical comments are not paint.
+RETIRED_RED_COLOURS = ("#dc2626", "#b91c1c", "#991b1b", "#ef4444", "#fef2f2", "#fee2e2", "#fecaca", "#fca5a5", "#b42318", "#fff4f2", "#dcaca4", "#9b2920", "#fff8f7", "#fff0ed", "#ce9178", "#8a1c12", "#f0b5ae", "#64130d", "#8a3b33", "#ff0040", "#ff5f57", "#ec4899", "#dc3545", "#c82333", "#fde8e8", "#a11", "#f3c2c2", "#fdf3f3", "#7a1a1a", "#9a4a4a", "#fbeaea",)
+
+
+def scan_retired_red_paint():
+    violations = []
+    pattern = re.compile(r"(?:#|%23)(?:" + "|".join(re.escape(c[1:]) for c in RETIRED_RED_COLOURS) + r")(?![0-9a-fA-F])", re.I)
+    for path in sorted(list(SRC.rglob("*.tsx")) + list(SRC.rglob("*.ts")) + list(SRC.rglob("*.css"))):
+        if "node_modules" in path.parts or path.name.endswith((".test.ts", ".test.tsx")):
+            continue
+        code = strip_comments(path.read_text(encoding="utf-8", errors="ignore"), path.suffix)
+        for match in pattern.finditer(code):
+            violations.append({"rule": "retired_red_paint", "file": path.relative_to(ROOT).as_posix(),
+                               "line": code[:match.start()].count("\n") + 1,
+                               "match": match.group(0), "why": "Use the shared non-red interface palette."})
+    return violations
+
+
 def scan_retired():
     violations = []
     for path in sorted(list(SRC.rglob("*.tsx")) + list(SRC.rglob("*.ts"))
@@ -512,7 +530,7 @@ def scan_danger_in_success_green():
                 "rule": "danger_painted_success_green", "file": rel,
                 "line": i + 1, "match": line.strip(),
                 "why": (f"{SUCCESS_GREEN} is --success; a destructive affordance must "
-                        f"use --danger #dc2626 so the colour does not say the action "
+                        f"use --danger #374151 so the colour does not say the action "
                         f"is safe")})
     return hits
 
@@ -568,7 +586,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    violations = (scan_retired() + scan_state_collision()
+    violations = (scan_retired() + scan_retired_red_paint() + scan_state_collision()
                   + scan_lime_resting_borders() + scan_token_mirror()
                   + scan_public_token_contract() + scan_layout_token_mirror()
                   + scan_public_token_consumers()
