@@ -1,8 +1,23 @@
-/** Shared timing for the decorative, finite public headline introduction.
- * The normal final update is due by 4000ms; the 4400ms deadline allows minor
- * scheduling delay while leaving room for the existing 520ms tint transition.
- * A stalled/hidden document never catches up with late animation.
- */
-export const HERO_ROTATION_DEADLINE_MS = 4400;
-export const heroRotationStepMs = ( wordCount: number ): number =>
-  wordCount > 1 ? Math.max( 1, Math.min( 2400, Math.floor( 4000 / wordCount ) ) ) : 0;
+/** Shared interval for all continuous public headline rotations. */
+export const HERO_ROTATION_INTERVAL_MS = 2400;
+
+/** Own exactly one clock. Suspended timers never replay missed ticks. */
+export function createHeroRotationClock (
+  start: ( tick: () => void, intervalMs: number ) => number,
+  clear: ( timer: number ) => void,
+  tick: () => void,
+) {
+  let timer: number | undefined;
+  const stop = () => {
+    if ( timer === undefined ) return;
+    clear( timer );
+    timer = undefined;
+  };
+  return {
+    sync ( enabled: boolean ) {
+      if ( !enabled ) { stop(); return; }
+      if ( timer === undefined ) timer = start( tick, HERO_ROTATION_INTERVAL_MS );
+    },
+    stop,
+  };
+}

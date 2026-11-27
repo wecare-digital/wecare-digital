@@ -31,7 +31,7 @@ import RotatingPill from './RotatingPill';
  *   dot         0.5s cubic-bezier(.34,1.56,.64,1) with a .72s delay
  *
  * ANIMATION CONSTANTS - do not retune one surface alone:
- *   bounded introductory sequence, cubic-bezier(.16,1,.3,1) for the wipe and the width glide,
+ *   2400ms interval, cubic-bezier(.16,1,.3,1) for the wipe and the width glide,
  *   cubic-bezier(.34,1.56,.64,1) .72s for the dot pop, .33em dot with a .18em gap.
  *
  * WORD LENGTH IS LAYOUT. The pill animates to each word's MEASURED width, so the
@@ -234,7 +234,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           { decorativeRotation ? (
             <>
               <Head className="rh-head rh-title">{ frame }</Head>
-              <div className="rh-head rh-head-rotate rh-decoration" aria-hidden="true">
+              <div className="rh-head rh-head-rotate rh-decoration">
                 { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
                 <RotatingPill key={ pillKey } words={ words } phase={ phase } />
               </div>

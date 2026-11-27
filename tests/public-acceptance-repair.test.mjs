@@ -4,12 +4,14 @@ import { readFileSync } from 'node:fs';
 import { isPaid, isRetryable, isInFlight, amountLabel } from '../src/lib/paymentVocabulary.ts';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('hero introduction starts asynchronously and cancels without a repeating timer', () => {
+test('continuous hero clock is cancellable and the pill itself toggles motion', () => {
   const source = read('src/components/RotatingPill.tsx');
-  assert.ok(source.includes('timer = window.setTimeout( tick, step )'));
-  assert.ok(source.includes('window.clearTimeout( timer )'));
-  assert.ok(source.includes('if ( index === words.length ) { stop(); return; }'));
-  assert.doesNotMatch(source, /HeroRotationControl|window\.setInterval/);
+  assert.ok(source.includes('window.setInterval( tick, delay )'));
+  assert.ok(source.includes('window.clearInterval( timer )'));
+  assert.ok(source.includes('if ( paused || words.length <= 1 )'));
+  assert.ok(source.includes('clock.stop()'));
+  assert.ok(source.includes('aria-pressed={ paused }'));
+  assert.doesNotMatch(source, /HeroRotationControl|rp-control/);
 });
 test('language disclosure contains visible label and controls only its mounted panel', () => {
   const source = read('src/components/SupportWidget.tsx');
@@ -50,8 +52,11 @@ test('payment status recovery never authorizes another attempt while unresolved'
   assert.ok(cart.includes('options.amountPaise !== expectedTotalPaise'));
   assert.ok(cart.includes('goToCheckoutStatus( attemptId, reviewedBasket );'));
 });
-test('anonymous acceptance retains axe selectors and verifies automatic stop', () => {
+test('anonymous acceptance retains axe selectors and verifies continuous motion and user control', () => {
   const audit = read('scripts/audit_public_acceptance.mjs');
   assert.ok(audit.includes('targets: v.nodes.slice(0, 30).map(n => n.target)'));
-  assert.ok(audit.includes('Headline rotation did not stop'));
+  assert.ok(audit.includes('verifyHeroRotation'));
+  const runner = read('scripts/public_hero_audit.mjs');
+  assert.ok(runner.includes('Headline rotation did not continue beyond one cycle'));
+  assert.ok(runner.includes('Headline continues when explicitly paused'));
 });
