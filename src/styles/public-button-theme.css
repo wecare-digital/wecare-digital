@@ -14,7 +14,7 @@
  */
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -30,7 +30,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -43,7 +43,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -57,7 +57,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -71,7 +71,7 @@
 @media (hover: hover) and (pointer: fine) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -85,7 +85,7 @@
 /* Keep selected controls identifiable even when hovered. */
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -165,7 +165,7 @@
 @media (prefers-reduced-motion: reduce) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -182,7 +182,7 @@
   }
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -202,7 +202,7 @@
 @media (forced-colors: active) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -219,7 +219,7 @@
   }
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
