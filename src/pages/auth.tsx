@@ -207,12 +207,12 @@ const AuthPage: React.FC = () => {
                             enterKeyHint="search"
                             onChange={ event => setCountryQuery( event.target.value ) }
                             onKeyDown={ event => {
+                              if ( event.nativeEvent.isComposing ) return;
                               if ( event.key === 'Enter' ) {
                                 // The search is inside the sign-in form. Do not submit an OTP request.
                                 event.preventDefault();
                                 return;
                               }
-                              if ( event.nativeEvent.isComposing ) return;
                               if ( event.key === 'Escape' ) {
                                 event.preventDefault();
                                 if ( countryQuery ) setCountryQuery( '' );
@@ -361,6 +361,7 @@ const AuthPage: React.FC = () => {
           cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
+        .auth-primary{background:var(--public-brand-lime)}
         .auth-action:hover:not(:disabled){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
         .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}

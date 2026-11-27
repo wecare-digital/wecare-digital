@@ -891,7 +891,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    */
 
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
-    if ( !variantId ) return;
+    if ( !variantId || modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
     setItems( setVariant( ref, variantId ) );
     setQuote( null );
     setPaymentBlocked( false );
@@ -1990,7 +1990,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   identity={ { ...profile, customerId: profile.contactId } }
                   showAddress={ cartRequiresDelivery( items ) }
                   emptyAddressLabel="Not saved yet"
-                  editorOpen={ showProfile }
+                  editorOpen={ showProfile || busy || modalOpen || railTerminal }
                   onEditProfile={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'profile' ); setShowProfile( true ); } }
                   onEditAddress={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'address' ); setShowProfile( true ); } }
                 />
@@ -2012,6 +2012,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     designation: profile?.designation || '',
                     address: profile?.address || null,
                   } }
+                  onSessionExpired={ () => {
+                    try { clearSession(); } catch { /* sign-in remains available */ }
+                    setCheckoutAccessToken( '' );
+                    setProfile( null );
+                    setProfileStatus( 'unknown' );
+                    setQuote( null );
+                    setQuoteFor( '' );
+                    setShowProfile( false );
+                    setQuoteSignInRequired( true );
+                    setQuoteNotice( 'Your session has expired. Sign in again to continue.' );
+                  } }
+                  onCancel={ profile?.name && ( !cartRequiresDelivery( items ) || profile.addressComplete ) ? () => setShowProfile( false ) : undefined }
                   onReady={ next => {
                     // THE STATUS DECIDES THE EDITOR, NOT THE SAVE EVENT. A save that lands
                     // without a usable address must leave the address form MOUNTED: closing it
@@ -2082,6 +2094,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                         <Select
                           className="cart-option"
                           label="Choose option"
+                          disabled={ busy || modalOpen || railTerminal }
                           ariaLabel={ `Choose option for ${item.name}` }
                           value=""
                           onChange={ value => chooseVariant( item.ref, value ) }
@@ -2164,13 +2177,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 <PublicNotice mode="inline" tone="error" message={ notice.message } />
               )}
 
-              {/* THE MIXED-BASKET NOTICE AND ITS "Keep only the contribution" BUTTON WERE HERE.
-                  Both are gone with the rule: a product and a contribution check out together as
-                  of 2026-10-06, so there is no basket state to explain at render time and no
-                  reason to dim the CTA for one. `CONTRIBUTION_ALONE_MESSAGE` survives for the one
-                  refusal that is left -- two contribution lines, which only a crafted request can
-                  build -- and is shown by `applyOutcome` when the server answers it, which is a
-                  press away rather than at render, because nothing local can predict it. */}
+              {/* The contribution-only rule is checked before quoting and preparing. */}
 
 
 
@@ -2215,7 +2222,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   </> }
               </div>
               { pendingAttempt && !modalOpen && !railTerminal && (
-                <div className="cart-actions"><Link className="cart-auth-action" href={ `/checkout/status/?a=${encodeURIComponent( pendingAttempt )}` }>Check payment status</Link></div>
+                <div className="cart-actions"><button className="cart-auth-action" type="button" disabled={ busy } onClick={ () => goToCheckoutStatus( pendingAttempt ) }>Check payment status</button></div>
               ) }
               { !railTerminal && !hasContribution && !whatsappEligible && (
                 <p className="cart-price-note" role="status">

@@ -43,6 +43,8 @@ interface Props {
     address: StoredAddress | null;
   };
   onReady: ( profile: CheckoutProfileValue ) => void;
+  onSessionExpired?: () => void;
+  onCancel?: () => void;
 }
 
 /**
@@ -51,7 +53,7 @@ interface Props {
  * here. Email is deliberately not part of this checkout profile surface.
  */
 const CheckoutProfile: React.FC<Props> = ( {
-  accessToken, mode = 'create', allowIdentityBootstrap = false, initial, onReady,
+  accessToken, mode = 'create', allowIdentityBootstrap = false, initial, onReady, onSessionExpired, onCancel,
 } ) => {
   const [ fullName, setFullName ] = useState(
     initial?.name || [ initial?.firstName, initial?.lastName ].filter( Boolean ).join( ' ' )
@@ -113,7 +115,10 @@ const CheckoutProfile: React.FC<Props> = ( {
         && response.status === 400 && reply.error === 'INVALID_ADDRESS' && reply.code === 'ADDRESS_REQUIRED' ) {
         const bootstrap = await save( {} );
         const result = await bootstrap.json().catch( () => ( {} ) );
-        if ( bootstrap.ok && result.status === 'PROFILE_READY' ) {
+        if ( bootstrap.status === 401 ) {
+          response = bootstrap;
+          reply = result;
+        } else if ( bootstrap.ok && result.status === 'PROFILE_READY' ) {
           response = await save( body );
           reply = await response.json().catch( () => ( {} ) );
         }
@@ -122,7 +127,8 @@ const CheckoutProfile: React.FC<Props> = ( {
         if ( reply.error === 'CONTACT_IDENTITY_CONFLICT' ) {
           setMessage( publicActionText( 'blocked' ) );
         } else if ( response.status === 401 ) {
-          setMessage( 'Your sign-in has expired. Return to checkout and sign in again.' );
+          if ( onSessionExpired ) onSessionExpired();
+          else setMessage( 'Your sign-in has expired. Return to checkout and sign in again.' );
         } else if ( reply.error === 'INVALID_ADDRESS' ) {
           setAddressField( String( reply.field || '' ) );
           setMessage( publicActionText( 'failure' ) );
@@ -252,6 +258,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         >
           { saving ? 'Saving…' : mode === 'create' || mode === 'name' ? 'Save & continue' : 'Save changes' }
         </button>
+        { onCancel && <button className="checkout-profile-action" type="button" disabled={ saving } onClick={ onCancel }>Cancel</button> }
       </div>
 
       <style>{`
