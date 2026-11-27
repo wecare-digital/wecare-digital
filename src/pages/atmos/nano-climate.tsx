@@ -82,7 +82,7 @@ function vayulokJsonLd(): Record<string, unknown>[] {
 }
 
 
-// Build-time development switch: the legacy production page remains the default.
+// The development flag enables location-data safeguards only. The shared hero is unconditional.
 const atlasEnabled = process.env.NEXT_PUBLIC_NANO_CLIMATE_ATLAS === 'true';
 
 const VayuLokPage: React.FC = () => {
@@ -162,12 +162,6 @@ const VayuLokPage: React.FC = () => {
       />
 
       <main className="vl-page">
-        { atlasEnabled ? (
-          <section className="vl-atlas-page-head" aria-label="Nano Climate">
-            <div><h1>Nano Climate</h1><p>Bharat air and weather insights</p></div>
-            <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Nano Climate' } ] } />
-          </section>
-        ) : (
         <RotatingHero
           insideMain
           mobileFoundation
@@ -202,7 +196,6 @@ const VayuLokPage: React.FC = () => {
               PUBLIC_PAGE_META route, and this page's own WebApplication JSON-LD is unchanged. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Nano Climate' } ] } />
         </RotatingHero>
-        ) }
 
         {/* The live air/weather application stays directly below the shared product hero.
             VayuLokLive no longer owns a second <main>; this page owns the one primary
@@ -213,11 +206,6 @@ const VayuLokPage: React.FC = () => {
 
 
       <style jsx>{`
-        .vl-atlas-page-head{max-width:var(--public-content-max,1300px);margin:0 auto;padding:132px var(--public-responsive-gutter,24px) 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;color:var(--public-heading)}
-        .vl-atlas-page-head h1{margin:0;font-size:clamp(28px,3vw,40px);font-weight:650;line-height:1.1;letter-spacing:-.035em}
-        .vl-atlas-page-head p{margin:5px 0 0;color:var(--public-muted);font-size:var(--public-supporting-size,16px)}
-        @media(max-width:767px){.vl-atlas-page-head{padding:104px var(--public-mobile-page-gutter,16px) 8px;align-items:flex-start;flex-direction:column;gap:8px}}
-
         /* The hero's shell, headline, badge spacing and subtext are RotatingHero's own rh-*
            rules. This page keeps only what is its own: the globe column and the split. */
         /* The two columns read as a deliberate, balanced pair: the copy holds a
