@@ -369,7 +369,7 @@ response = requests.post(
                       extra height on .mockup-wrapper and .chat-area min-height exists to
                       absorb exactly that. Lengthen any line here and you move the
                       panel over the thread - re-measure, do not eyeball. */}
-                  <pre className="code-body">{`response = requests.post(
+                  <pre className="code-body" tabIndex={ 0 } aria-label="WhatsApp API example">{`response = requests.post(
   "wecare.digital/api/outbound-whatsapp",
   json={
     "recipientPhone": "+919330994400",
@@ -497,7 +497,7 @@ response = requests.post(
                     <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
                   ))}
                 </div>
-                <pre className="code-block" dir="ltr">{codeExamples[activeCode].code}</pre>
+                <pre className="code-block" dir="ltr" tabIndex={ 0 } aria-label={ `${codeExamples[activeCode].lang} code example` }>{codeExamples[activeCode].code}</pre>
               </div>
               <div className="api-wa-row">
                 <a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">
@@ -1094,6 +1094,7 @@ response = requests.post(
              a scroll hint that fades in on hover. On a black pane that reads as a dark
              smudge appearing under the cursor, so it is switched off for both panels. */
           .code-block::after,.code-body::after{content:none}
+          .code-block:focus-visible,.code-body:focus-visible{outline:3px solid var(--public-brand-lime);outline-offset:-4px}
           
           /* Capabilities Section - Card Grid */
           /* No background tint on hover — #fbfff0 is retired. The whole page is white
