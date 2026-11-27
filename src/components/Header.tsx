@@ -1074,7 +1074,8 @@ const Header: React.FC = () => {
            glide, which reads as two events. box-sizing is border-box (measured, not assumed:
            computed 46x46 outer at rest, hover and open), so the thicker border changes nothing
            outside the chip - the header stays 108px and the chip stays at x=210.34. */
-        .nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']{
+        .nav-trigger:hover{background:var(--public-hover-surface);border-radius:var(--public-hover-radius)}
+        .nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']{
           background:var(--public-brand-lime);outline:none;
         }
         /* A TWO-TONE RING, because this control inverts on focus and a single-colour ring
@@ -1130,7 +1131,7 @@ const Header: React.FC = () => {
            search fields on the site are recognisably the same control. */
         /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
         .nav-search-field{position:relative;margin:0 0 12px}
-        .nav-search{width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search{width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .nav-search:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .nav-search::-ms-clear{display:none}
@@ -1228,7 +1229,7 @@ const Header: React.FC = () => {
            focus cue was a tint that composites to rgb(245,253,224) over white. The tint is
            a pointer affordance on hover; focus needs a ring that measures 3:1, and opaque
            #1a3a2a on the panel is 12.48:1. */
-        .nav-group-link:hover{background:var(--public-lime-tint)}
+        .nav-group-link:hover{background:var(--public-hover-surface);border-radius:var(--public-hover-radius)}
         .nav-group-link:focus-visible{background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);outline-offset:1px}
         .nav-empty{margin:0;padding:10px 12px 12px;font-size:14px;color:var(--public-muted)}
         .nav-search-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
