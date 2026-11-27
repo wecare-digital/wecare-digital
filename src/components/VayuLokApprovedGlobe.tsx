@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
-const GLOBE_ASSET_VERSION = '20261024-design-v7';
+const GLOBE_ASSET_VERSION = '20261128-compact-targets-v8';
 
 interface VayuLokGlobeCity {
   id: string;
@@ -115,16 +115,21 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
         .vag-shell{
           width:100%;
           min-width:0;
-          aspect-ratio:1472 / 1048;
+          container-type:inline-size;
           overflow:hidden;
           border-radius:38px;
         }
         .vag-frame{
           display:block;
           width:100%;
-          height:100%;
+          height:auto;
+          aspect-ratio:1472 / 1048;
           border:0;
           background:transparent;
+        }
+        /* Match the iframe's own compact breakpoint, not the outer viewport. */
+        @container (max-width:340px){
+          .vag-frame{aspect-ratio:auto;height:calc(max(144px,71.2cqw) + 136px)}
         }
         @media(max-width:767px){
           .vag-shell{width:100%;max-width:100%;border-radius:24px}

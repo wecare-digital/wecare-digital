@@ -230,7 +230,7 @@ const VayuLokPage: React.FC = () => {
           .vl-hero-visual :global(.vag-shell){width:min(112%,760px);max-width:760px}
         }
         @media(max-width:860px){
-          .vl-page :global(.rh-split){grid-template-columns:1fr;gap:28px}
+          .vl-page :global(.rh-split){grid-template-columns:minmax(0,1fr);gap:28px}
           .vl-hero-visual{max-width:800px;margin:0 auto;justify-content:center;transform:translateY(12px)}
           .vl-hero-visual :global(.vag-shell){width:100%;max-width:800px}
         }
@@ -244,6 +244,10 @@ const VayuLokPage: React.FC = () => {
              Keep the canonical 40px app hero through the phone/foldable range; devicecheck
              owns the proof and should force a measured exception if this ever stops fitting. */
           .vl-page :global(.rh-shell.uses-mobile-foundation .rh-head){font-size:var(--public-mobile-hero-size)}
+        }
+        /* The 160px stress viewport cannot fit the canonical mobile headline. */
+        @media(max-width:279px){
+          .vl-page :global(.rh-shell.uses-mobile-foundation .rh-head){font-size:clamp(18px,12vw,28px)}
         }
       `}</style>
     </>

@@ -429,6 +429,19 @@
   .sorcerer-stage[data-mobile='true'] .city-marker.city-off-mobile{display:none}
   @media (prefers-reduced-motion:reduce){.data-toggle-indicator,.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.data-toggle .mode:active{transform:none}.city-marker.is-visible .city-pin::before{animation:none}.city-leader line{animation:none}}
 
+  /* The moving geographic dots cannot offer reliably separated, unclipped touch
+     targets on a very narrow disc. Keep them decorative there and offer the same
+     city selection through full-size native controls outside the clipped stage. */
+  .compact-city-control{display:none}
+  @media(max-width:340px){
+    body{display:block;min-height:0}
+    .sorcerer-stage{width:100%;min-height:144px}
+    .city-pin:disabled,.fallback-dot:disabled{pointer-events:none!important;opacity:1;cursor:default}
+    .compact-city-control{display:grid;gap:4px;padding:6px;min-width:0;color:var(--public-ink)}
+    .compact-city-control label{font-size:12px;line-height:16px}
+    .compact-city-control select,.compact-city-control button{width:100%;min-width:0;min-height:44px;padding:6px;border:1px solid var(--public-hairline,#c8d4ca);border-radius:8px;background:#fff;color:#1a3a2a;font:inherit;font-size:13px}
+    .compact-city-control select:focus-visible,.compact-city-control button:focus-visible{outline:2px solid #1a3a2a;outline-offset:-2px}
+  }
 </style>
 </head>
 <body>
@@ -498,6 +511,11 @@
 
     <!-- Capital-city markers are built from the CITIES registry below. -->
   </main>
+  <section class="compact-city-control" aria-label="Globe city selection">
+    <label for="compactCity">Globe city</label>
+    <select id="compactCity"></select>
+    <button id="compactCityRetry" type="button">Retry reading</button>
+  </section>
 
 <script>
 (() => {
@@ -534,6 +552,29 @@
   ];
   const CITY_BY_ID=new Map(CITIES.map(c=>[c.id,c]));
   const DEFAULT_CITY='delhi';
+  const compactMedia=window.matchMedia('(max-width: 340px)');
+  const compactSelect=document.getElementById('compactCity');
+  for(const city of CITIES){
+    const option=document.createElement('option');
+    option.value=city.id;
+    option.textContent=city.name;
+    compactSelect.appendChild(option);
+  }
+  compactSelect.value=DEFAULT_CITY;
+  compactSelect.addEventListener('change',()=>selectCity(compactSelect.value));
+  document.getElementById('compactCityRetry').addEventListener('click',()=>selectCity(compactSelect.value));
+  function syncCompactControls(){
+    const compact=compactMedia.matches;
+    for(const pin of stage.querySelectorAll('.city-pin,.fallback-dot')){
+      const visible=pin.classList.contains('fallback-dot')||pin.closest('.city-marker')?.classList.contains('is-visible');
+      if(compact&&document.activeElement===pin)compactSelect.focus({preventScroll:true});
+      pin.disabled=compact;
+      pin.tabIndex=!compact&&visible?0:-1;
+      if(!compact&&visible)pin.removeAttribute('aria-hidden');
+      else pin.setAttribute('aria-hidden','true');
+    }
+  }
+  compactMedia.addEventListener('change',syncCompactControls);
   // The embedded earth texture (also used by the WebGL path below) is kept in
   // one shared constant so the no-WebGL2 fallback can paint it as a branded
   // CSS background without duplicating the data URI.
@@ -741,6 +782,7 @@
       layer.appendChild(dot);
     }
     stage.insertBefore(layer,document.getElementById('cityLeader'));
+    syncCompactControls();
 
     // Default selection + live refresh, exactly like the GPU path. selectCity
     // handles the panel, accent and the (keyless-safe) first fetch.
@@ -1378,6 +1420,12 @@
     const pin=cityPinEls.get(cityId);
     if(pin)pin.setAttribute('aria-pressed','true');
     selectedCity=cityId;
+    compactSelect.value=cityId;
+    for(const dot of stage.querySelectorAll('.fallback-dot')){
+      const active=dot.dataset.city===cityId;
+      dot.classList.toggle('is-active',active);
+      dot.setAttribute('aria-pressed',String(active));
+    }
     focusCity=cityId;
     focusCandidate=cityId;
     focusCandidateSince=performance.now();
@@ -1396,6 +1444,7 @@
   // The globe's home rotation faces India, so Delhi is the sensible default
   // selection. selectCity also performs its first (and only) fetch.
   buildMarkers();
+  syncCompactControls();
   selectCity(DEFAULT_CITY,false);
   notifyParent('mode',{mode:activeLayer});
   setInterval(refreshLiveData, 10 * 60 * 1000);
@@ -1524,8 +1573,9 @@
       // the user can no longer see.
       if(city.visible!==visible){
         city.visible=visible;
-        city.pin.tabIndex=visible?0:-1;
-        if(visible)city.pin.removeAttribute('aria-hidden');
+        const interactive=visible&&!compactMedia.matches;
+        city.pin.tabIndex=interactive?0:-1;
+        if(interactive)city.pin.removeAttribute('aria-hidden');
         else{
           city.pin.setAttribute('aria-hidden','true');
           if(document.activeElement===city.pin)city.pin.blur();
@@ -1535,7 +1585,7 @@
     // A stable centre-facing city becomes the globe PREVIEW. This updates the info
     // pill as the Earth rotates, but does not notify the parent or move the large map.
     const now=performance.now();
-    const nextFocus=centerBest?.id||null;
+    const nextFocus=compactMedia.matches?selectedCity:(centerBest?.id||null);
     if(nextFocus!==focusCandidate){
       focusCandidate=nextFocus;
       focusCandidateSince=now;
