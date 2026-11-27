@@ -199,7 +199,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            value answers the question more cleanly than adding a fourth entry to the table.
            The indicator is now the outline at 12.48:1 on white, plus the border darkening. */
         .bs-form input:focus-visible{
-          border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
+          border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);
         }
         /* The body rung, muted - it is a status line, not content. */
         .bs-count{

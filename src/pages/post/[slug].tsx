@@ -521,7 +521,7 @@ export default function BlogPostPage ( {
         .post-search input::-webkit-search-cancel-button,.post-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .post-search input::-ms-clear{display:none}
         .post-search input::placeholder{color:var(--public-muted)}
-        .post-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 #d1f470}
+        .post-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
         @media(prefers-reduced-motion:reduce){.post-search input{transition:none}}
         /* The RSS icon's row at the foot of the post, END-aligned (to the side, not centered)
            under the related section - owner instruction. The icon styles itself

@@ -389,7 +389,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-search input::-ms-clear{display:none}
         .pbp-search input::placeholder{color:var(--public-muted)}
         .pbp-search input:focus-visible{
-          border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
+          border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);
         }
 
         .pbp-empty{margin:0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}

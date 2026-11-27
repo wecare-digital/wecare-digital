@@ -397,7 +397,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-toc-search input::-ms-clear{display:none}
         .lgd-toc-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .lgd-toc-search input::placeholder{color:var(--public-muted)}
-        .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
         .lgd-toc-status,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:10px 0}
         .lgd-return-to-contents{display:none}
         @media(max-width:1099px){
@@ -424,8 +424,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-contents-icon,.lgd-contents-chevron,.lgd-group-chevron{
           display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor;
         }
-        .lgd-contents-chevron,.lgd-group-chevron{color:var(--public-brand-green);transition:transform .18s ease}
-        .lgd-sub-icon{display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);margin-top:2px;fill:none;stroke:var(--public-brand-green);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--public-brand-green)}
+        .lgd-contents-chevron,.lgd-group-chevron{color:var(--public-nav-arrow);transition:transform .18s ease}
+        .lgd-sub-icon{display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);margin-top:2px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--public-nav-arrow)}
         .lgd-sub-icon path{vector-effect:non-scaling-stroke}
         .lgd-sub-icon .lgd-sub-dots{fill:currentColor;stroke:none}
         :global([dir='rtl']) .lgd-sub-icon{transform:scaleX(-1)}

@@ -25,9 +25,14 @@
   min-width: var(--tap-min);
   min-height: var(--tap-min);
 }
+/* Search fields are intentionally flat. Keep focus visible via a strong
+ * bottom line, not a rectangular ring inside the panel. Other interactive
+ * controls retain their normal keyboard focus outline. */
 [data-public-search-field] > input[type="search"]:focus {
-  outline: 2px solid var(--public-brand-green);
-  outline-offset: -2px;
+  outline: none;
+  border-radius: 0;
+  border-block-end-color: var(--public-brand-green);
+  box-shadow: inset 0 -2px 0 var(--public-brand-green);
 }
 /* VoiceSearchMic owns its shared live status, including the visible
  * failure row (.voice-search-status.is-visible). Keep it in normal flow
@@ -41,5 +46,6 @@
 @media (forced-colors: active) {
   [data-public-search-field] > input[type="search"]:focus {
     outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }

@@ -303,7 +303,7 @@ test('menu disclosure arrows use the selected outlined double chevron and preser
   const orders = read('src/components/orders/OrderActionsMenu.tsx');
   assert.ok(icons.includes("ROW_CHEVRON_PATH = 'M383-480 200-664l56-56 240 240-240 240-56-56 183-184Zm264 0L464-664l56-56 240 240-240 240-56-56 183-184Z'"));
   assert.ok(icons.includes("ROW_CHEVRON_VIEW_BOX = '174.55 -785.45 610.9 610.9'"));
-  assert.ok(header.includes('.nav-row-chevron{margin-inline-start:auto;fill:currentColor;stroke:none}'));
+  assert.ok(header.includes('.nav-row-chevron{margin-inline-start:auto;fill:var(--public-nav-arrow);stroke:none}'));
   assert.ok(header.includes('SUBNAV_DOT_PATH'));
   assert.ok(orders.includes('const CHEVRON_PATH = ROW_CHEVRON_PATH'));
   assert.ok(orders.includes('flex:none;fill:currentColor;\n          stroke:none;opacity:.65;'));
