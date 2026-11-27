@@ -82,7 +82,9 @@ def state(keys, attempts, *, owner, order_id, number):
         # The completion marker is written ONLY after a strong read of the durable
         # submission. Captured payment on its own is never a successful request.
         phase = "received" if attempt.get("websiteSubmissionId") else "saving"
-    elif pointer.get("sendRefused") is True or payment_attempt.may_retry(attempt):
+    elif (pointer.get("sendRefused") is True or
+          (payment_attempt.may_retry(attempt)
+           and 0 < int(attempt.get("paymentRequestExpiresAt") or 0) <= int(time.time()))):
         phase = "failed"
     else:
         phase = "pending"

@@ -64,6 +64,11 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
       && state.requestKey !== requestKey.current ) return false;
     if ( state.requestKey ) acceptedKey.current = state.requestKey;
     if ( state.state !== 'idle' ) ambiguous.current = false;
+    if ( state.state === 'failed' && phaseRef.current !== 'failed' ) {
+      requestKey.current = '';
+      setQuote( null );
+      setQuoteUnavailable( true );
+    }
     changePhase( state.state );
     setStatusMessage( '' );
     return true;
@@ -117,6 +122,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
   const review = async () => {
     if ( quoting.current || starting.current || ambiguous.current ) return;
     quoting.current = true;
+    // A definitive failure permits a fresh, reviewed click, not a resend of
+    // the old immutable key.
+    if ( phaseRef.current === 'failed' ) previousKey.current = acceptedKey.current;
     setQuote( null );
     setQuoteUnavailable( false );
     try {

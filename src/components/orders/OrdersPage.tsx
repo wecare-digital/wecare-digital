@@ -962,6 +962,7 @@ export default function OrdersPage (): React.ReactElement {
                               <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
                                 setRequestSelection( id );
                                 setSubmitOrderNumber( id === 'submit-request' ? order.orderNumber : null );
+                                if ( id === 'submit-request' ) window.scrollTo( 0, 0 );
                                 window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
                               } } />
                               </span>

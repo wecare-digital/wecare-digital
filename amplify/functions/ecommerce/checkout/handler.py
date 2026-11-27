@@ -3107,6 +3107,13 @@ def _website_f004(identity, body, origin, action):
     # Trusted context is built above, never copied from a browser dictionary.
     response = _create(identity, {"lineItems": line_items, "expectedTotalPaise": amount},
                        origin, verified_service_context=verified)
+    if response.get("statusCode") == 409:
+        try:
+            error = json.loads(response.get("body") or "{}").get("error")
+        except (TypeError, ValueError):
+            error = None
+        if error == "REQUEST_KEY_CONFLICT":
+            return _hardened(response)
     current = state()
     if current.get("requestKey") == key:
         return answer(200, current)
@@ -3531,6 +3538,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
     except order_keys.OrderIdentityUnavailable:
+        if web_f004:
+            # No payment request can have left before reference allocation.
+            website_submit_request.refused(_keys_table(),
+                order_id=verified_service_context["selectedOrderId"], attempt_id=attempt_id)
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE",
                                    "message": "Please try again shortly."}, origin)
 
@@ -3646,7 +3657,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED)
-    if wa_request_key:
+    if wa_request_key or web_f004:
         # The ORDER_DETAILS window (`now + 900`, the same expiry `_cart_order_details` stamps
         # into Meta) recorded on the attempt so the cross-rail guard can tell a request the
         # customer can still pay from a lapsed one WITHOUT asking Meta. Emitted only on this
@@ -3660,6 +3671,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({"event": "checkout_attempt_store_failed",
                                  "error": type(error).__name__}))
+        if web_f004:
+            # The sender is never invoked on this failure path, even if storage
+            # accepted the attempt but lost the write response.
+            website_submit_request.refused(_keys_table(),
+                order_id=verified_service_context["selectedOrderId"], attempt_id=attempt_id)
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
 
 
