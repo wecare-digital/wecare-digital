@@ -1,0 +1,242 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Arogya Yatra customer-owned appointment drafts; free-tier-sized fixed capacity, no always-on compute.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    },
+    "com.aws.cloudformation.Context": "Dedicated customer-owned drafts. Function URL authenticates customer Cognito tokens in handler. No provider submission, payment capture, scheduled jobs, autoscaling, new KMS key, backup subscription or custom metrics. Five provisioned RCU/WCU within current account allowance, not an unconditional zero-bill guarantee."
+  },
+  "Parameters": {
+    "CodeBucket": {
+      "Type": "String"
+    },
+    "CodeKey": {
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "Bookings": {
+      "Type": "AWS::DynamoDB::Table",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "TableName": "wecare-arogya-bookings",
+        "BillingMode": "PROVISIONED",
+        "TableClass": "STANDARD",
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 5,
+          "WriteCapacityUnits": 5
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "customerId",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "draftId",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "customerId",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "draftId",
+            "KeyType": "RANGE"
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true
+        },
+        "PointInTimeRecoverySpecification": {
+          "PointInTimeRecoveryEnabled": false
+        },
+        "Tags": [
+          {
+            "Key": "service",
+            "Value": "arogya-yatra"
+          },
+          {
+            "Key": "cost-policy",
+            "Value": "fixed-free-tier-capacity"
+          }
+        ]
+      }
+    },
+    "Logs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/wecare-arogya-booking",
+        "RetentionInDays": 7
+      }
+    },
+    "Role": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "OwnedAppointmentDrafts",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Bookings",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cognito-idp:GetUser"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/wecare-arogya-booking:*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Function": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": "Logs",
+      "Properties": {
+        "FunctionName": "wecare-arogya-booking",
+        "Runtime": "python3.12",
+        "Architectures": [
+          "arm64"
+        ],
+        "Handler": "handler.handler",
+        "MemorySize": 128,
+        "Timeout": 15,
+        "ReservedConcurrentExecutions": 2,
+        "Role": {
+          "Fn::GetAtt": [
+            "Role",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "S3Bucket": {
+            "Ref": "CodeBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "AROGYA_BOOKINGS_TABLE": {
+              "Ref": "Bookings"
+            },
+            "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt"
+          }
+        },
+        "TracingConfig": {
+          "Mode": "PassThrough"
+        },
+        "Tags": [
+          {
+            "Key": "service",
+            "Value": "arogya-yatra"
+          }
+        ]
+      }
+    },
+    "Url": {
+      "Type": "AWS::Lambda::Url",
+      "Properties": {
+        "TargetFunctionArn": {
+          "Ref": "Function"
+        },
+        "AuthType": "NONE",
+        "Cors": {
+          "AllowOrigins": [
+            "https://wecare.digital"
+          ],
+          "AllowMethods": [
+            "POST"
+          ],
+          "AllowHeaders": [
+            "Authorization",
+            "Content-Type"
+          ],
+          "MaxAge": 300
+        }
+      }
+    },
+    "UrlPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "Function"
+        },
+        "Action": "lambda:InvokeFunctionUrl",
+        "Principal": "*",
+        "FunctionUrlAuthType": "NONE"
+      }
+    },
+    "InvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "Function"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "*",
+        "InvokedViaFunctionUrl": true
+      }
+    }
+  },
+  "Outputs": {
+    "FunctionUrl": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Url",
+          "FunctionUrl"
+        ]
+      }
+    },
+    "TableName": {
+      "Value": {
+        "Ref": "Bookings"
+      }
+    }
+  }
+}
