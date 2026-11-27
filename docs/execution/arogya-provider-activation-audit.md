@@ -76,3 +76,22 @@ provider response field aliases and the actual supported sign-in contract remain
 unverified. Provider consent and official integration authorization are not
 replaceable by successful unit tests. There is no guaranteed zero AWS bill;
 this change reuses existing resources and does not add fixed paid capacity.
+
+
+## Account isolation and retry repair
+
+Every draft read, write, listing and deletion now requires the opaque verified
+account binding from the access action. It is only compared against the identity
+derived from Cognito, never used to choose an owner. Account changes unmount the
+patient form; stale requests cannot save into a different account. A timed-out
+save retains its draft ID, expected revision and exact request; an identical
+already-committed replay returns the original revision. Draft APIs refuse to
+read or delete non-DRAFT rows. Listing projects no patient fields and provides
+bounded per-owner pagination.
+
+**Coordinated release required:** old frontend versions do not send the account
+binding. Deploy the matching backend and frontend together (backend first; old
+clients fail closed until refreshed). Verify draft saves, account switching and
+reload behavior before exposing the updated form. The old checkout protection
+must be deployed through the common commerce release path, not merely the
+Arogya Lambda.
