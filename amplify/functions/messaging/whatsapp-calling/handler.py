@@ -344,7 +344,7 @@ def _verify_webhook(params: Dict, request_id: str) -> Dict[str, Any]:
         logger.info(f"Webhook verified. Challenge: {challenge}")
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'},
+            'headers': {'Content-Type': 'text/plain'},  # Meta server call, no CORS
             'body': challenge,
         }
     logger.warning(f"Webhook verification failed. Mode={mode}")

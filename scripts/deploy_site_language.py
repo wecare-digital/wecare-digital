@@ -83,6 +83,10 @@ def ensure_role_policy() -> None:
         "Version": "2012-10-17",
         "Statement": [
             {
+                # The three "Resource": "*" statements below (Translate, Comprehend,
+                # Polly) are the narrowest IAM allows: these actions have no
+                # resource-level permissions (no ARN to scope to). Every other
+                # statement in this policy is scoped to a single ARN.
                 "Effect": "Allow",
                 "Action": ["translate:ListLanguages", "translate:TranslateText"],
                 "Resource": "*",

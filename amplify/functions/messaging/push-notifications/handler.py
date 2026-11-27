@@ -18,6 +18,7 @@ import logging
 import hashlib
 from datetime import datetime, timezone
 from lambda_utils.middleware import require_auth
+from lambda_utils.response import cors_headers, extract_origin
 
 sns = boto3.client("sns")
 dynamodb = boto3.resource("dynamodb")
@@ -38,11 +39,14 @@ def handler(event, context):
     except (json.JSONDecodeError, TypeError, ValueError):
         body = {}
 
+    # Authenticated admin API: reflect only an allow-listed origin, never "*".
     headers = {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        **cors_headers(
+            extract_origin(event),
+            "GET,POST,DELETE,OPTIONS",
+            "Content-Type,Authorization",
+        ),
+        "Vary": "Origin",
     }
 
     try:

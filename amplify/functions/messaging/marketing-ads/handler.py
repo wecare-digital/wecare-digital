@@ -35,6 +35,7 @@ import urllib.error
 import boto3
 
 from lambda_utils.middleware import require_auth
+from lambda_utils.response import cors_headers
 from lambda_utils.meta_version import GRAPH_BASE  # one source; validated at import
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
@@ -63,11 +64,10 @@ _OPT_GOALS = {"CONVERSATIONS", "LINK_CLICKS", "IMPRESSIONS", "REACH",
 _STATUSES = {"ACTIVE", "PAUSED", "DELETED", "ARCHIVED"}
 
 _token_cache = {}
+# Authenticated admin API: answer only the canonical origin, never "*".
 CORS = {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    **cors_headers(None, "GET,POST,OPTIONS", "Content-Type,Authorization"),
+    "Vary": "Origin",
 }
 
 

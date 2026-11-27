@@ -4113,14 +4113,12 @@ def _emit_sweep_metrics(counts: Dict[str, Any], request_id: str) -> None:
 # ═══════════════════════════════════════════════════════════════════
 
 def _response(status_code: int, body: Dict) -> Dict[str, Any]:
-    """Return HTTP response with CORS headers."""
+    """Return a JSON HTTP response."""
     return {
         'statusCode': status_code,
         'headers': {
+            # Server-to-server only (Razorpay, signed; internal invokes): no browser caller, so no CORS.
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Razorpay-Signature',
-            'Access-Control-Allow-Methods': 'POST,OPTIONS',
         },
         'body': json.dumps(body, default=str),
     }
