@@ -7,6 +7,8 @@ import { rankNavigation } from '../lib/navigationSearch';
 import SearchClearButton from '../components/SearchClearButton';
 import { authStateQuery } from '../lib/authStateQuery';
 import { publicActionText, publicApiFailureText } from '../lib/publicActionNotices';
+import { authStepFeedback } from '../lib/authStepFeedback';
+import { preserveOrderRequest } from '../lib/orderRequestSelection';
 
 type AuthPhase = 'phone' | 'code' | 'registration';
 
@@ -14,6 +16,7 @@ interface AuthStep {
   phase: AuthPhase;
   csrf: string;
   message: string;
+  outcome?: string;
   website: boolean;
   returnPath: string;
   clientName: string;
@@ -36,6 +39,7 @@ const AuthPage: React.FC = () => {
   const [ code, setCode ] = useState( '' );
   const [ busy, setBusy ] = useState( false );
   const [ error, setError ] = useState( '' );
+  const [ feedback, setFeedback ] = useState<string>( '' );
   const [ countryOpen, setCountryOpen ] = useState( false );
   const [ countryQuery, setCountryQuery ] = useState( '' );
   const countryRef = useRef<HTMLDivElement | null>( null );
@@ -59,10 +63,15 @@ const AuthPage: React.FC = () => {
         const next = await response.json() as AuthStep;
         if ( !response.ok ) throw new Error( 'start' );
         if ( next.redirect ) {
-          window.location.assign( next.redirect );
+          window.location.assign( preserveOrderRequest( next.redirect, window.location.hash ) );
           return;
         }
-        if ( !cancelled ) setStep( next );
+        if ( !cancelled ) {
+          setStep( next );
+          const notice = authStepFeedback( next.message, next.outcome );
+          if ( notice?.tone === 'error' ) setError( notice.message );
+          else if ( notice ) setFeedback( notice.message );
+        }
       } catch {
         if ( !cancelled ) setError( publicActionText( 'blocked' ) );
       }
@@ -86,6 +95,7 @@ const AuthPage: React.FC = () => {
     if ( !step || busy ) return;
     setBusy( true );
     setError( '' );
+    setFeedback( '' );
     try {
       const body = new URLSearchParams( { csrf: step.csrf, ...values } );
       if ( step.website ) {
@@ -101,7 +111,7 @@ const AuthPage: React.FC = () => {
       } );
       const next = await response.json() as AuthStep;
       if ( next.redirect ) {
-        window.location.assign( next.redirect );
+        window.location.assign( preserveOrderRequest( next.redirect, window.location.hash ) );
         return;
       }
       if ( !response.ok ) {
@@ -111,9 +121,9 @@ const AuthPage: React.FC = () => {
       setStep( next );
       setCode( '' );
       if ( next.phase === 'phone' ) setPhone( '' );
-      // Auth's response is API input, not an approved UI message. Only known
-      // non-enumerating sign-in messages may pass; all other text is normalized.
-      if ( next.message ) setError( publicActionText( 'failure' ) );
+      const notice = authStepFeedback( next.message, next.outcome );
+      if ( notice?.tone === 'error' ) setError( notice.message );
+      else if ( notice ) setFeedback( notice.message );
     } catch {
       setError( publicActionText( 'failure' ) );
     } finally {
@@ -295,6 +305,7 @@ const AuthPage: React.FC = () => {
             ) }
 
             { error && <PublicNotice id="auth-error" mode="inline" tone="error" message={ error } /> }
+            { !error && feedback && <PublicNotice mode="inline" tone="info" message={ feedback } /> }
 
             { step && (
               <div className="auth-actions">

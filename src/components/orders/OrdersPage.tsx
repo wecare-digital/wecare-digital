@@ -22,7 +22,7 @@ import PolicyDetails from '../public/PolicyDetails';
 import { ORDERS_POLICY_DETAILS } from '../../content/publicPolicyDetails';
 import { publicActionText } from '../../lib/publicActionNotices';
 import { usePublicToast } from '../public/PublicToastProvider';
-import { orderRequestById, takeOrderRequest, type OrderRequestId } from '../../lib/orderRequestSelection';
+import { orderRequestById, orderRequestFromHash, preserveOrderRequest, takeOrderRequest, type OrderRequestId } from '../../lib/orderRequestSelection';
 import { whatsappServiceLink } from '../../config/whatsappServiceEntries';
 
 /**
@@ -464,7 +464,7 @@ export default function OrdersPage (): React.ReactElement {
     setToken( '' );
     setOrders( [] );
     setCursor( '' );
-    window.location.replace( '/auth?return=/orders/' );
+    window.location.replace( preserveOrderRequest( '/auth?return=/orders/', window.location.hash ) );
   };
 
   const signOut = () => {
@@ -520,10 +520,6 @@ export default function OrdersPage (): React.ReactElement {
     setOrders( rows );
     setCursor( String( data.cursor || '' ) );
     dismissAlertFor( 'orders' );
-    // Consume only after a successful authenticated history read (also covers
-    // retry after a load error). No effect-driven cascading render or send.
-    const selection = takeOrderRequest();
-    if ( selection ) setRequestSelection( selection );
     setView( rows.length === 0 ? 'empty' : 'ready' );
   };
 
@@ -558,10 +554,12 @@ export default function OrdersPage (): React.ReactElement {
       if ( !live ) return;
       if ( !session )
       {
-        window.location.replace( '/auth?return=/orders/' );
+        window.location.replace( preserveOrderRequest( '/auth?return=/orders/', window.location.hash ) );
         return;
       }
       setToken( session.accessToken );
+      const selection = takeOrderRequest();
+      if ( selection ) setRequestSelection( selection );
 
       // Start the authorised history request FIRST, before either an explicit
       // Meta invitation or the background profile bootstrap can compete for the
@@ -680,7 +678,17 @@ export default function OrdersPage (): React.ReactElement {
     setCursor( String( outcome.data.cursor || '' ) );
   };
 
-  const signedIn = view === 'ready' || view === 'empty';
+  useEffect( () => {
+    const onHashChange = () => {
+      const selected = orderRequestFromHash( window.location.hash );
+      void takeOrderRequest();
+      setRequestSelection( selected );
+    };
+    window.addEventListener( 'hashchange', onHashChange );
+    return () => window.removeEventListener( 'hashchange', onHashChange );
+  }, [] );
+
+  const signedIn = Boolean( token );
   useEffect( () => {
     if ( signedIn && requestSelection && requestPanel.current ) {
       requestPanel.current.focus( { preventScroll: true } );
@@ -921,7 +929,10 @@ export default function OrdersPage (): React.ReactElement {
                                     </button>
                                   </>
                                 ) }
-                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ setRequestSelection } />
+                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
+                                setRequestSelection( id );
+                                window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
+                              } } />
                               </span>
                             </td>
                           </tr>

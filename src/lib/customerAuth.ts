@@ -23,8 +23,7 @@
  *
  * Token storage
  * -------------
- * The access token goes in `sessionStorage`, not `localStorage`: it is valid for
- * 60 minutes. A server-owned session uses an HttpOnly cookie and an encrypted
+ * The access token stays in memory for its short lifetime (up to 60 minutes). A server-owned session uses an HttpOnly cookie and an encrypted
  * refresh token. Only a CSRF/expiry hint is kept in localStorage; it cannot
  * authorize a request. Customers may opt out of a persistent cookie on shared
  * devices. Short access tokens remain readable by same-origin script and expire
@@ -45,61 +44,102 @@ const SESSION_HINT_KEY = 'wecare.customer.sessionHint';
 const SESSION_HINT_COOKIE = 'wc_customer_session_hint';
 interface SessionHint { csrfToken: string; expiresAt: number; persistent: boolean; }
 let refreshInFlight: Promise<CustomerSession | null> | null = null;
+let refreshCsrf = '';
+let sessionRevision = 0;
+let memoryHint: SessionHint | null = null;
+let memorySession: CustomerSession | null = null;
 
-// Logout in another tab invalidates this tab's cached access token as well.
-if ( typeof window !== 'undefined' ) window.addEventListener( 'storage', event => {
-  if ( event.key === SESSION_HINT_KEY && event.newValue === null ) {
+function discardAccessToken (): void {
+  sessionRevision += 1;
+  memorySession = null;
+  try {
     window.sessionStorage.removeItem( TOKEN_KEY );
     window.sessionStorage.removeItem( EXPIRY_KEY );
+  } catch { /* In-memory custody still clears when browser storage is disabled. */ }
+}
+
+function parseHint ( raw: string | null ): SessionHint | null {
+  try {
+    const value = JSON.parse( raw || 'null' ) as SessionHint | null;
+    return value && typeof value.csrfToken === 'string' && value.csrfToken.length > 0
+      && typeof value.expiresAt === 'number' && Number.isFinite( value.expiresAt )
+      && value.expiresAt > Date.now() && typeof value.persistent === 'boolean' ? value : null;
+  } catch { return null; }
+}
+
+// Remove older releases' persisted access tokens; the server session restores
+// authentication after navigation without exposing a token in browser storage.
+if ( typeof window !== 'undefined' ) discardAccessToken();
+
+// A login or logout in another tab invalidates this tab's cached access token.
+if ( typeof window !== 'undefined' ) window.addEventListener( 'storage', event => {
+  if ( event.key === SESSION_HINT_KEY ) {
+    memoryHint = null;
+    discardAccessToken();
   }
 } );
 
 function sessionHint (): SessionHint | null {
   if ( typeof window === 'undefined' ) return null;
+  // The server's new-login handoff supersedes every hint/token from a prior login.
+  let raw: string | undefined;
   try {
-    let hint = JSON.parse( window.localStorage.getItem( SESSION_HINT_KEY ) || 'null' ) as SessionHint | null;
-    if ( !hint?.csrfToken ) {
-      const raw = document.cookie.split( '; ' ).find( row => row.startsWith( `${ SESSION_HINT_COOKIE }=` ) )?.slice( SESSION_HINT_COOKIE.length + 1 );
-      if ( raw ) {
-        hint = JSON.parse( decodeURIComponent( raw ) ) as SessionHint;
-        if ( hint?.csrfToken && hint.expiresAt > Date.now() ) {
-          window.localStorage.setItem( SESSION_HINT_KEY, JSON.stringify( hint ) );
-        }
-        document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+    raw = document.cookie.split( '; ' ).find( row => row.startsWith( `${ SESSION_HINT_COOKIE }=` ) )?.slice( SESSION_HINT_COOKIE.length + 1 );
+    if ( raw ) {
+      const fresh = parseHint( decodeURIComponent( raw ) );
+      if ( fresh ) {
+        if ( memoryHint?.csrfToken !== fresh.csrfToken ) discardAccessToken();
+        memoryHint = fresh;
+        // Keep the handoff cookie available if persistence is blocked. It is only
+        // a CSRF/expiry hint; the HttpOnly server session remains the authority.
+        try {
+          window.localStorage.setItem( SESSION_HINT_KEY, JSON.stringify( fresh ) );
+          document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+        } catch { /* The fresh in-memory hint remains usable. */ }
+        return fresh;
       }
     }
-    if ( !hint?.csrfToken || hint.expiresAt <= Date.now() ) return null;
-    return hint;
-  } catch {
-    document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
-    return null;
+  } catch { /* A malformed handoff must not erase an otherwise valid saved hint. */ }
+  if ( raw ) {
+    try { document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`; } catch { /* Cookies disabled. */ }
   }
+  if ( memoryHint && memoryHint.expiresAt > Date.now() ) return memoryHint;
+  try { memoryHint = parseHint( window.localStorage.getItem( SESSION_HINT_KEY ) ); } catch { memoryHint = null; }
+  return memoryHint;
 }
 
 /** Restore the server-owned session. A transient failure keeps the hint for a later retry. */
 export async function restoreSession (): Promise<CustomerSession | null> {
+  const hint = sessionHint();
   const current = getSession();
   if ( current ) return current;
-  const hint = sessionHint();
   if ( !hint ) return null;
-  if ( refreshInFlight ) return refreshInFlight;
-  refreshInFlight = ( async () => {
+  if ( refreshInFlight && refreshCsrf === hint.csrfToken ) return refreshInFlight;
+  const revision = sessionRevision;
+  const pending = ( async () => {
     const response = await fetch( SESSION_ENDPOINT, {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-Customer-CSRF': hint.csrfToken },
       body: JSON.stringify( { action: 'refresh' } ),
     } );
+    // An older response cannot replace or clear a newer login or a logout.
+    if ( sessionHint()?.csrfToken !== hint.csrfToken || sessionRevision !== revision ) return null;
     if ( response.status === 401 ) {
-      window.localStorage.removeItem( SESSION_HINT_KEY );
+      memoryHint = null;
+      try { window.localStorage.removeItem( SESSION_HINT_KEY ); } catch { /* Storage disabled. */ }
+      try { document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`; } catch { /* Cookies disabled. */ }
       return null;
     }
     if ( !response.ok ) throw new Error( 'Sign-in is temporarily unavailable. Please try again.' );
     const renewed = await response.json() as CustomerSession;
+    if ( sessionHint()?.csrfToken !== hint.csrfToken || sessionRevision !== revision ) return null;
     if ( !renewed.accessToken || renewed.expiresAt <= Date.now() ) throw new Error( 'Sign-in could not be renewed.' );
     storeSession( renewed.accessToken, renewed.expiresAt );
     return renewed;
   } )();
-  try { return await refreshInFlight; } finally { refreshInFlight = null; }
+  refreshInFlight = pending;
+  refreshCsrf = hint.csrfToken;
+  try { return await pending; } finally { if ( refreshInFlight === pending ) refreshInFlight = null; }
 }
 
 export interface OtpChallenge {
@@ -312,22 +352,22 @@ export function nextSessionFrom ( error: unknown ): string {
 
 export function storeSession ( accessToken: string, expiresAt: number ): void {
   if ( typeof window === 'undefined' ) return;
-  window.sessionStorage.setItem( TOKEN_KEY, accessToken );
-  window.sessionStorage.setItem( EXPIRY_KEY, String( expiresAt ) );
+  memorySession = { accessToken, expiresAt };
+
 }
 
 /** The stored token, or null when absent or expired. */
 export function getSession (): CustomerSession | null {
   if ( typeof window === 'undefined' ) return null;
-  const accessToken = window.sessionStorage.getItem( TOKEN_KEY );
-  const expiresAt = Number( window.sessionStorage.getItem( EXPIRY_KEY ) || 0 );
+  sessionHint();
+  const accessToken = memorySession?.accessToken;
+  const expiresAt = memorySession?.expiresAt || 0;
   if ( !accessToken || !expiresAt ) return null;
   // Treat a token inside its last 30 seconds as gone, so a request cannot expire
   // mid-flight and surface as a confusing 401.
   if ( Date.now() > expiresAt - 30_000 )
   {
-    window.sessionStorage.removeItem( TOKEN_KEY );
-    window.sessionStorage.removeItem( EXPIRY_KEY );
+    discardAccessToken();
     return null;
   }
   return { accessToken, expiresAt };
@@ -336,9 +376,10 @@ export function getSession (): CustomerSession | null {
 export function clearSession (): void {
   if ( typeof window === 'undefined' ) return;
   const hint = sessionHint();
-  window.sessionStorage.removeItem( TOKEN_KEY );
-  window.sessionStorage.removeItem( EXPIRY_KEY );
-  window.localStorage.removeItem( SESSION_HINT_KEY );
+  discardAccessToken();
+  memoryHint = null;
+  try { window.localStorage.removeItem( SESSION_HINT_KEY ); } catch { /* Storage disabled. */ }
+  try { document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`; } catch { /* Cookies disabled. */ }
   if ( hint ) void fetch( SESSION_ENDPOINT, {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-Customer-CSRF': hint.csrfToken },

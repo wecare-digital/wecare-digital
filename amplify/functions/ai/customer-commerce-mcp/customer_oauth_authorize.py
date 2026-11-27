@@ -92,7 +92,7 @@ def authorize_post(params: dict, event: dict) -> dict:
                 raise AuthError('Invalid resend request')
             if login.get('phase') == 'registration':
                 if not registration_call('request', login['phone'], event):
-                    return save_pending(row, login)
+                    return save_pending(row, login, 'Could not resend the code. Try again.')
                 return save_pending(row, login, 'New code sent.')
             started = aws('cognito-idp').initiate_auth(
                 ClientId=CUSTOMER_CLIENT,
@@ -264,7 +264,7 @@ def authorize_post(params: dict, event: dict) -> dict:
                 }
             )
         )
-        return save_pending(row, login)
+        return save_pending(row, login, 'Could not complete sign-in. Try again.')
 
 
 def _form_params(event: dict) -> dict:
