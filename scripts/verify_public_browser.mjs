@@ -9,7 +9,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { installHeroTrace, verifyHeroIntro } from './public_hero_audit.mjs';
+import { installHeroTrace, verifyHeroRotation } from './public_hero_audit.mjs';
 
 const base = process.env.PUBLIC_QA_BASE;
 if (!base) throw new Error('Set PUBLIC_QA_BASE to an approved preview or public website URL.');
@@ -394,8 +394,8 @@ try {
             if (normalizedRoute) {
               const words = (await page.locator('.home-head .rp-cyc-word').allTextContents()).map(word => word.trim());
               assert.equal(words.length, 4, name + ': Home word inventory');
-              const intro = await verifyHeroIntro(page, words, reducedMotion === 'reduce');
-              assert.deepEqual(intro.issues, [], name + ': bounded headline introduction');
+              const rotation = await verifyHeroRotation(page, words, reducedMotion === 'reduce');
+              assert.deepEqual(rotation.issues, [], name + ': continuous headline rotation');
               const geometry = await page.locator('.home-head .rp-cyc-word').evaluateAll(nodes => nodes.map(node => {
                 const bounds = node.closest('.rp-cycle').getBoundingClientRect();
                 const range = document.createRange();

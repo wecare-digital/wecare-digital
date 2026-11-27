@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
-import { installHeroTrace, verifyHeroIntro } from './public_hero_audit.mjs';
+import { installHeroTrace, verifyHeroRotation } from './public_hero_audit.mjs';
 
 const origin = new URL(process.env.PUBLIC_QA_BASE || 'https://wecare.digital');
 if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/') {
@@ -186,9 +186,9 @@ try {
         return true;
       });
       if (!frameFits) result.failures.push('Clipped fixed hero headline');
-      const intro = await verifyHeroIntro(page, result.words, profile.reducedMotion === 'reduce');
-      result.rotationTrace = intro.trace;
-      result.failures.push(...intro.issues);
+      const rotation = await verifyHeroRotation(page, result.words, profile.reducedMotion === 'reduce');
+      result.rotationTrace = rotation.trace;
+      result.failures.push(...rotation.issues);
       // Every word shares one intrinsic grid cell, so even words no longer
       // active can be measured after fonts settle. Compensate for the inactive
       // word's decorative vertical transform without changing its styles.
@@ -210,7 +210,7 @@ try {
       for (const sample of result.samples) {
         if (!sample.textFits) result.failures.push('Clipped hero word: ' + sample.word);
       }
-      if (intro.issues.some(issue => issue.includes('did not stop'))) result.notes.push('Headline rotation did not stop within the expected bounded sequence.');
+      if (rotation.issues.some(issue => issue.includes('did not continue'))) result.notes.push('Headline rotation did not continue beyond its first cycle.');
       if (result.words.length > 1) result.notes.push('Visually review balanced wording and screen-reader behavior separately.');
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       result.axe = {

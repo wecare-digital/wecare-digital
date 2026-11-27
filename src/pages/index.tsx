@@ -3,7 +3,7 @@ import ClosingBand from '../components/public/ClosingBand';
  * Home — the company page.
  *
  * The rotating headline pill is the SAME mechanism as the Grahak OS hero and the
- * VayuLok headline, not a lookalike: the same bounded introduction and easings
+ * VayuLok headline, not a lookalike: the same continuous rotation interval and easings
  * (.16,1,.3,1 for the wipe and the width glide, .34,1.56,.64,1 for the dot pop),
  * identical white entrance shutter and .33em dot. The three pages are meant to
  * animate as one family, so if you retune one, retune all three.

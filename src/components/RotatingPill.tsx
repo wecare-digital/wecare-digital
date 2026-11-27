@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { heroRotationStepMs, HERO_ROTATION_DEADLINE_MS } from '../lib/publicHeroRotation';
+import { createHeroRotationClock } from '../lib/publicHeroRotation';
 
 /**
  * THE ROTATING LIME PILL, EXTRACTED SO EVERY HERO SHARES ONE IMPLEMENTATION.
  *
  * The home hero, the Grahak OS hero, the VayuLok hero and the shared RotatingHero each
  * hand-rolled the SAME mechanism and the SAME CSS: a lime pill in the headline that cycles a
- * word during a bounded introductory sequence, a dot in the pill's hue, an sr-only copy of the full word list, a width
+ * word every 2400ms, a dot in the pill's hue, an sr-only copy of the full word list, a width
  * re-measured on resize and font-load so overflow:hidden does not clip a word's tail, and a
  * one-shot entrance (a white shutter wipes off the tint, the dot pops, the first word rises in).
  * Four copies drifted - the width-measure fix had to be ported to each by hand, as the comments
@@ -26,9 +26,9 @@ import { heroRotationStepMs, HERO_ROTATION_DEADLINE_MS } from '../lib/publicHero
  * confirmed motion is allowed. Starting at 'final' is what makes the entrance ADDITIVE rather than
  * shipping a pill nobody can see.
  *
- * A one-element words array stays static. Multiword heroes play a single bounded
- * introduction, then settle on the first word without requiring a visible control.
- * Intrinsic grid sizing reserves the full word set; reduced motion stays static.
+ * A one-element words array stays static. Multiword heroes cycle continuously.
+ * The pill itself is the accessible stop/resume control, without a second
+ * visible button. The grid reserves the full word set; reduced motion stays static.
  */
 
 export interface CycleWord {
@@ -59,52 +59,40 @@ export interface RotatingPillProps {
 
 const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', blockBelow } ) => {
   const [ cycleIndex, setCycleIndex ] = useState( 0 );
+  const [ paused, setPaused ] = useState( false );
 
-  // A finite visual introduction: return to the lead word within four seconds
-  // (plus at most the existing .52s tint transition). No repeating timer or
-  // restart when a hidden tab returns or the motion preference changes.
+  // Normal foreground browsing rotates indefinitely. A deliberate press of
+  // the pill stops until the next press, even after focus moves elsewhere.
+  // Hidden tabs and system reduced motion suspend the clock without resetting
+  // the user's explicit pause or catching up missed ticks.
   useEffect( () => {
-    if ( words.length <= 1 ) return undefined;
+    if ( paused || words.length <= 1 ) return undefined;
     const media = typeof window.matchMedia === 'function' ? window.matchMedia( '(prefers-reduced-motion: reduce)' ) : null;
-    if ( media?.matches || document.visibilityState === 'hidden' ) return undefined;
-    const started = window.performance.now();
-    const step = heroRotationStepMs( words.length );
-    let timer: number | undefined;
-    let stopped = false;
-    let index = 0;
-    const stop = () => {
-      stopped = true;
-      if ( timer !== undefined ) window.clearTimeout( timer );
-    };
-    const motionChanged = () => {
-      if ( media?.matches || document.visibilityState === 'hidden' ) stop();
-    };
-    const tick = () => {
-      if ( stopped ) return;
-      motionChanged();
-      const elapsed = window.performance.now() - started;
-      // Do not animate after a stalled event loop or replay missed steps.
-      if ( stopped || elapsed > HERO_ROTATION_DEADLINE_MS ) { stop(); return; }
-      index = Math.min( words.length, Math.max( index + 1, Math.floor( elapsed / step ) ) );
-      setCycleIndex( index % words.length );
-      if ( index === words.length ) { stop(); return; }
-      timer = window.setTimeout( tick, Math.max( 0, started + ( index + 1 ) * step - window.performance.now() ) );
-    };
-    timer = window.setTimeout( tick, step );
-    document.addEventListener( 'visibilitychange', motionChanged );
-    if ( media?.addEventListener ) media.addEventListener( 'change', motionChanged );
-    else media?.addListener?.( motionChanged );
+    const canRotate = () => !media?.matches && document.visibilityState !== 'hidden';
+    const clock = createHeroRotationClock(
+      ( tick, delay ) => window.setInterval( tick, delay ),
+      timer => window.clearInterval( timer ),
+      () => {
+        if ( canRotate() ) setCycleIndex( index => ( index + 1 ) % words.length );
+      },
+    );
+    const sync = () => clock.sync( canRotate() );
+    sync();
+    document.addEventListener( 'visibilitychange', sync );
+    if ( media?.addEventListener ) media.addEventListener( 'change', sync );
+    else media?.addListener?.( sync );
     return () => {
-      stop();
-      document.removeEventListener( 'visibilitychange', motionChanged );
-      if ( media?.removeEventListener ) media.removeEventListener( 'change', motionChanged );
-      else media?.removeListener?.( motionChanged );
+      clock.stop();
+      document.removeEventListener( 'visibilitychange', sync );
+      if ( media?.removeEventListener ) media.removeEventListener( 'change', sync );
+      else media?.removeListener?.( sync );
     };
-  }, [ words.length ] );
+  }, [ words.length, paused ] );
 
   const active = words.length ? cycleIndex % words.length : 0;
   const phaseClass = [
     'rp-mark',
+    words.length > 1 ? 'is-interactive' : '',
     phase === 'armed' || phase === 'shown' ? 'is-armed' : '',
     phase === 'shown' ? 'is-shown' : '',
     // The narrow-width "drop the pill to its own line" fix is a static rule below, gated on this
@@ -128,6 +116,16 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           >{ w.word }</span>
         ) ) }
       </span>
+      { words.length > 1 && (
+        <button
+          type="button"
+          className="rp-toggle"
+          aria-label="Pause headline animation"
+          aria-pressed={ paused }
+          title={ paused ? 'Resume animation' : 'Pause animation' }
+          onClick={ () => setPaused( previous => !previous ) }
+        />
+      ) }
 
       <style jsx>{`
         /* THE PILL, SELF-SCOPED (rp-*). Sizes to the headline it sits in: no font-size here, so it
@@ -144,6 +142,11 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           transition:background-color .52s cubic-bezier(.16,1,.3,1);
           max-width:100%;min-width:0;
         }
+        /* The existing pill is the hit area. No separate text, icon or row. */
+        .rp-mark.is-interactive{min-height:44px;min-width:min(44px,100%)}
+        .rp-toggle{position:absolute;inset:0;z-index:2;box-sizing:border-box;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:inherit;background:transparent;cursor:pointer;touch-action:manipulation}
+        .rp-toggle:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+        @media(forced-colors:active){.rp-toggle:focus-visible{outline-color:Highlight}}
         /* The white shutter. scaleX(0) (finished) by default, so the tint is never left covered. */
         .rp-mark::before{
           content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
@@ -179,6 +182,7 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         @media(prefers-reduced-motion:reduce){
+          .rp-toggle{display:none}
           .rp-mark,.rp-mark::before,.rp-mark-dot{transition:none}
           .rp-mark.is-armed::before{transform:scaleX(0)}
           .rp-mark.is-armed .rp-mark-dot{transform:scale(1)}
