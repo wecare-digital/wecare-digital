@@ -27,3 +27,20 @@ def test_two_arogya_units_pay_express_once_per_basket():
     assert result["collectionBeforeConveniencePaise"] == (
         result["itemSubtotalPaise"] + result["supplyGstPaise"]
         - result["delightPaise"] + result["expressPaise"])
+
+
+def test_invoice_preset_and_backend_register_match_the_requested_base_and_quote():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    presets = json.loads((root / 'src/content/invoicePresets.json').read_text())
+    preset = next(row for row in presets if row['id'] == 'fixed-03')
+    expected = unified_pricing.price_components(55000)
+    assert preset['basePaise'] == expected['itemSubtotalPaise']
+    for key in ('supplyGstPaise', 'delightPaise', 'expressPaise',
+                'convenienceFeePaise', 'convenienceGstPaise', 'totalPayablePaise'):
+        assert preset[key] == expected[key]
+    registry = json.loads((root / 'scripts/shop_express_register_20261102.json').read_text())
+    product = next(row for row in registry['items'] if row['slug'] == 'sehat')
+    assert product['basePricePaise'] == 55000
+    assert product['expressPaise'] == 4500
