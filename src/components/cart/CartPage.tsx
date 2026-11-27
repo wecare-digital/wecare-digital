@@ -2284,14 +2284,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-intro{margin-bottom:24px}
           .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
           .cart-qty{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;font-variant-numeric:tabular-nums;color:var(--public-heading)}
-          .cart-qty button{min-width:44px;min-height:44px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
+          .cart-qty button{min-width:44px;min-height:44px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;font-weight:700;cursor:pointer}
           .cart-qty button:disabled{opacity:.4;cursor:default}
           .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .cart-qty span{min-width:0;text-align:center}.cart-qty .cart-quantity-repair{width:auto;padding:6px;font-size:14px;white-space:normal}
           .cart-quote{min-width:0;margin:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}
           .cart-breakdown-heading{color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);text-wrap:balance}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
-          .cart-quiet-refresh{min-height:44px;max-width:100%;padding:8px;border:0;border-radius:8px;background:var(--public-bg);color:var(--public-brand-green);text-decoration:underline;cursor:pointer;overflow-wrap:anywhere}.cart-quiet-refresh:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+          .cart-quiet-refresh{min-height:44px;min-width:0;padding:8px 12px;background:var(--public-bg);color:var(--public-brand-green)}
           /* Keep disabled text opaque: WebKit captured a contrast failure during quote updates. */
           .cart-quiet-refresh:disabled{color:var(--text-muted);opacity:1;cursor:default;text-decoration:none}
           .cart-in{width:100%;max-width:100%;min-width:0;margin:0;padding:0;background:var(--public-bg);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
@@ -2370,9 +2370,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-remove{
             display:inline-flex;align-items:center;justify-content:center;
             width:44px;height:44px;min-height:44px;padding:0;
-            border:none;background:none;color:var(--public-brand-green);cursor:pointer;border-radius:999px;
+            border:0;background:var(--public-lime-tint);color:var(--public-brand-green);cursor:pointer;border-radius:var(--public-hover-radius);
           }
-          .cart-remove:hover{background:rgba(209,244,112,.22);color:#0f2a1d}
+          .cart-remove:hover:not(:disabled),.cart-qty button:hover:not(:disabled){background:var(--public-button-hover)}
           .cart-remove:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           /* NO RED, ON OWNER INSTRUCTION, AND THE PALETTE HAS A BETTER ANSWER ANYWAY.
              This was #fbe9e9 on a #f0c0c0 border with #8a1f1f text - three colours that appear
@@ -2395,23 +2395,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-status-firm{border-inline-start-width:4px;font-weight:700}
 
           .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
-          .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px;text-decoration:none}
+          .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px}
           .cart-signin{margin-top:16px}
           .cart-payment-panel .cart-actions{margin-top:0}
-          .cart-in :global(.cart-auth-action:hover:not(:disabled)){background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:var(--public-lift-shadow)}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
-          .cart-in :global(.cart-auth-action){
-            min-height:var(--public-cta-height);min-width:0;max-width:100%;padding:8px clamp(12px,3vw,28px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-            background:var(--public-bg);color:var(--public-brand-green);
-            font:var(--public-cta-font-weight) var(--public-responsive-cta-size)/1.35 var(--font-sans);
-            text-align:center;white-space:normal;overflow-wrap:anywhere;text-decoration:none;
-            touch-action:manipulation;cursor:pointer;
-            transition:background-color .18s,transform .18s,box-shadow .18s;
-            display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
-          }
-          .cart-in :global(.cart-auth-primary){font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime)}
-          .cart-in :global(.cart-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
-          .cart-in :global(.cart-auth-action:disabled){opacity:.6;cursor:default;transform:none;box-shadow:none}
           @media(max-width:767px){
             .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-mobile)}
             .cart-row{gap:12px;padding-block:12px;align-items:flex-start;flex-wrap:wrap}
@@ -2427,10 +2414,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             .cart-row-main,.cart-order-summary,.cart-quote,.cart-customer-summary{overflow-wrap:anywhere}
             .cart-row-controls,.cart-qty{max-width:100%;justify-content:flex-start;gap:4px}
             .cart-qty{gap:4px}
-          }
-          @media(prefers-reduced-motion:reduce){
-            .cart-in :global(.cart-auth-action){transition:none}
-            .cart-in :global(.cart-auth-action:hover){transform:none;box-shadow:none}
           }
         `}</style>
       </RotatingHero>

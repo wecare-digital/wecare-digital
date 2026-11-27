@@ -4,23 +4,44 @@ import assert from 'node:assert/strict';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('Amplify and GitHub CI share the selected Node major and exact npm pin', () => {
+// Only the executable `- ...` command lines of amplify.yml, never its comments.
+const amplifyCommands = () =>
+  read('amplify.yml')
+    .split('\n')
+    .filter(line => /^\s*- /.test(line))
+    .join('\n');
+
+test('Amplify and GitHub CI select the same Node major', () => {
   const major = read('.nvmrc').trim();
   const registry = read('packages/config/vendorVersions.ts');
-  const spec = read('amplify.yml');
   const ci = read('.github/workflows/ci.yml');
+  const commands = amplifyCommands();
   assert.match(major, /^\d+$/);
   assert.match(registry, new RegExp("name: 'Node\\.js',\\s*configured: '" + major + "'"));
   assert.ok(ci.includes("node-version-file: '.nvmrc'"));
-  assert.ok(spec.includes('BUILD_NODE_MAJOR="$(cat .nvmrc)"'));
-  assert.ok(spec.includes('nvm use "$BUILD_NODE_MAJOR"'));
-  assert.ok(spec.includes("!== process.env.BUILD_NODE_MAJOR"));
-  assert.ok(spec.includes('npm install --global "npm@$PINNED_NPM"'));
-  assert.ok(spec.includes('test "$(npm --version)" = "$PINNED_NPM"'));
-  assert.ok(spec.includes('npm ci --cache .npm'));
-  assert.ok(spec.indexOf('BUILD_BOOTSTRAP_DIAGNOSTICS=') < spec.indexOf('nvm install --skip-default-packages'));
-  assert.ok(spec.includes('$BUILD_BOOTSTRAP_DIAGNOSTICS/node-failure.log'));
-  assert.ok(spec.includes('$BUILD_BOOTSTRAP_DIAGNOSTICS/npm-failure.log'));
-  assert.ok(spec.includes('scripts/require_release_ci.py --commit "$AWS_COMMIT_ID"'));
-  assert.ok(spec.includes('scripts/verify_public_bundle_secrets.py'));
+
+  // Amplify does not read .nvmrc, so every Node major it names must equal it.
+  const pins = [
+    ...commands.matchAll(/nvm install --skip-default-packages (\d+)/g),
+    ...commands.matchAll(/nvm use (\d+)/g),
+    ...commands.matchAll(/if \(m < (\d+)\)/g),
+  ].map(match => match[1]);
+  assert.equal(pins.length, 3, 'expected nvm install, nvm use and the Node major floor');
+  assert.deepEqual([...new Set(pins)], [major], 'amplify.yml Node major must equal .nvmrc');
+});
+
+test('Amplify build does not install OS packages', () => {
+  // The Amplify build user is not root: `dnf install libatomic` failed jobs 784 and 786
+  // ("This command has to be run with superuser privileges"). Node 26 needs that library,
+  // so it cannot be fixed from amplify.yml on this image.
+  assert.doesNotMatch(amplifyCommands(), /\b(?:dnf|yum|apt-get|apt|apk)\b[^\n]*\binstall\b/);
+});
+
+test('Amplify keeps the exact npm pin and the production release gates', () => {
+  const commands = amplifyCommands();
+  assert.ok(commands.includes('npm install --global "npm@$PINNED_NPM"'));
+  assert.ok(commands.includes('test "$(npm --version)" = "$PINNED_NPM"'));
+  assert.ok(commands.indexOf('npm install --global "npm@$PINNED_NPM"') < commands.indexOf('npm ci --cache .npm'));
+  assert.ok(commands.includes('scripts/require_release_ci.py --commit "$AWS_COMMIT_ID"'));
+  assert.ok(commands.includes('scripts/verify_public_bundle_secrets.py'));
 });

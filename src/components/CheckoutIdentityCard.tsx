@@ -42,7 +42,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
   return (
     <section className={`identity-card${compact ? ' identity-compact' : ''}`}  aria-label="Checkout details">
       <div className="identity-head">
-        <button type="button" onClick={ onEditProfile } disabled={ locked }>Edit profile</button>
+        <button className="public-auth-action" type="button" onClick={ onEditProfile } disabled={ locked }>Edit profile</button>
       </div>
 
       <dl className="identity-rows">
@@ -98,7 +98,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
               { identity.address ? identity.address.fullAddress : ( emptyAddressLabel || '' ) }
             </span>
           </dd>
-          <button type="button" onClick={ onEditAddress } disabled={ locked }>Edit address</button>
+          <button className="public-auth-action" type="button" onClick={ onEditAddress } disabled={ locked }>Edit address</button>
         </div> }
       </dl>
 
@@ -119,20 +119,6 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
         .identity-value{
           color:var(--public-text);font-size:var(--public-data-size);line-height:1.5;overflow-wrap:anywhere;
         }
-        button{
-          min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
-          background:var(--public-lime-tint);color:var(--public-brand-green);
-          font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
-          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
-          touch-action:manipulation;cursor:pointer;
-          transition:background-color .18s,transform .18s,box-shadow .18s;
-        }
-        button:hover:not(:disabled){
-          background:var(--public-brand-lime);transform:translateY(-1px);
-          box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
-        }
-        button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-        button:disabled{opacity:.6;cursor:default;transform:none;box-shadow:none}
         @media(max-width:767px){
           .identity-row,.identity-address-row{grid-template-columns:1fr;gap:4px;padding:14px 0}
           .identity-address-row button{justify-self:start;margin-top:6px}
@@ -140,10 +126,6 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
         .identity-compact .identity-row,.identity-compact .identity-address-row{grid-template-columns:minmax(75px,.4fr) minmax(0,1fr);gap:10px}
         .identity-compact .identity-address-row button{grid-column:2;justify-self:start;margin-top:4px}
         @media(max-width:400px){.identity-compact .identity-row,.identity-compact .identity-address-row{grid-template-columns:1fr}.identity-compact .identity-address-row button{grid-column:1}}
-        @media(prefers-reduced-motion:reduce){
-          button{transition:none}
-          button:hover:not(:disabled){transform:none;box-shadow:none}
-        }
       `}</style>
     </section>
   );

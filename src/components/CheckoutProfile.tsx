@@ -290,33 +290,12 @@ const CheckoutProfile: React.FC<Props> = ( {
         }
         .checkout-profile-grid input:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .checkout-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
-        .checkout-profile-action{
-          min-height:var(--public-cta-height);min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:8px 18px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-          background:var(--public-lime-tint);color:var(--public-brand-green);
-          font:600 var(--public-responsive-cta-size)/1.35 var(--font-sans);
-          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
-          touch-action:manipulation;cursor:pointer;
-          transition:background-color .18s,transform .18s,box-shadow .18s;
-        }
-        .checkout-profile-action:hover:not(:disabled){
-          background:var(--public-button-hover);transform:translateY(-1px);
-          box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
-        }
-        .checkout-profile-action:focus-visible{
-          outline:3px solid var(--public-brand-green);outline-offset:3px;
-        }
-        .checkout-profile-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
-        .checkout-profile-primary{font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime);text-decoration:none}
         @media(max-width:767px){
           .checkout-profile-grid{grid-template-columns:1fr;gap:18px}
           .checkout-profile-grid .span-2{grid-column:auto}
           .checkout-profile-grid input{min-height:52px;font-size:16px}
           .checkout-profile-actions{display:grid;grid-template-columns:1fr;width:100%}
-          .checkout-profile-action{width:100%;font-size:var(--public-mobile-cta-font-size)}
-        }
-        @media(prefers-reduced-motion:reduce){
-          .checkout-profile-action{transition:none}
-          .checkout-profile-action:hover:not(:disabled){transform:none;box-shadow:none}
+          .checkout-profile-action{width:100%}
         }
       `}</style>
     </section>
