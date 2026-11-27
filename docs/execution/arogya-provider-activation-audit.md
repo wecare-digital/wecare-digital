@@ -25,10 +25,11 @@ in an otherwise empty commerce authority.
   renewal lease bounds concurrent login challenges. Do not bypass CAPTCHA or
   provider-required interactive checks. Renewal returns bounded 202 status; the
   active form polls only that status and cancels on unmount or selection change.
-- Use the existing KMS key, registry and Google OAuth secret. The runtime has no
-  provider permissions by default. Opt-in IAM is restricted to the exact service
-  session key and one chosen OAuth grant; the encrypted credential row is read-only
-  for the runtime. No new secret, key, database, worker or scheduler is created.
+- Use the existing KMS key, registry, Google OAuth secret and Apollo service secret.
+  The runtime has no provider permissions by default. Opt-in IAM is restricted to
+  the exact service session key, one chosen OAuth grant and the two exact secret ARNs.
+  The password is never copied into the DynamoDB session registry. No new key,
+  database, worker or scheduler is created.
 - Hide ordinary Arogya payment entry points and reject the unbound Arogya product/SKU
   in the common server-side cart and quote paths, including already-saved carts.
   Existing ₹550 pricing formula is an estimate (₹711.14 for one unit), not a
@@ -44,18 +45,23 @@ in an otherwise empty commerce authority.
    Gmail account, grant the exact Gmail read-only scope, then Verify. The consent
    screen must be completed by the mailbox administrator. A verified staff grant
    alone does not delegate it to the customer-facing service.
-3. An authorized AWS administrator selects the exact verified staff grant owner
-   and existing KMS key, then runs the interactive provisioning script locally:
+3. An authorized AWS administrator configures the existing
+   `wecare/arogya/apollo` secret in Secrets Manager. Do not duplicate the
+   password in DynamoDB. Run the updated interactive script:
    `python3 scripts/configure_arogya_provider.py --grant-owner OWNER_HASH --key-arn APPROVED_KEY_ARN`.
-   It requires an interactive approval statement, prompts for the rotated password
-   and provider-issued header without echo, and conditionally encrypts a new
-   credential row under the existing key. It refuses to overwrite an existing
-   record. Rotation/reset needs a separate approved change with catalogue disabled.
+   It checks the exact account, verified grant and key; requires provider approval
+   and rotation of the previously exposed password; and securely prompts for the
+   provider-issued application header and exact OTP sender. The new secret version
+   is promoted with a version fence. Run the same command with `--check` for
+   read-only readiness verification. Never place credentials on command lines or
+   in repository files. Rotate with catalogue disabled; review and reset any old
+   provider session before re-enabling.
 4. Review the CloudFormation change set. Set ApolloAutomationEnabled=true only
    with the exact verified ApolloGmailGrantOwner, ApolloRegistryTableName,
-   ApolloTokenKeyArn and ApolloGoogleOAuthSecretArn. Validate the key policy and
-   grant context first. With any missing input the default is no provider access.
-   No infrastructure was deployed or permission expanded during this audit.
+   ApolloTokenKeyArn, ApolloGoogleOAuthSecretArn and ApolloServiceSecretArn.
+   Validate the key policy and grant context first. With any missing input the
+   default is no provider access. The provider-approved service secret must pass
+   the readiness check before enabling the conditional IAM permissions.
 5. Deploy the shared auth return allowlist and backend access action before the
    new frontend. Verify 401/403 without a verified customer and 503 with the
    provider disabled; then validate one authorized live renewal and provider
@@ -113,3 +119,12 @@ private asset bucket after the exact-commit CI gate. This is staging only. Revie
 and execute the provider-disabled change set separately; keep the previous
 content-addressed S3 key for rollback. Compare the deployed Lambda CodeSha256 with
 the manifest before testing the authenticated form.
+
+## Secrets Manager credential handoff
+
+The production service secret was created separately at `wecare/arogya/apollo`.
+The earlier DynamoDB credential provisioner did not consume this secret. The
+updated runtime and stack pin its exact ARN, read only AWSCURRENT, validate
+approved service metadata, and remove the legacy credential-row read permission.
+The base disabled artifact never grants access to that secret. Stored login
+credentials alone do not establish an approved or working provider session.
