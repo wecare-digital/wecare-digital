@@ -263,6 +263,10 @@ export const FRONTEND_FRAMEWORK: VendorVersion = {
  * still need `typescript` to resolve to the 6.0 API. package.json therefore aliases
  * `typescript` to `@typescript/typescript6` and installs the real 7.0.2 as `@typescript/native`;
  * `npx tsc` runs 7.0.2. Once typescript-eslint supports TS >= 7.1, drop the alias.
+ *
+ * The compat package has its own version line: 6.0.2 is its latest release, and it installs the
+ * real TypeScript 6.0.3 as `@typescript/old`. `@typescript/typescript6@6.0.3` does not exist, so
+ * pinning it fails every fresh resolution with ETARGET (`npm ci` only compares alias versions).
  */
 export const TYPESCRIPT: VendorVersion = {
   name: 'TypeScript',
