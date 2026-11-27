@@ -23,6 +23,7 @@
     "/niji-setu",
     "/nocode",
     "/partner",
+    "/partners",
     "/request-amendment",
     "/request-pickup",
     "/ritual-guru",
@@ -50,7 +51,8 @@
     "/shop/vault",
     "/submit-request",
     "/subscribe",
-    "/vayulok"
+    "/vayulok",
+    "/zip"
   ],
   "workspacePaths": [
     "/workspace/admin",
@@ -75,6 +77,8 @@
     "scripts/generate-sitemap.js (historical family parents)",
     "scripts/retired_url_probe.py (prior 14-path audit)",
     "scripts/probe_url_host_matrix.py (cart and old customer sign-in)",
-    "public/robots.txt (deleted historical routes)"
+    "public/robots.txt (deleted historical routes)",
+    "scripts/generate-sitemap.js (removed /partners alias)",
+    "Git history bb1cf39b and 8347a346 (retired /zip alias; no longer an Amplify path redirect)"
   ]
 }
