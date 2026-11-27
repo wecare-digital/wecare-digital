@@ -3,6 +3,7 @@ import VoiceSearchMic from './VoiceSearchMic';
 import SearchClearButton from './SearchClearButton';
 import { rankNavigation } from '../lib/navigationSearch';
 import VayuLokWeatherInsights from './VayuLokWeatherInsights';
+import { useVayuLokEnvironmentData } from './VayuLokEnvironmentData';
 import {
   VayuLokCompactPill,
   VayuLokDataCard,
@@ -2366,6 +2367,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const aqiScaleLabel = air?.indexName?.trim()
     || ( air?.indexCode === 'uaqi' ? 'Universal AQI' : 'AQI' );
 
+  // Keep the original visual system. New provider data follows the existing
+  // selected place and viewport defer gates, without new navigation or map layers.
+  const extraContext = useVayuLokEnvironmentData(
+    Boolean( MAPS_KEY ) && hasSelection && mapViewRequested && deferredDataReady,
+    place,
+  );
+
   const currentWorldDestination: WorldTimeDestination = {
     name: place.name,
     addr: place.addr,
@@ -3474,6 +3482,33 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? publicActionText( 'blocked' ) : 'Choose a place for weather.' }</p>
                     ) }
                   </div>
+                ) }
+
+                { extraContext && (
+                  <section className="vl-live-air-forecast" aria-label="Additional environmental readings">
+                    <h2 className="vl-live-air-forecast-title">Environmental insights</h2>
+                    { extraContext.status !== 'ready' ? (
+                      <p className="vl-live-air-history-empty" role="status">{ extraContext.status === 'loading' ? 'Loading location insights…' : 'Additional readings unavailable.' }</p>
+                    ) : extraContext.sections.length ? (
+                      extraContext.sections.map( item => (
+                        <div key={ item.key } className="vl-live-air-forecast">
+                          <h3 className="vl-live-air-forecast-title">{ item.title }</h3>
+                          { item.rows.length > 0 && (
+                            <div className="vl-live-air-forecast-detail">
+                              { item.rows.map( row => (
+                                <span key={ row.label }><strong>{ row.label }</strong>{ ' ' }<span data-wc-no-translate="true">{ row.value }</span></span>
+                              ) ) }
+                            </div>
+                          ) }
+                          { item.note && <p className="vl-live-air-history-empty">{ item.note }</p> }
+                          <p className="vl-live-air-history-empty">
+                            <a href={ item.href } target="_blank" rel="noopener noreferrer" translate={ item.google ? 'no' : undefined }>{ item.attribution }</a>
+                          </p>
+                          { item.google && item.key === 'solar' && <p className="vl-live-air-history-empty" translate="no">Source: Includes solar data from Google</p> }
+                        </div>
+                      ) )
+                    ) : <p className="vl-live-air-history-empty" role="status">Additional sources are not enabled.</p> }
+                  </section>
                 ) }
 
               </aside>
