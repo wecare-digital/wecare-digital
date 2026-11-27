@@ -92,7 +92,11 @@ def test_handler_requires_verified_customer_and_returns_no_provider_confirmation
     identity.phone_verified = True
     assert module.handler(event, None)['statusCode'] == 400
     event['body'] = json.dumps({'action': 'access'})
-    assert json.loads(module.handler(event, None)['body']) == {'phoneVerified': True, 'appointmentConfirmed': False}
+    access = json.loads(module.handler(event, None)['body'])
+    assert access['phoneVerified'] is True and access['appointmentConfirmed'] is False
+    assert len(access['accountKey']) == 64 and access['accountKey'] != identity.subject
+    identity.subject = 'different-owner'
+    assert json.loads(module.handler(event, None)['body'])['accountKey'] != access['accountKey']
     event['body'] = json.dumps({'action': 'quote'})
     reply = module.handler(event, None)
     body = json.loads(reply['body'])
