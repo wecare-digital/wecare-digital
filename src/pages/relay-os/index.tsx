@@ -369,7 +369,7 @@ response = requests.post(
                       extra height on .mockup-wrapper and .chat-area min-height exists to
                       absorb exactly that. Lengthen any line here and you move the
                       panel over the thread - re-measure, do not eyeball. */}
-                  <pre className="code-body" tabIndex={ 0 } aria-label="WhatsApp API example">{`response = requests.post(
+                  <pre className="code-body" role="region" tabIndex={ 0 } aria-label="WhatsApp API example">{`response = requests.post(
   "wecare.digital/api/outbound-whatsapp",
   json={
     "recipientPhone": "+919330994400",
@@ -497,7 +497,7 @@ response = requests.post(
                     <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
                   ))}
                 </div>
-                <pre className="code-block" dir="ltr" tabIndex={ 0 } aria-label={ `${codeExamples[activeCode].lang} code example` }>{codeExamples[activeCode].code}</pre>
+                <pre className="code-block" dir="ltr" role="region" tabIndex={ 0 } aria-label={ `${codeExamples[activeCode].lang} code example` }>{codeExamples[activeCode].code}</pre>
               </div>
               <div className="api-wa-row">
                 <a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">

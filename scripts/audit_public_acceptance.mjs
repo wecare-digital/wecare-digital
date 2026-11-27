@@ -148,17 +148,24 @@ try {
         observe('longtask', entry => { metrics.longTaskMs += entry.duration; });
       });
       await installHeroTrace(page);
-      const response = await page.goto(new URL(route.path, origin).href, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      if (!response?.ok()) throw new Error('HTTP ' + (response?.status() || 'no response'));
+      const target = new URL(route.path, origin).href;
+      // In the gated case hydration may replace the document before the
+      // original navigation finishes. The expected URL is the evidence.
       if (route.kind === 'gated') {
+        const signIn = verifyAuthGate(page, origin, route.path);
+        const load = page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await Promise.all([signIn, load.catch(error => {
+          if (!/ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation|frame was detached|cancelled/i.test(String(error.message))) throw error;
+        })]);
         // Gate before evaluating the document; hydration intentionally changes
         // the execution context. Require the exact same-origin return path.
-        await verifyAuthGate(page, origin, route.path);
         result.status = 'gated';
         result.notes.push('Expected sign-in redirect verified; protected content requires authenticated fixtures.');
         await page.screenshot({path:join(out,route.path.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')+'-gate.png'),timeout:10000});
         continue;
       }
+      const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      if (!response?.ok()) throw new Error('HTTP ' + (response?.status() || 'no response'));
       await page.waitForLoadState('load', { timeout: 12000 }).catch(() => result.notes.push('load event timed out'));
       await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 5000))]));
       const actual = new URL(page.url());

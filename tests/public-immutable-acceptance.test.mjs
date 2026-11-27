@@ -21,8 +21,8 @@ test('shared hero reserves font overhang without altering horizontal grid',()=>{
 });
 test('Relay code panes have keyboard focus and an accessible name',()=>{
   const source=read('src/pages/relay-os/index.tsx');
-  assert.match(source,/<pre className="code-body" tabIndex=\{ 0 \} aria-label=/);
-  assert.match(source,/<pre className="code-block" dir="ltr" tabIndex=\{ 0 \} aria-label=/);
+  assert.match(source,/<pre className="code-body" role="region" tabIndex=\{ 0 \} aria-label=/);
+  assert.match(source,/<pre className="code-block" dir="ltr" role="region" tabIndex=\{ 0 \} aria-label=/);
   assert.match(source,/\.code-block:focus-visible,\.code-body:focus-visible/);
 });
 test('immutable acceptance shares a verified exact export, never proxies transactions',()=>{
