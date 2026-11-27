@@ -276,7 +276,6 @@ function attributeEligible ( start: Element, root: HTMLElement ): boolean {
 function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
   const slots: AttrSlot[] = [];
   const selector = TRANSLATABLE_ATTRS.map( attr => `[${attr}]` ).join( ',' );
-  const seen = new Set<string>();
   for ( const el of Array.from( root.querySelectorAll( selector ) ) ) {
     if ( !attributeEligible( el, root ) ) continue;
     for ( const attr of TRANSLATABLE_ATTRS ) {
@@ -287,7 +286,6 @@ function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
       slots.push( { el, attr } );
     }
   }
-  void seen;
   return slots;
 }
 
@@ -624,10 +622,7 @@ const SupportWidget: React.FC = () => {
     return () => { cancelled = true; };
   }, [] );
 
-  // No labelOverride parameter any more. It existed for one caller - the saved-language
-  // restore, which ran before `langs` was populated and so had to supply the display name
-  // itself. That restore is gone, and every remaining caller picks from a rendered row, so
-  // the lookup below always succeeds.
+  // Selection is scoped to the current page. The language catalogue owns the displayed label.
   const applyLanguage = useCallback( async ( code: string ) => {
     if ( busy ) return;
     setCurrent( code );
@@ -677,7 +672,7 @@ const SupportWidget: React.FC = () => {
       setCurrent( 'en' );
       setStatus( publicActionText( 'blocked' ) );
     } finally { setBusy( false ); }
-  }, [ busy, contentRoot, langs, restore, translateInto, startObserver, stopObserver ] );
+  }, [ busy, contentRoot, restore, translateInto, startObserver, stopObserver ] );
 
   /* The ref that mirrored applyLanguage for the catalogue effect is gone with the restore it
      existed to serve. It was only ever needed because that effect had to call a callback
@@ -704,7 +699,7 @@ const SupportWidget: React.FC = () => {
     // Focus goes back to the chip, not to the body. Dropping focus to the body would send a
     // keyboard user back to the top of the document, which is a page-length punishment for
     // pressing Escape.
-    if ( returnFocus ) chipRef.current?.focus();
+    if ( returnFocus ) chipRef.current?.focus( { preventScroll: true } );
   }, [] );
 
   useEffect( () => {
@@ -777,13 +772,18 @@ const SupportWidget: React.FC = () => {
         setPanelMax( Math.max( 132, Math.round( pill.getBoundingClientRect().top - HEADER_GAP - PANEL_GAP ) ) );
         return;
       }
-      const viewportWidth = visual?.width || window.innerWidth;
-      const viewportHeight = visual?.height || window.innerHeight;
+      // CSS fixed offsets and DOMRects are in layout-viewport coordinates. The
+      // VisualViewport offset locates the visible rectangle inside that space;
+      // do not add it a second time to header/footer DOMRects. Use the root's
+      // viewport height (excluding scrollbars) for the fixed bottom coordinate.
+      const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+      const viewportWidth = visual?.width || document.documentElement.clientWidth;
+      const viewportHeight = visual?.height || layoutHeight;
       const viewportTop = visual?.offsetTop || 0;
       const viewportLeft = visual?.offsetLeft || 0;
       const safeBottom = Number.parseFloat( window.getComputedStyle( bar ).getPropertyValue( '--safe-bottom' ) ) || 0;
       const geometry = publicSupportGeometry( {
-        layoutHeight: window.innerHeight, viewportTop, viewportHeight, viewportWidth,
+        layoutHeight, viewportTop, viewportHeight, viewportWidth,
         headerBottom: header.getBoundingClientRect().bottom,
         footerTop: footer.getBoundingClientRect().top,
         pillHeight: pill.getBoundingClientRect().height || 54, safeBottom, open,
@@ -827,6 +827,18 @@ const SupportWidget: React.FC = () => {
    */
   const canTranslate = langs.length >= 2;
   const hits = searchLanguages( langs, query );
+  // The combobox owns keyboard focus; keep its active option visible in the
+  // list's own scrollport without scrolling the document or raising the keyboard.
+  useEffect( () => {
+    if ( !open ) return;
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>( '.wc-row.is-active' );
+    if ( !list || !row ) return;
+    const listBox = list.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    if ( rowBox.top < listBox.top ) list.scrollTop -= listBox.top - rowBox.top;
+    else if ( rowBox.bottom > listBox.bottom ) list.scrollTop += rowBox.bottom - listBox.bottom;
+  }, [ open, active, query, panelMax, langs ] );
   // Uppercased base code - "EN", "HI", "TA". Short enough to sit in the pill without the
   // chip changing width between languages, which a full name would do on every switch.
   const chipLabel = ( current.split( '-' )[ 0 ] || 'en' ).toUpperCase();
@@ -835,6 +847,9 @@ const SupportWidget: React.FC = () => {
     <div
       ref={ barRef }
       data-wc-no-translate="true"
+      onBlur={ event => {
+        if ( open && event.relatedTarget instanceof Node && !event.currentTarget.contains( event.relatedTarget ) ) closePanel( false );
+      } }
       className={ `wc-langbar ${appShell ? 'is-appshell' : ''}`.trim() }
       /* The parked offset has to be inline: it is a measured pixel value that changes on
          every scroll frame, so there is no stylesheet form of it. null leaves the CSS
@@ -1212,12 +1227,8 @@ const SupportWidget: React.FC = () => {
                   event.preventDefault();
                   if ( query ) { setQuery( '' ); setActive( 0 ); }
                   else closePanel( true );
-                } else if ( event.key === 'Tab' ) {
-                  // Tab closes rather than trapping. A three-element popover does not need a
-                  // focus trap, and trapping would strand a keyboard user who opened it by
-                  // accident.
-                  if ( !query || event.shiftKey ) closePanel( false );
                 }
+                // Normal Tab navigation is preserved; leaving the dock closes it on blur.
               } }
             />
             <SearchClearButton query={ query } placement="inline" onClear={ () => { setQuery( '' ); setActive( 0 ); } } />
@@ -1232,17 +1243,12 @@ const SupportWidget: React.FC = () => {
                 role="option"
                 aria-selected={ lang.code === current }
                 className={ `wc-row ${lang.code === current ? 'is-on' : ''} ${index === Math.min( active, hits.length - 1 ) ? 'is-active' : ''}`.trim() }
-                // onMouseDown, not onClick: the document mousedown listener that closes the
-                // panel fires first in the capture phase, and onClick would then land on an
-                // element that had already been unmounted.
-                //
-                // closePanel( false ) - focus is NOT returned to the chip on a pointer pick.
-                // Returning it is right for the keyboard (Enter and Escape both do) but wrong
-                // here: the programmatic focus inherited :focus-visible from the search input
-                // on Windows Chrome, which left the chip looking permanently selected after a
-                // mouse click. A pointer user has nothing to return focus to, so this drops it
-                // and the chip renders in its resting state, which is what it is.
-                onMouseDown={ event => { event.preventDefault(); closePanel( false ); void applyLanguage( lang.code ); } }
+                tabIndex={ -1 }
+                // Preserve combobox focus on pointer-down, but activate on click so
+                // touch taps and assistive-technology synthesized clicks work, too.
+                // A scroll gesture must never start a translation on pointer-down.
+                onMouseDown={ event => event.preventDefault() }
+                onClick={ event => { closePanel( event.detail === 0 ); void applyLanguage( lang.code ); } }
                 onMouseEnter={ () => setActive( index ) }
               >
                 {/* ONE WORD PER ROW, IN ENGLISH, FOR ALL 71.

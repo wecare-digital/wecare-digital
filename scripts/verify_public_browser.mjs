@@ -23,7 +23,8 @@ for (const engine of engineNames) assert.ok(['chromium', 'firefox', 'webkit'].in
 assert.ok(engineNames.length, 'Select at least one browser engine');
 const menuOnly = process.env.PUBLIC_QA_MENU_ONLY === '1';
 const baselineOnly = process.env.PUBLIC_QA_BASELINE_ONLY === '1';
-assert.ok(!(menuOnly && baselineOnly), 'Choose one focused QA mode');
+const interactionsOnly = process.env.PUBLIC_QA_INTERACTIONS_ONLY === '1';
+assert.ok([menuOnly, baselineOnly, interactionsOnly].filter(Boolean).length <= 1, 'Choose one focused QA mode');
 const requestedRoute = process.env.PUBLIC_QA_ROUTE;
 const normalizedRoute = requestedRoute ? new URL(requestedRoute, origin).pathname.replace(/\/+$/, '') || '/' : null;
 if (requestedRoute) assert.equal(new URL(requestedRoute, origin).origin, origin.origin, 'QA route must use the approved origin');
@@ -74,7 +75,8 @@ for (const [path, eyebrow] of expected) {
   else routes.push({path: url, name: path.slice(1).replaceAll('/', '-'), eyebrow});
 }
 const selectedRoutes = normalizedRoute ? routes.filter(route => (route.path.replace(/\/+$/, '') || '/') === normalizedRoute)
-  : menuOnly ? routes.filter(route => ['/', '/relay-os/', '/shop/', '/terms/'].includes(route.path)) : routes;
+  : menuOnly ? routes.filter(route => ['/', '/relay-os/', '/shop/', '/terms/'].includes(route.path))
+  : interactionsOnly ? routes.filter(route => route.path === '/' || route.input) : routes;
 assert.ok(selectedRoutes.length, 'No registered QA route matches ' + normalizedRoute);
 const focusedDevices = [
   ['desktop-2560', 2560, 1440, false], ['desktop-1920', 1920, 1080, false],
@@ -84,7 +86,7 @@ const focusedDevices = [
   ['phone-430', 430, 932, true], ['phone-landscape', 844, 390, true],
   ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
 ];
-const matrix = normalizedRoute || menuOnly || baselineOnly ? [...devices, ...focusedDevices] : devices;
+const matrix = normalizedRoute || menuOnly || baselineOnly || interactionsOnly ? [...devices, ...focusedDevices] : devices;
 async function assertSharedSearchGeometry(field, name) {
   const geometry = await field.evaluate(el => {
     const parent = el.parentElement;
@@ -170,17 +172,137 @@ async function verifyMenu(page, name, width, height, touch) {
   assert.ok(await page.locator('.hdr-cart').evaluate(el => el === document.activeElement), name + ': outside focus was stolen');
 }
 
+// Fixtures deliberately replace permission and language catalogue calls. No
+// microphone is accessed, no translation POST is permitted, and no contact,
+// order, login or payment control is activated.
+async function installInteractionFixtures(page) {
+  let translationAttempted = false;
+  await page.route('**/site-language/languages', route => route.fulfill({
+    json: {languages: [
+      {code:'en',name:'English'}, {code:'ar',name:'Arabic'},
+      {code:'bn',name:'Bengali'}, {code:'hi',name:'Hindi'},
+      {code:'mr',name:'Marathi'}, {code:'ta',name:'Tamil'},
+    ]},
+    headers: {'access-control-allow-origin':'*'},
+  }));
+  await page.route('**/site-language/translate*', route => {
+    translationAttempted = true;
+    return route.abort();
+  });
+  await page.addInitScript(() => {
+    class DeniedSpeechRecognition {
+      start() { queueMicrotask(() => { this.onerror?.({error:'not-allowed'}); this.onend?.(); }); }
+      stop() {}
+      abort() {}
+    }
+    Object.defineProperty(window, 'SpeechRecognition', {value:DeniedSpeechRecognition, configurable:true});
+  });
+  return () => assert.equal(translationAttempted, false, 'QA must not request translation');
+}
+
+async function verifyVoiceFallback(page, route, name) {
+  let field;
+  if (route.input) field = page.locator(route.input);
+  else {
+    await page.getByRole('button', {name:'Open navigation',exact:true}).click();
+    field = page.getByRole('navigation', {name:'Public navigation'}).getByRole('searchbox', {name:'Search navigation'});
+  }
+  const parent = field.locator('..');
+  await field.fill(route.query || 'Drafting');
+  const value = await field.inputValue();
+  await parent.locator('button.voice-search-mic').click();
+  const feedback = parent.getByText('Voice search unavailable. Type your search instead.', {exact:true});
+  await feedback.waitFor({state:'visible'});
+  assert.equal(await feedback.getAttribute('role'), 'status', name + ': missing voice status semantics');
+  assert.equal(await field.inputValue(), value, name + ': permission denial changed query');
+  await assertSharedSearchGeometry(field, name);
+  await parent.getByRole('button', {name:'Clear search',exact:true}).click();
+  assert.equal(await field.inputValue(), '', name + ': typed fallback clear');
+  assert.ok(await field.evaluate(el => el === document.activeElement), name + ': typed fallback focus');
+  if (!route.input) await field.press('Escape');
+}
+
+async function verifySupport(page, name, width, height) {
+  const dock = page.locator('.wc-langbar');
+  const chip = dock.locator('.wc-chip');
+  const panel = dock.locator('.wc-panel');
+  const field = dock.getByRole('combobox', {name:'Search language'});
+  const assertBounds = async () => {
+    await page.waitForFunction(() => {
+      const el = document.querySelector('.wc-langbar');
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      const v = window.visualViewport;
+      const x = v?.offsetLeft || 0, y = v?.offsetTop || 0;
+      return r.width > 0 && r.height > 0 && r.left >= x-2 && r.top >= y-2
+        && r.right <= x+(v?.width || document.documentElement.clientWidth)+2
+        && r.bottom <= y+(v?.height || document.documentElement.clientHeight)+2;
+    }, null, {timeout:5000});
+  };
+  await chip.waitFor({state:'visible'});
+  await chip.click();
+  await field.waitFor({state:'visible'});
+  await assertBounds();
+  await field.fill('zzzzzzzz');
+  await dock.getByText('No language matches that.', {exact:true}).waitFor({state:'visible'});
+  await dock.getByRole('button', {name:'Clear search',exact:true}).click();
+  assert.equal(await field.inputValue(), '', name + ': language query clear');
+  assert.ok(await field.evaluate(el => el === document.activeElement), name + ': language clear focus');
+  await field.press('ArrowDown');
+  assert.ok(await field.evaluate(el => !!document.getElementById(el.getAttribute('aria-activedescendant') || '')), name + ': missing active language');
+  if (height >= 390) {
+    // Resizing is only a keyboard-size approximation; no native IME claim.
+    await page.setViewportSize({width,height:Math.max(220,Math.floor(height*.6))});
+    try { await assertBounds(); }
+    finally { await page.setViewportSize({width,height}); }
+  }
+  await page.evaluate(() => { document.documentElement.lang = 'ar'; document.documentElement.dir = 'rtl'; });
+  try {
+    await assertBounds();
+    await page.waitForFunction(() => {
+      const r = document.querySelector('.wc-langbar')?.getBoundingClientRect();
+      const v = window.visualViewport;
+      return !!r && r.left - (v?.offsetLeft || 0) <= 22;
+    }, null, {timeout:5000});
+  } finally { await page.evaluate(() => { document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; }); }
+  await field.press('Escape');
+  await panel.waitFor({state:'hidden'});
+  assert.ok(await chip.evaluate(el => el === document.activeElement), name + ': language Escape focus');
+  await chip.click();
+  await field.fill('en');
+  // A synthesized click tests the activation path used by assistive
+  // technologies. English is a local reset, not a translation request.
+  await dock.getByRole('option', {name:/English/}).evaluate(el => el.click());
+  await panel.waitFor({state:'hidden'});
+  assert.ok(await chip.evaluate(el => el === document.activeElement), name + ': language activation focus');
+  await page.evaluate(() => window.scrollTo(0,document.documentElement.scrollHeight));
+  await assertBounds();
+  if (width <= 767) {
+    await page.waitForFunction(() => {
+      const pill = document.querySelector('.wc-pill')?.getBoundingClientRect();
+      const footer = document.querySelector('footer.ft-footer')?.getBoundingClientRect();
+      const header = document.querySelector('header.hdr')?.getBoundingClientRect();
+      if (!pill || !footer || !header) return false;
+      // A tall footer and short visible viewport can make both clearances
+      // impossible. Require footer clearance whenever there is room for it.
+      return footer.top < header.bottom + 12 + pill.height + 16 || pill.bottom <= footer.top - 14;
+    }, null, {timeout:5000});
+  }
+  await page.screenshot({path:join(output,name+'-support.png')});
+}
+
 const results = [];
 for (const engine of engineNames) {
 const browser = await playwright[engine].launch({headless: true});
 try {
   for (const [device, width, height, touch, reducedMotion = 'no-preference'] of matrix) {
-    const context = await browser.newContext({viewport: {width, height}, hasTouch: touch, deviceScaleFactor: 1, reducedMotion});
+    const context = await browser.newContext({viewport: {width, height}, hasTouch: touch, deviceScaleFactor: 1, reducedMotion, ...(interactionsOnly ? {serviceWorkers:'block'} : {})});
     try {
       for (const route of selectedRoutes) {
         const page = await context.newPage();
         const name = engine + '-' + device + '-' + route.name;
         try {
+          const assertNoTranslation = interactionsOnly ? await installInteractionFixtures(page) : null;
           const response = await page.goto(new URL(route.path, origin).href, {waitUntil: 'domcontentloaded', timeout: 30000});
           assert.ok(response && response.ok(), name + ': non-success response');
           await page.locator('h1').first().waitFor({state: 'attached'});
@@ -189,6 +311,14 @@ try {
             scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth,
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
+
+          if (interactionsOnly) {
+            await verifyVoiceFallback(page, route, name);
+            if (route.path === '/') await verifySupport(page, name, width, height);
+            assertNoTranslation();
+            results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'pass'});
+            continue;
+          }
 
           if (baselineOnly) {
             const meta = page.locator('meta[name="viewport"]');

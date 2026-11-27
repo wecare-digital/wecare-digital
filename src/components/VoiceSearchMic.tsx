@@ -15,7 +15,7 @@ interface VoiceRecognitionLike {
   abort?: () => void;
   onstart: ( () => void ) | null;
   onend: ( () => void ) | null;
-  onerror: ( () => void ) | null;
+  onerror: ( ( event: { error?: string } ) => void ) | null;
   onresult: ( ( event: VoiceRecognitionEventLike ) => void ) | null;
 }
 type VoiceRecognitionConstructor = new () => VoiceRecognitionLike;
@@ -47,6 +47,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
   const [ supportChecked, setSupportChecked ] = useState( false );
   const [ supported, setSupported ] = useState( false );
   const [ listening, setListening ] = useState( false );
+  const [ feedback, setFeedback ] = useState( '' );
   const recognitionRef = useRef<VoiceRecognitionLike | null>( null );
   const transcriptHandlerRef = useRef( onTranscript );
 
@@ -66,16 +67,21 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
       return;
     }
 
-    const recognition = new Recognition();
+    let recognition: VoiceRecognitionLike;
+    try { recognition = new Recognition(); }
+    catch { setSupportChecked( true ); return; }
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.onstart = () => setListening( true );
+    recognition.onstart = () => { setListening( true ); setFeedback( '' ); };
     recognition.onend = () => setListening( false );
-    recognition.onerror = () => setListening( false );
+    recognition.onerror = event => {
+      setListening( false );
+      if ( event.error !== 'aborted' ) setFeedback( 'Voice search unavailable. Type your search instead.' );
+    };
     recognition.onresult = event => {
       const transcript = String( event.results?.[ 0 ]?.[ 0 ]?.transcript || '' ).trim();
-      if ( transcript ) transcriptHandlerRef.current( transcript );
+      if ( transcript ) { setFeedback( '' ); transcriptHandlerRef.current( transcript ); }
     };
     recognitionRef.current = recognition;
     setSupported( true );
@@ -86,7 +92,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
       recognition.onend = null;
       recognition.onerror = null;
       recognition.onresult = null;
-      recognition.abort?.();
+      try { recognition.abort?.(); } catch { /* browser may already have ended recognition */ }
       if ( recognitionRef.current === recognition ) recognitionRef.current = null;
     };
   }, [] );
@@ -95,14 +101,16 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
     const recognition = recognitionRef.current;
     if ( !recognition ) return;
     if ( listening ) {
-      recognition.stop?.();
+      try { recognition.stop?.(); } catch { setListening( false ); }
       return;
     }
-    recognition.lang = pageVoiceLocale();
+    setFeedback( '' );
     try {
+      recognition.lang = pageVoiceLocale();
       recognition.start();
     } catch {
       setListening( false );
+      setFeedback( 'Voice search unavailable. Type your search instead.' );
     }
   }, [ listening ] );
 
@@ -130,7 +138,9 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
           <path className="voice-search-mic-glyph" d={ VOICE_SEARCH_MIC_PATH } />
         </svg>
       </button>
+      <span className="voice-search-feedback" role="status" aria-live="polite">{ feedback }</span>
       <style jsx>{`
+        .voice-search-feedback{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
         .voice-search-mic{
           position:absolute;inset-inline-end:-2px;bottom:0;top:auto;z-index:2;
           display:inline-grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;

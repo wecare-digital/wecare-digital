@@ -29,6 +29,22 @@
   outline: 2px solid var(--public-brand-green);
   outline-offset: -2px;
 }
+/* Failure feedback is visible on opt-in public search fields; other callers
+ * retain the shared screen-reader status without changing their layout. */
+[data-public-search-field] > .voice-search-feedback:not(:empty) {
+  position: static;
+  flex: 0 0 100%;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--public-meta-size);
+  line-height: 1.4;
+  color: var(--public-muted);
+}
 @media (prefers-reduced-motion: reduce) {
   [data-public-search-field] > input[type="search"],
   [data-public-search-field] > button {

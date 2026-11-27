@@ -24,6 +24,29 @@ test('public support geometry stays in the visible viewport and keeps a usable p
   }
   assert.equal(count,1680);
 });
+test('footer parking uses layout coordinates even when the visual viewport pans', () => {
+  const a = publicSupportGeometry({layoutHeight:900, viewportTop:40, viewportHeight:500, viewportWidth:320, headerBottom:108, footerTop:460, pillHeight:54, safeBottom:0, open:false});
+  assert.equal(a.bottom, 456);
+  assert.equal(900-a.bottom, 460-16);
+  const b = publicSupportGeometry({layoutHeight:900, viewportTop:80, viewportHeight:500, viewportWidth:320, headerBottom:148, footerTop:500, pillHeight:54, safeBottom:0, open:false});
+  assert.equal(b.bottom, 416);
+  assert.equal(900-b.bottom, 500-16);
+});
+
+test('voice failure and language activation retain typed and accessible alternatives', () => {
+  const voice = read('src/components/VoiceSearchMic.tsx');
+  assert.ok(voice.includes('Voice search unavailable. Type your search instead.'));
+  assert.ok(voice.includes('role="status" aria-live="polite"'));
+  assert.ok(voice.includes("event.error !== 'aborted'"));
+  const support = read('src/components/SupportWidget.tsx');
+  assert.ok(support.includes('tabIndex={ -1 }'));
+  assert.ok(support.includes('onClick={ event => { closePanel( event.detail === 0 ); void applyLanguage( lang.code ); } }'));
+  assert.ok(support.includes('list.scrollTop += rowBox.bottom - listBox.bottom'));
+  assert.ok(support.includes('document.documentElement.clientHeight || window.innerHeight'));
+  const qa = read('scripts/verify_public_browser.mjs');
+  for (const token of ['PUBLIC_QA_INTERACTIONS_ONLY','DeniedSpeechRecognition','translationAttempted','verifySupport','verifyVoiceFallback']) assert.ok(qa.includes(token),token);
+});
+
 test('the seven public search surfaces opt into the same non-overlapping layout', () => {
   const css=read('src/styles/public-interactions.css');
   for(const token of ['flex-wrap: wrap','flex: 1 1 96px','position: static','outline: 2px solid var(--public-brand-green)']) assert.ok(css.includes(token),token);
