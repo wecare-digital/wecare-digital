@@ -1114,7 +1114,7 @@ const Header: React.FC = () => {
 
            NO LINES HERE, deliberately: a three-line burger was mocked in round one
            (docs/menu-mock/a4-three-lines.png) and the owner kept the chevron. */
-        .nav-trigger-icon{margin:0;fill:#1a3a2a;transform:rotate(0deg);transition:transform .2s}
+        .nav-trigger-icon{margin:0;fill:var(--public-nav-arrow);transform:rotate(0deg);transition:transform .2s}
         .nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}
 
         /* MEGA PANEL. The shared geometry function anchors a maximum 760px
@@ -1135,7 +1135,7 @@ const Header: React.FC = () => {
         .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .nav-search::-ms-clear{display:none}
         .nav-search::placeholder{color:var(--public-muted)}
-        .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
 
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
@@ -1163,6 +1163,7 @@ const Header: React.FC = () => {
         .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
         .nav-section-icon path,.nav-row-icon path,.nav-sub-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
         .nav-section-icon-material,.nav-row-icon-material{fill:currentColor;stroke:none}
+        .nav-sub-icon{color:var(--public-nav-arrow)}
         .nav-sub-icon .nav-sub-dots{fill:currentColor;stroke:none}
         :global([dir='rtl']) .nav-sub-icon{transform:scaleX(-1)}
 
@@ -1218,7 +1219,7 @@ const Header: React.FC = () => {
         .nav-products-more{display:flex;align-items:center;justify-content:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
         .nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{fill:currentColor}
+        .nav-products-more-icon{fill:var(--public-nav-arrow)}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:var(--public-brand-green);text-decoration:none;border-radius:8px}
@@ -1247,7 +1248,7 @@ const Header: React.FC = () => {
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
         .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:var(--public-nav-row-desktop);padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:var(--public-nav-radius)}
-        .nav-row-chevron{margin-inline-start:auto;fill:currentColor;stroke:none}
+        .nav-row-chevron{margin-inline-start:auto;fill:var(--public-nav-arrow);stroke:none}
         .nav-item-label{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.25;padding-block:5px}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
            rgba(209,244,112,.22) pale tint, so the current page ("you are here") looked
