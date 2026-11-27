@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import BrandBadge from './BrandBadge';
-import RotatingPill from './RotatingPill';
+import RotatingPill, { HeroRotationControl } from './RotatingPill';
 
 /**
  * The Home hero — badge, rotating headline pill, one body line — as a reusable,
@@ -146,6 +146,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
    * additive - no JS, a failed bundle or reduced motion all render a complete pill.
    */
   const [ phase, setPhase ] = useState<'final' | 'armed' | 'shown'>( 'final' );
+  const [ rotationPaused, setRotationPaused ] = useState( false );
 
   useEffect( () => {
     // THE ENTRANCE IS OPT-IN, NOT OPT-OUT, and this was a real defect on twelve pages.
@@ -234,7 +235,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
               <>
                 <span className="rh-head-line rh-head-inline-rotate">
                   <span>{ frame }</span>
-                  <RotatingPill key={ pillKey } words={ words } phase={ phase } />
+                  <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
                 </span>
                 { secondLine && <span className="rh-head-line">{ secondLine }</span> }
               </>
@@ -243,13 +244,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
                 <span className="rh-head-line">{ frame }</span>
                 <span className="rh-head-line rh-head-rotate">
                   { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-                  <RotatingPill key={ pillKey } words={ words } phase={ phase } />
+                  <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
                 </span>
               </>
             ) }
           </Head>
 
           { sub && <p className="rh-sub">{ sub }</p> }
+          <HeroRotationControl count={ words.length } paused={ rotationPaused } onToggle={ () => setRotationPaused( value => !value ) } />
           </div>
 
           { visual }
@@ -329,10 +331,10 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            h1's height independent of which word is showing. The pill itself (its lozenge,
            dot, width glide, word fade and entrance) lives in RotatingPill, which self-scopes
            its own rp-* CSS - styled-jsx here cannot reach a child component's markup. */
-        .rh-head-line{display:block;max-width:100%;overflow-wrap:anywhere}
+        .rh-head-line{display:block;max-width:100%;overflow-wrap:anywhere;text-wrap:balance}
         .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
         .rh-head-inline-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
-        .rh-head-prefix{display:inline-block}
+        .rh-head-prefix{display:inline-block;min-width:0;overflow-wrap:anywhere}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
            rgba(0,0,0,.898). 560px rather than the headline's 900px, because at 20px a
