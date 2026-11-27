@@ -536,9 +536,9 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .blog-search input{
-          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:var(--public-body);background:transparent;
-          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .blog-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
