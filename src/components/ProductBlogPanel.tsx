@@ -337,7 +337,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
         .pbp :global(.pbp-browse:hover){
-          background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;
+          background:var(--public-hover-surface);color:var(--public-brand-green);text-decoration-color:transparent;
           transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12);
         }
         .pbp :global(.pbp-browse:focus-visible){
@@ -379,9 +379,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .pbp-search input{
-          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);
           font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .pbp-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
@@ -439,7 +439,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s,opacity .2s;
         }
-        .pbp-arrow:hover:not(:disabled){background:var(--public-brand-lime)}
+        .pbp-arrow:hover:not(:disabled){background:var(--public-hover-surface)}
         .pbp-arrow:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
         .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
 
