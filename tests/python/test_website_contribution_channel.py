@@ -21,6 +21,11 @@ def test_public_contribution_requires_website_payment():
     ordinary = {"catalogReference": {"catalogItemId": "ordinary"}, "quantity": 1}
     assert requires_web([line])
     assert requires_web([ordinary, line])
+    product_id = next(iter(CONTRIBUTION_PRODUCT_IDS))
+    assert requires_web([{"productId": product_id, "variantId": "CNT5Q2M8", "quantity": 1}])
+    assert requires_web([{"catalogReference": {}, "productId": product_id}])
+    assert requires_web([{"catalogReference": None, "productId": product_id}])
+    assert not requires_web([{"catalogReference": {"catalogItemId": "ordinary"}, "productId": product_id}])
     assert not requires_web([ordinary])
     assert not requires_web([None, {}, {"catalogReference": None}])
     assert not requires_web(None)

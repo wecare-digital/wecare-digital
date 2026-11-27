@@ -1550,11 +1550,14 @@ def _website_contribution_requires_web_rail(line_items: Any) -> bool:
     if not isinstance(line_items, list):
         return False
     for line in line_items:
-        reference = line.get("catalogReference") if isinstance(line, dict) else None
-        if isinstance(reference, dict):
-            product_id = str(reference.get("catalogItemId") or "").strip().lower()
-            if product_id in CONTRIBUTION_PRODUCT_IDS:
-                return True
+        if not isinstance(line, dict):
+            continue
+        # Mirror _native_quote's accepted modern and legacy identifiers.
+        reference = line.get("catalogReference")
+        reference = reference if isinstance(reference, dict) else {}
+        product_id = str(reference.get("catalogItemId") or line.get("productId") or "").strip().lower()
+        if product_id in CONTRIBUTION_PRODUCT_IDS:
+            return True
     return False
 
 
