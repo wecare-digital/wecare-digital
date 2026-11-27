@@ -148,7 +148,7 @@ async function verifyMenu(page, name, width, height, touch) {
   await nav.waitFor({state: 'visible'});
   assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
   const arrowColor = await trigger.locator('.nav-trigger-icon').evaluate(el => getComputedStyle(el).fill);
-  assert.equal(arrowColor, 'rgb(85, 127, 32)', name + ': navigation trigger arrow color');
+  assert.equal(arrowColor, 'rgb(26, 58, 42)', name + ': navigation trigger arrow color');
   const chevrons = await nav.locator('.nav-row-chevron:visible').evaluateAll(els => els.map(el => getComputedStyle(el).fill));
   assert.ok(chevrons.every(color => color === arrowColor), name + ': inconsistent navigation chevron color');
   await assertBounds();
