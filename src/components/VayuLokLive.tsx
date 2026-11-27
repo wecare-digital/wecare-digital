@@ -352,6 +352,32 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setDetailTab( mode );
   }, [ mode ] );
 
+  const resetAtlasLocationReadings = useCallback( () => {
+    if ( !atlas ) return;
+    setAir( null );
+    setWeather( null );
+    setCoreFetchedAt( null );
+    setCoreError( false );
+    setDataLoading( Boolean( MAPS_KEY ) );
+    setAirForecast( [] );
+    setWeatherHourly( [] );
+    setWeatherDaily( [] );
+    setWeatherAlerts( [] );
+    setWeatherAlertStatus( 'idle' );
+    setAirForecastStatus( 'idle' );
+    setForecastFetchedAt( null );
+    setAirHistory( [] );
+    setWeatherHistory( [] );
+    setWeatherHistoryFetchedAt( null );
+    setHistoryInspectIdx( null );
+    setWeatherHistoryInspectIdx( null );
+    setAirForecastInspectIdx( 0 );
+    setWeatherHourInspectIdx( null );
+    setWeatherDayInspectIdx( null );
+    setLocationTime( PENDING_LOCATION_TIME );
+    setPollutantTip( null );
+  }, [ atlas ] );
+
   useEffect( () => {
     if ( !externalLocation || !Number.isFinite( externalLocation.lat ) || !Number.isFinite( externalLocation.lng ) ) return;
     const next: PlaceState = {
@@ -365,6 +391,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     ++searchRequestSeqRef.current;
     if ( searchTimer.current ) clearTimeout( searchTimer.current );
     rememberPlace( next );
+    resetAtlasLocationReadings();
     setPlace( next );
     setHasSelection( true );
     setMapCandidate( null );
@@ -373,7 +400,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setOpen( false );
     setActive( -1 );
     setSearchStatus( 'idle' );
-  }, [ externalLocation ] );
+  }, [ externalLocation, resetAtlasLocationReadings ] );
 
   // Reset inspected history only when its identity really changes. Resetting on every array
   // reference change races with a click that lands as an async history response settles.
@@ -965,14 +992,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     const cached = cache.current[ cacheKey ];
     const CORE_TTL_MS = 15 * 60 * 1000;
     if ( cached && Date.now() - cached.ts < CORE_TTL_MS ) {
-      requestAnimationFrame( () => {
+      const frame = requestAnimationFrame( () => {
         setAir( cached.air );
         setWeather( cached.weather );
         setCoreFetchedAt( cached.ts );
         setCoreError( false );
         setDataLoading( false );
       } );
-      return;
+      return () => cancelAnimationFrame( frame );
     }
 
     setDataLoading( true );
@@ -1434,7 +1461,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ deferredDataReady, detailTab, place, hasSelection, airForecastHours, mapViewRequested ] );
 
   useEffect( () => {
-    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' || ( atlas && atlasPerspective !== 'history' ) ) return;
+    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
@@ -1470,10 +1497,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run();
     return () => ac.abort();
-  }, [ deferredDataReady, detailTab, place, hasSelection, mapViewRequested, atlas, atlasPerspective ] );
+  }, [ deferredDataReady, detailTab, place, hasSelection, mapViewRequested ] );
 
   useEffect( () => {
-    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' || ( atlas && atlasPerspective !== 'history' ) ) return;
+    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     setHistoryInspectIdx( null );
@@ -1536,7 +1563,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
-  }, [ deferredDataReady, detailTab, place, historyRange, hasSelection, mapViewRequested, atlas, atlasPerspective ] );
+  }, [ deferredDataReady, detailTab, place, historyRange, hasSelection, mapViewRequested ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists).
@@ -2242,6 +2269,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       return;
     }
     rememberPlace( next );
+    resetAtlasLocationReadings();
     setPlace( next );
     setHasSelection( true );
     setMapCandidate( null );
@@ -2252,7 +2280,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setResults( [] );
     setActive( -1 );
     setSearchStatus( 'idle' );
-  }, [ ensureGeocoder ] );
+  }, [ ensureGeocoder, resetAtlasLocationReadings ] );
 
   const onKeyDown = ( e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
@@ -2742,7 +2770,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 ) }
                 { detailTab === 'air' && (
                   air ? (
-                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                    <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-air-panel" aria-labelledby={ atlas ? undefined : 'vl-live-air-tab' } aria-label="Air details">
                       <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'conditions' }>
                       <div className="vl-live-air-gauge-row">
                         <span className="vl-live-air-aqi-spine" aria-hidden="true" />
@@ -3187,14 +3215,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       </div>
                     </div>
                   ) : (
-                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                    <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-air-panel" aria-labelledby={ atlas ? undefined : 'vl-live-air-tab' } aria-label="Air details">
                       <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? publicActionText( 'blocked' ) : 'Choose a place for air quality.' }</p>
                     </div>
                   )
                 ) }
 
                 { detailTab === 'weather' && (
-                  <div className="vl-live-air-panel" role="tabpanel" id="vl-live-weather-panel" aria-labelledby="vl-live-weather-tab" aria-label="Weather details">
+                  <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-weather-panel" aria-labelledby={ atlas ? undefined : 'vl-live-weather-tab' } aria-label="Weather details">
                     { weather ? (
                       <>
                         { atlas && atlasPerspective === 'forecast' && !weatherHourly.length && !weatherDaily.length && <p className="vl-live-air-empty" role="status">Forecast data is not available yet.</p> }
@@ -3574,7 +3602,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           );
                         } )() }
 
-                        { ( !atlas || atlasPerspective === 'history' ) && (
                         <VayuLokWeatherInsights
                           lat={ place.lat }
                           lng={ place.lng }
@@ -3583,7 +3610,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           zoneLabel={ locationZoneLabel }
                           includeUiStyles={ false }
                         />
-                        ) }
 
                         </div>
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }

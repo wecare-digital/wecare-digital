@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { clampAtlasIndex } from '../src/lib/nanoClimateAtlas.ts';
+import { loadTsxModule } from './helpers/loadTsx.mjs';
+const { exports: { clampAtlasIndex } } = loadTsxModule( { file: 'src/lib/nanoClimateAtlas.ts' } );
 const source = path => readFileSync( new URL( '../src/' + path, import.meta.url ), 'utf8' );
 
 test( 'Atlas time inspection stays within real provider rows', () => {
@@ -24,5 +25,6 @@ test( 'Atlas is opt-in and uses existing provider-backed controls', () => {
   assert.ok( live.includes( 'airForecast.slice( 0, airForecastHours ) : airHistory' ) );
   assert.ok( live.includes( 'weatherHourly.slice( 0, weatherHours ) : weatherHistory' ) );
   assert.ok( live.includes( 'Time controls inspect location readings; the map shows current available layers.' ) );
-  assert.ok( live.includes( "atlas && atlasPerspective !== 'history'" ) );
+  assert.ok( live.includes( '<VayuLokWeatherInsights\n                          lat={ place.lat }' ) );
+  assert.ok( live.includes( 'resetAtlasLocationReadings();\n    setPlace( next );' ) );
 });

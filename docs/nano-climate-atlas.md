@@ -19,7 +19,8 @@ Run npm run typecheck, npm run lint, npm test and npm run build with the require
 
 - Compact page heading, map-first workspace, Air/Weather/AQI/PM2.5 layer selector and collapsible place tools.
 - Conditions / Forecast / History, with actual returned point-data timeline and existing inspection indices. Current map layers are not a time animation.
-- Recent-history fetches and historical weather insights are deferred to History in Atlas mode.
+- Existing automatic history retrieval is preserved, including the historical-weather query guard. The History view changes presentation, not billing or request activation.
+- Location changes clear old Atlas readings before displaying the new place.
 - Existing provider guards, caches, feature flags and map attribution remain. Heatmaps still require an explicit selection. No new provider endpoints, dependencies, credentials or quota changes.
 
 ## Remaining development
