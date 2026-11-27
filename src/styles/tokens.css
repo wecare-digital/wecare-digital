@@ -170,6 +170,11 @@
   --public-copy-max: 560px;
   --public-section-gap: 96px;
   --public-page-gutter: 24px;
+  /* Shared public shell geometry. Private Workspace retains its layout. */
+  --public-responsive-gutter: var(--public-page-gutter);
+  --public-safe-gutter-left: max(var(--public-responsive-gutter), var(--safe-left, 0px));
+  --public-safe-gutter-right: max(var(--public-responsive-gutter), var(--safe-right, 0px));
+  --public-responsive-cta-size: var(--public-cta-font-size);
 
   /* Shared public navigation controls. */
   --public-nav-icon-size: 24px;
@@ -189,8 +194,8 @@
   --public-cta-font-weight: 600;
 
   /* PUBLIC MOBILE FOUNDATION — canonical phone deltas proven on Home.
-   * Pages adopt these variables deliberately during their migration; do not apply a blanket
-   * selector that changes every route at once. Values already shared globally stay single-source:
+   * Shared public components adopt these by default; bespoke layouts remain page-specific.
+   * Values already shared globally stay single-source:
    * body=20px via --public-body-size, tap target=44px via --tap-min, safe areas via --safe-*.
    */
   --public-mobile-hero-size: 40px;
@@ -201,6 +206,7 @@
   --public-mobile-section-gap: 64px;
   --public-mobile-hero-top: 48px;
   --public-mobile-form-font-size: 16px;
+  --public-mobile-supporting-size: var(--public-supporting-size);
 
   /* Font Sizes */
   --text-xs: 12px;
@@ -388,10 +394,10 @@
    * name instead of repeating the env() call. On a non-notch device env() resolves to 0, so a
    * bare reference is safe; the @supports guard stays only where a browser might not know env()
    * at all. */
-  --safe-top: env(safe-area-inset-top);
-  --safe-right: env(safe-area-inset-right);
-  --safe-bottom: env(safe-area-inset-bottom);
-  --safe-left: env(safe-area-inset-left);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 
   /* The house lime state tint. One declaration; --scrollbar-track and --control-tint both
    * read it, so a change to the tint cannot move one and not the other. */
@@ -707,6 +713,16 @@ textarea:focus {
  * MOBILE RESPONSIVE
  * ======================================== */
 
+/* Shared public scale, including verified Vault chrome. */
+@media (max-width: 767px) {
+  :root {
+    --public-responsive-gutter: var(--public-mobile-page-gutter);
+    --public-responsive-cta-size: var(--public-mobile-cta-font-size);
+    --public-mobile-hero-size: clamp(min(34px,calc((100vw - 2 * var(--public-mobile-page-gutter)) / 6.75)),9.75vw,40px);
+    --public-mobile-section-size: clamp(28px,7.75vw,32px);
+    --public-mobile-card-size: clamp(22px,5.8vw,24px);
+  }
+}
 @media (max-width: 768px) {
   html {
     -webkit-tap-highlight-color: transparent;

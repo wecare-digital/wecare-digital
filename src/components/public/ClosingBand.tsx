@@ -42,7 +42,7 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
       <a className={ `cb-cta ${id}-cta` } href={ href }>{ action }</a>
     </div>
     <style jsx>{`        .cb-panel{
-          padding:clamp(28px,4vw,56px);
+          padding:clamp(28px,4vw,56px);min-width:0;overflow-wrap:anywhere;
           border:2px solid var(--public-brand-lime);border-radius:14px;
           background:var(--public-lime-tint);
         }
@@ -90,8 +90,9 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb.is-armed.is-in .cb-points li:nth-child(2){transition-delay:.43s}
         .cb.is-armed.is-in .cb-points li:nth-child(3){transition-delay:.52s}
         .cb-cta{
-          display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:32px;
-          padding:0 28px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);margin-top:32px;
+          max-width:100%;min-width:0;text-align:center;overflow-wrap:anywhere;
+          padding:8px clamp(8px,6vw,28px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
           background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:opacity .5s ease,transform .5s ease,background-color .2s,box-shadow .2s;
         }
@@ -109,7 +110,12 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
           .cb-cta:hover{transform:none}
         }
         @media(max-width:767px){
-          .cb-title{max-width:none}
+          .cb-title{max-width:none;font-size:var(--public-mobile-section-size)}
+          .cb-cta{font-size:var(--public-responsive-cta-size)}
+        }
+        @media(max-width:279px){
+          .cb-panel{padding:clamp(10px,5vw,28px)}
+          .cb-cta{padding:8px clamp(6px,4vw,14px)}
         }`}</style>
   </section>;
 }

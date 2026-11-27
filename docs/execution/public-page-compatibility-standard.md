@@ -4,6 +4,17 @@ Home is the reference. Audit one route at a time; preserve approved content, des
 tokens, security, authentication, payments, policy ownership and navigation. Home is
 the only public content page without Policy details.
 
+## Shared responsive baseline
+
+Apply Home's reference tokens to the shared hero, product typography, safe gutters,
+closing actions, policy, share dock and footer before individual page audits.
+Preserve bespoke layouts, private Workspace, authentication, payments and Vault privacy.
+
+    PUBLIC_QA_BASE=https://wecare.digital PUBLIC_QA_BASELINE_ONLY=1 PUBLIC_QA_ENGINES=chromium,webkit,firefox node scripts/verify_public_browser.mjs
+
+The baseline run covers common chrome on registered routes, not certification of
+individual pages or native devices. Verify each page separately after deployment.
+
 ## Reusable task prompt
 
 Audit and improve [page name] at [live URL]. Use the current Home reference.

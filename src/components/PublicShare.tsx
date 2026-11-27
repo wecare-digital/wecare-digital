@@ -381,7 +381,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
            below the row, and it follows the row when the buttons wrap at 200% zoom. */
         .ps-menu{
           position:absolute;top:calc(100% - 18px);inset-inline-start:0;z-index:30;
-          width:min(340px,calc(100vw - 48px));padding:8px;
+          width:min(340px,100%);padding:8px;
           background:#fff;border:1px solid var(--public-hairline);border-radius:18px;
           box-shadow:0 18px 46px rgba(26,58,42,.13);box-sizing:border-box;
         }
@@ -416,7 +416,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .ps-menu-icon svg{width:18px;height:18px;display:block}
         .ps-menu-icon .ps-material{font-size:20px}
-        .ps-menu-copy{min-width:0}
+        .ps-menu-copy{min-width:0;overflow-wrap:anywhere}
         .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
         .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
         .ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
@@ -428,11 +428,19 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
         @media(max-width:767px){
           .public-share{padding:10px 0 24px}
-          .ps-menu{top:calc(100% - 14px);width:min(330px,calc(100vw - 40px))}
+          /* In-flow on phones: long copy cannot overlap the footer. */
+          .ps-menu{position:relative;top:auto;inset-inline-start:auto;width:min(330px,100%);margin-top:10px}
+          .ps-menu::before{display:none}
         }
         @media(max-width:390px){
           .ps-row{gap:8px}
-          .ps-menu{width:calc(100vw - 40px)}
+          .ps-menu{width:100%}
+        }
+        @media(max-width:279px){
+          .ps-menu-item{grid-template-columns:28px minmax(0,1fr);gap:6px;padding:7px 4px}
+          .ps-menu-icon{width:28px;height:28px}
+          .ps-chevron{display:none}
+          .ps-menu-head{padding-inline:4px}
         }
         /* Below 192px the three 48px buttons and their 8px gaps no longer fit in one row and
            Share wraps under Contribute, so the arrows' fixed offsets would point at the wrong

@@ -27,14 +27,15 @@ const PublicPolicyDetails: React.FC = () => {
           width:100%;
           max-width:var(--public-content-max);
           margin:0 auto;
-          padding:0 var(--public-page-gutter) 48px;
+          padding:0 var(--public-responsive-gutter) 48px;
+          padding-left:var(--public-safe-gutter-left);padding-right:var(--public-safe-gutter-right);
           box-sizing:border-box;
           font-family:var(--font-sans);
           color:var(--public-text);
         }
         .public-policy-inner{width:100%;max-width:var(--public-reading-max)}
         @media(max-width:767px){
-          .public-policy-tail{padding-inline:16px;padding-bottom:40px}
+          .public-policy-tail{padding-bottom:40px}
         }
       `}</style>
     </section>

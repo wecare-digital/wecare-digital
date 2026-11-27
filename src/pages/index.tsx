@@ -666,8 +666,8 @@ const HomePage: React.FC = () => {
           max-width:var(--public-content-max);
           margin:0 auto;
           padding:80px var(--public-page-gutter) 48px;
-          padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
-          padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
+          padding-left:var(--public-safe-gutter-left);
+          padding-right:var(--public-safe-gutter-right);
           box-sizing:border-box;
           display:flex;
           flex-direction:column;
@@ -794,13 +794,7 @@ const HomePage: React.FC = () => {
         :global(.cb.home-close .home-close-title){text-wrap:balance;overflow-wrap:anywhere}
         :global(.cb.home-close .home-close-lead),
         :global(.cb.home-close .home-close-eyebrow){overflow-wrap:anywhere}
-        /* Home-only landscape safe-area gutters. The shared Header has a matching
-           opt-in; other pages retain their current geometry until audited. */
-        :global(footer.ft-footer .ft-in),
-        :global(div.public-action-tail.public-action-tail){
-          padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
-          padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
-        }
+        /* Shared footer and action rail own their safe gutters. */
 
         @media(horizontal-viewport-segments:2){
           .home-layout{
@@ -821,8 +815,8 @@ const HomePage: React.FC = () => {
           .home-shell{padding-top:96px}
           .home-layout{
             padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px;
-            padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
-            padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
+            padding-left:var(--public-safe-gutter-left);
+            padding-right:var(--public-safe-gutter-right);
             gap:var(--public-mobile-section-gap);
           }
           /* line-height only. The letter-spacing override that used to sit here is gone:
@@ -842,17 +836,10 @@ const HomePage: React.FC = () => {
              forcing all three rows to its height creates large dead gaps around the shorter
              points. Let mobile rows size to content and use one explicit inter-point rhythm. */
           .home-flow-list{grid-auto-rows:auto;gap:28px}
-          /* HOME-ONLY overrides for shared child components. They apply only while Home is
-             mounted, so other public routes stay visually unchanged until their migration. */
-          :global(footer.ft-footer .ft-in),
-          :global(div.public-action-tail.public-action-tail){
-            padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
-            padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
-          }
+          /* Home closing hierarchy remains the reference. */
           :global(.cb.home-close .home-close-title){font-size:var(--public-mobile-section-size)}
           :global(.cb.home-close .home-close-cta){font-size:var(--public-mobile-cta-font-size)}
-          :global(.public-share .ps-menu-sub),
-          :global(.public-share .ps-menu-note){font-size:15px}
+
         }
 
         /* COMMON PHONE HERO. Keep the approved compact scale and one-line English

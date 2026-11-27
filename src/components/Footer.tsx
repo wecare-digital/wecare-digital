@@ -309,7 +309,7 @@ const Footer: React.FC = () => {
          The bottom padding keeps the safe-area inset the Capacitor iOS/Android shells
          depend on. */
       .ft-footer{background:#fff;border-top:1px solid #eef0e6;padding:56px 0 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
-      .ft-in{max-width:var(--public-content-max);margin:0 auto;padding:0 24px}
+      .ft-in{max-width:var(--public-content-max);margin:0 auto;padding:0 var(--public-responsive-gutter);padding-left:var(--public-safe-gutter-left);padding-right:var(--public-safe-gutter-right);min-width:0}
 
       /* Left-aligned with nothing opposite it, by instruction. Kept as a flex row rather
          than collapsed to a block so that adding a right-hand element later needs no
@@ -321,7 +321,7 @@ const Footer: React.FC = () => {
          brand needs to clear that corner deliberately rather than inherit a collision. */
       .ft-grid{display:flex;align-items:flex-end;justify-content:flex-start;gap:32px;flex-wrap:wrap}
 
-      .ft-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0}
+      .ft-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0;max-width:100%}
 
       /* inline-flex, not block: a block anchor would stretch to the full measure and give
          the lockup a click target running the width of the page.
@@ -330,7 +330,7 @@ const Footer: React.FC = () => {
          repo's device-compat contract), most visibly at <768px. min-height:44px floors the hit
          area at every width; align-items:center keeps the logo vertically centred inside it so
          the lockup does not shift. border-radius, focus-visible ring and layout are unchanged. */
-      .ft-home{display:inline-flex;align-items:center;min-height:44px;text-decoration:none;border-radius:10px}
+      .ft-home{display:inline-flex;align-items:center;min-height:44px;max-width:100%;min-width:0;text-decoration:none;border-radius:10px}
       /* OPAQUE #1a3a2a, not the .22 alpha this used to carry. rgba(26,58,42,.22) composites
          to rgb(205,212,208) over the white footer and measures 1.51:1 against it, well under
          the 3:1 WCAG 1.4.11 requires of a focus indicator - the ring was visible to someone
@@ -531,7 +531,7 @@ const Footer: React.FC = () => {
       }
       @media(max-width:767px){
         .ft-footer{padding-top:40px}
-        .ft-in{padding:0 var(--public-mobile-page-gutter)}
+        /* Shared tokens already adapt the gutters. */
         .ft-grid{flex-direction:column;align-items:flex-start;gap:24px}
         /* The public mobile lockup is 19px; the tagline should remain legible at 18px. */
         .ft-tagline{font-size:18px;line-height:1.5}

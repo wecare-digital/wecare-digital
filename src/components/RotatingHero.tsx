@@ -128,10 +128,7 @@ interface RotatingHeroProps {
    */
   insideMain?: boolean;
   /**
-   * Opt into the canonical public mobile foundation without changing every existing
-   * RotatingHero consumer at once. Migrated page families use the shared 40px hero,
-   * 16px gutter, 48px top air and 64px section rhythm; unaudited routes keep the
-   * established RotatingHero mobile behavior until their own migration.
+   * Canonical mobile foundation by default; false is a page-specific exception.
    */
   mobileFoundation?: boolean;
   /**
@@ -142,7 +139,7 @@ interface RotatingHeroProps {
   compact?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false, compact = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = true, compact = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -286,12 +283,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         .rh-shell.is-compact .rh-layout{padding-bottom:32px}
         .rh-layout{
           width:100%;max-width:var(--public-content-max);margin:0 auto;
-          padding:80px 24px 48px;box-sizing:border-box;
+          padding:80px var(--public-responsive-gutter) 48px;box-sizing:border-box;
+          padding-left:var(--public-safe-gutter-left);padding-right:var(--public-safe-gutter-right);
+          min-width:0;
           display:flex;flex-direction:column;gap:var(--public-section-gap);
         }
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
-        .rh-hero{display:flex;flex-direction:column;align-items:flex-start}
+        .rh-hero{display:flex;flex-direction:column;align-items:flex-start;min-width:0;max-width:100%}
         .rh-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
         @media(max-width:1024px){
           .rh-split{grid-template-columns:minmax(0,1fr);gap:40px}
@@ -324,15 +323,15 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
              is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
              every size, and it lets both media-query overrides go - restating it per breakpoint
              is what caused the spread. index.tsx fixed this; these three copies had not. */
-          letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0;max-width:900px;
+          letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0;max-width:min(900px,100%);min-width:0;overflow-wrap:anywhere;
         }
         /* Blocks, so the frame and the pill never share a line. This is what makes the
            h1's height independent of which word is showing. The pill itself (its lozenge,
            dot, width glide, word fade and entrance) lives in RotatingPill, which self-scopes
            its own rp-* CSS - styled-jsx here cannot reach a child component's markup. */
-        .rh-head-line{display:block}
-        .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
-        .rh-head-inline-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
+        .rh-head-line{display:block;max-width:100%;overflow-wrap:anywhere}
+        .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
+        .rh-head-inline-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
         .rh-head-prefix{display:inline-block}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
@@ -343,23 +342,17 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            no @supports guard. */
         .rh-sub{
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-          color:var(--public-body);margin:24px 0 0;max-width:var(--public-copy-max);text-wrap:balance;
+          color:var(--public-body);margin:24px 0 0;max-width:min(var(--public-copy-max),100%);text-wrap:balance;overflow-wrap:anywhere;
         }
 
         @media(max-width:767px){
           .rh-split{gap:32px}
           .rh-shell{min-height:100vh;min-height:100dvh;padding-top:96px}
           .rh-shell.is-compact{min-height:0}
-          .rh-layout{padding:48px 16px 40px;gap:64px}
+          .rh-layout{padding-top:var(--public-mobile-hero-top);padding-bottom:40px;gap:var(--public-mobile-section-gap)}
           .rh-shell.is-compact .rh-layout{padding-bottom:24px;gap:48px}
           .rh-head{line-height:1.1}
-          /* Opt-in only: migrated page families consume the shared mobile foundation.
-             Higher specificity deliberately keeps the 40px canonical hero on normal phones;
-             device/reflow CI decides whether an individual narrow-foldable exception is needed. */
-          .rh-shell.uses-mobile-foundation .rh-layout{
-            padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px;
-            gap:var(--public-mobile-section-gap);
-          }
+          /* Shared mobile typography is default; compact spacing stays intact. */
           .rh-shell.uses-mobile-foundation .rh-head{font-size:var(--public-mobile-hero-size)}
         }
         /* A width-only viewport cannot represent an occluded hinge. Migrated hero families stay
@@ -387,7 +380,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            fixed for. */
         @media(max-width:400px){
           .rh-head{font-size:32px}
-          .rh-shell.uses-mobile-foundation .rh-head{font-size:32px}
+          .rh-shell.uses-mobile-foundation .rh-head{font-size:min(32px,var(--public-mobile-hero-size))}
         }
         /* 280px - Galaxy Fold, folded - still overflowed 7px at 32px, so the step needed a
            second rung rather than a bigger guess. Derived instead of tried: the widest phrase
@@ -396,12 +389,12 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            viewport leaves 248px of measure, giving F <= 30.0px. 28px carries margin for a
            longer phrase being added later, and 280px is the narrowest device that ships. */
         @media(max-width:340px){
-          .rh-head{font-size:28px}
-          .rh-shell.uses-mobile-foundation .rh-head{font-size:28px}
+          .rh-head{font-size:min(28px,var(--public-mobile-hero-size))}
+          .rh-shell.uses-mobile-foundation .rh-head{font-size:min(28px,var(--public-mobile-hero-size))}
         }
         @media(max-width:300px){
-          .rh-head.has-prefix{font-size:26px}
-          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:26px}
+          .rh-head.has-prefix{font-size:min(26px,var(--public-mobile-hero-size))}
+          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:min(26px,var(--public-mobile-hero-size))}
         }
         @media(max-width:480px){
         }

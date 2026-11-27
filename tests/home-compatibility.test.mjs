@@ -12,8 +12,8 @@ test('Home retains its design tokens and allows narrow content to reflow', () =>
   assert.doesNotMatch(home, /\.home-head-line\{[^}]*white-space:nowrap/);
   assert.match(home, /\.home-head :global\(\.rp-cyc-word\.on\)\{max-width:100%;white-space:normal;overflow-wrap:anywhere\}/);
   assert.match(home, /\.home-close-cta\)\{font-size:18px;max-width:100%;min-width:0;justify-content:center;text-align:center;overflow-wrap:anywhere/);
-  assert.ok(home.includes('padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px))'));
-  assert.ok(home.includes('padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px))'));
+  assert.ok(home.includes('padding-left:var(--public-safe-gutter-left)'));
+  assert.ok(home.includes('padding-right:var(--public-safe-gutter-right)'));
 });
 test('Home fixed header safe areas are now shared with all public routes', () => {
   const header = read('src/components/Header.tsx');
