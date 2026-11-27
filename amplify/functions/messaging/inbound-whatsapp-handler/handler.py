@@ -7676,7 +7676,7 @@ def _send_typing_indicator(sender_phone: str, phone_number_id: str, request_id: 
 
         if _is_direct_api_phone(phone_number_id):
             meta_pid = _get_meta_phone_id_for_direct_api(phone_number_id)
-            _rr = _send_direct_api_read_receipt(whatsapp_message_id if 'whatsapp_message_id' in dir() else '', meta_phone_id=meta_pid)
+            _rr = _send_direct_api_read_receipt('', meta_phone_id=meta_pid)
         else:
             # Fallback: try Direct API with default phone
             _rr = _send_direct_api_read_receipt('', meta_phone_id=_current_direct_api_phone or PHONE1_META_ID)

@@ -52,6 +52,7 @@ import os
 import json
 import logging
 import base64
+import re
 import hmac
 import hashlib
 import time
