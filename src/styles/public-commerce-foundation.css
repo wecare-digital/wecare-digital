@@ -1,0 +1,427 @@
+/* Public customer commerce foundation.
+ * Auth's original flat field and focus treatment is the reference. This file
+ * uses the existing non-Home route marker; it is not an app-wide reset.
+ * Search, country pickers, rich live-data controls, native field behavior,
+ * payment provider chrome and internal workspaces retain their own contracts.
+ * All selectors are presentation-only. Server quote, session, delivery and
+ * payment state remain with the components that own them.
+ */
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+),
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea),
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+) {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  border: 0;
+  border-block-end: 1px solid var(--public-hairline);
+  border-radius: 0;
+  color: var(--public-text);
+  background-color: transparent;
+  font: var(--public-body-weight) var(--public-body-size)/1.4 var(--font-sans);
+  box-shadow: none;
+  transition: border-color .18s, box-shadow .18s;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+) {
+  inline-size: 100%;
+  min-block-size: 54px;
+  padding: 0 2px;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea) {
+  inline-size: 100%;
+  padding: 10px 2px;
+  min-block-size: 116px;
+  resize: vertical;
+}
+/* Native pickers are styled by form-controls.css using important token
+ * consumers. Supply the public field tokens locally (not on :root).
+ * Retain its arrow/calendar indicator and reserved trailing inset. */
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+) {
+  --control-h: 54px;
+  --control-radius: 0px;
+  --control-px: 2px;
+  --control-border: var(--public-hairline);
+  --control-border-hover: var(--public-brand-green);
+  --control-border-focus: var(--public-brand-green);
+  --control-bg: transparent;
+  --control-fg: var(--public-text);
+  --control-fg-muted: var(--public-muted);
+  --focus-ring: 0 2px 0 0 var(--public-brand-green);
+  border-block-start-width: 0 !important;
+  border-inline-width: 0 !important;
+  border-block-end-width: 1px !important;
+  border-block-end-color: var(--public-hairline);
+  min-block-size: var(--control-h);
+  padding-inline-start: var(--control-px);
+  padding-inline-end: var(--control-arrow-pad);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+)::placeholder,
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea)::placeholder {
+  color: var(--public-muted);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+):focus,
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea):focus,
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+):focus,
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+)[aria-expanded="true"],
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+)[aria-invalid="true"],
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea)[aria-invalid="true"],
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+)[aria-invalid="true"] {
+  border-block-end-color: var(--public-brand-green);
+  box-shadow: 0 2px 0 0 var(--public-brand-green);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+):focus-visible,
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea):focus-visible,
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+):focus-visible {
+  outline: 2px solid var(--public-brand-green);
+  outline-offset: -2px;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+):disabled,
+:root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea):disabled,
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+):is(:disabled,[aria-disabled="true"]) {
+  opacity: 1;
+  color: var(--public-muted);
+  cursor: not-allowed;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.checkout-profile-grid,.address-fields) label,
+:root:has([data-public-auth-button-theme="active"]) [data-public-field-group="appointment"] label,
+:root:has([data-public-auth-button-theme="active"]) .sr-form label {
+  font-size: var(--public-supporting-size);
+  font-weight: 600;
+  color: var(--public-text);
+  overflow-wrap: anywhere;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.checkout-profile-grid,.address-grid,[data-public-field-group="appointment"]) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+:root:has([data-public-auth-button-theme="active"]) input:is([type="checkbox"],[type="radio"]):not(:where([data-ui-raw],[data-public-ui],.amplify-input,.gm-style *)) {
+  --control-box: 20px;
+  --control-border-focus: var(--public-brand-green);
+  --focus-ring: 0 0 0 2px var(--public-brand-green);
+  flex-shrink: 0;
+}
+:root:has([data-public-auth-button-theme="active"]) input:is([type="checkbox"],[type="radio"]):not(:where([data-ui-raw],[data-public-ui],.amplify-input,.gm-style *)):focus-visible {
+  outline: 2px solid var(--public-brand-green);
+  outline-offset: 3px;
+}
+
+/* One quiet panel surface, with no decorative shadows. Keep each component's
+ * content and layout responsibility, including Orders' real scrollable table. */
+:root:has([data-public-auth-button-theme="active"]) :is(.cart-customer-summary,.cart-order-summary,.cart-quote,.cart-contribution-review,.co-card,.sf-card,.ord-list) {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  border: 1px solid var(--public-hairline);
+  border-radius: var(--public-card-radius);
+  background: var(--public-bg);
+  box-shadow: none;
+  overflow-wrap: anywhere;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.co-card,.sf-card) {
+  margin-block-start: 0;
+  border-block-start: 3px solid var(--public-brand-lime);
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-review-grid {
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 24px;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.cart-details-panel,.cart-payment-panel) {
+  min-inline-size: 0;
+  gap: 20px;
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-row + .cart-row {
+  border-block-start: 1px solid var(--public-hairline);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.cart-row-main,.cart-row-controls,.cart-qty) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-row-controls {
+  flex-shrink: 0;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.cart-row-main,.cart-name,.cart-price,.cart-price-note,.cart-assurance) {
+  overflow-wrap: anywhere;
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.cart-price-note,.cart-assurance) {
+  font-size: var(--public-meta-size);
+  line-height: 1.5;
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-quote > .cart-price-note:last-child {
+  margin: 16px 0 0;
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-progress b {
+  border-radius: var(--public-hover-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-payment-panel [aria-label="Choose payment method"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr));
+  align-items: stretch;
+  gap: 10px;
+}
+:root:has([data-public-auth-button-theme="active"]) .cart-payment-panel [aria-label="Choose payment method"] > :is(button,a) {
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+/* The amount is always the verified quote, never re-calculated in CSS or UI. */
+:root:has([data-public-auth-button-theme="active"]) .receipt-items {
+  background: var(--public-bg);
+  border: 1px solid var(--public-hairline);
+  border-radius: var(--public-card-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.receipt-items li,.receipt-charges > div) {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,auto);
+  align-items: baseline;
+  gap: 8px 14px;
+}
+:root:has([data-public-auth-button-theme="active"]) .receipt-charges > div {
+  border-block-end-style: solid;
+  font-size: var(--public-supporting-size);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.receipt-items li > span,.receipt-charges dd,.sr-total strong,.sr-form dd) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+:root:has([data-public-auth-button-theme="active"]) .receipt-charges .receipt-total {
+  border: 0;
+  border-radius: var(--public-card-radius);
+  background: var(--public-lime-tint);
+  color: var(--public-brand-green);
+  align-items: center;
+}
+:root:has([data-public-auth-button-theme="active"]) .receipt-total dd {
+  font-size: clamp(22px,3vw,32px);
+  line-height: 1.15;
+}
+:root:has([data-public-auth-button-theme="active"]) .receipt-note {
+  background: transparent;
+  padding: 0;
+  font-size: var(--public-meta-size);
+  color: var(--public-muted);
+}
+/* Payment status facts and Vault names must wrap even at 200% zoom. */
+:root:has([data-public-auth-button-theme="active"]) :is(.co-title,.co-fact,.co-facts dd,.sf-file-copy,.sf-file-meta,.sf-card-title,.sf-load-error) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+:root:has([data-public-auth-button-theme="active"]) .co-facts {
+  gap: 16px 32px;
+}
+:root:has([data-public-auth-button-theme="active"]) .co-mark-paid {
+  background: var(--public-brand-green);
+  border-radius: var(--public-hover-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.co-mark-failed,.co-mark-unavailable) {
+  background: var(--public-lime-tint);
+  border-radius: var(--public-hover-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) .sf-payment-option {
+  min-inline-size: 0;
+  border-color: var(--public-hairline);
+  border-radius: var(--public-card-radius);
+  background: var(--public-bg);
+}
+:root:has([data-public-auth-button-theme="active"]) .sf-payment-option-primary {
+  background: var(--public-lime-tint);
+}
+:root:has([data-public-auth-button-theme="active"]) .sf-payment-total {
+  border: 0;
+  border-radius: var(--public-card-radius);
+  background: var(--public-lime-tint);
+  overflow-wrap: anywhere;
+}
+/* Never replace the order table with cards or change its reading order. */
+:root:has([data-public-auth-button-theme="active"]) .ord-tablewrap {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+:root:has([data-public-auth-button-theme="active"]) .ord-th {
+  background: var(--public-lime-tint);
+  border-block-end: 1px solid var(--public-hairline);
+}
+:root:has([data-public-auth-button-theme="active"]) .ord-amount {
+  font-variant-numeric: tabular-nums;
+}
+:root:has([data-public-auth-button-theme="active"]) .sr-form {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+:root:has([data-public-auth-button-theme="active"]) .sr-total {
+  flex-wrap: wrap;
+  background: var(--public-lime-tint);
+  padding: 14px;
+  border: 0;
+  border-radius: var(--public-card-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) .sr-form dl > div {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,auto);
+}
+:root:has([data-public-auth-button-theme="active"]) .sr-form dd {
+  white-space: normal;
+  text-align: end;
+}
+@media (max-width: 1023px) {
+  :root:has([data-public-auth-button-theme="active"]) .cart-review-grid {
+    grid-template-columns: minmax(0,1fr);
+    gap: 20px;
+  }
+}
+@media (max-width: 767px) {
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+),
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+) {
+    --control-h: 52px;
+    min-block-size: 52px;
+    font-size: var(--public-mobile-form-font-size);
+  }
+  :root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea) {
+    font-size: var(--public-mobile-form-font-size);
+  }
+  :root:has([data-public-auth-button-theme="active"]) :is(.cart-details-panel,.cart-payment-panel) {
+    gap: 16px;
+  }
+  :root:has([data-public-auth-button-theme="active"]) .receipt-charges > div {
+    font-size: var(--public-meta-size);
+  }
+}
+@media (max-width: 359px) {
+  :root:has([data-public-auth-button-theme="active"]) .cart-progress {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+  }
+  :root:has([data-public-auth-button-theme="active"]) .cart-row-controls {
+    flex-shrink: 1;
+  }
+  :root:has([data-public-auth-button-theme="active"]) :is(.cart-customer-summary,.cart-order-summary,.cart-quote,.co-card,.sf-card,.sf-payment-option) {
+    padding-inline: var(--public-card-padding-reflow);
+  }
+}
+@media (max-width: 279px) {
+  :root:has([data-public-auth-button-theme="active"]) :is(.receipt-items li,.receipt-charges > div,.sr-form dl > div) {
+    grid-template-columns: minmax(0,1fr);
+    gap: 4px;
+  }
+  :root:has([data-public-auth-button-theme="active"]) :is(.receipt-items li > span,.receipt-charges dd,.sr-form dd) {
+    text-align: start;
+  }
+  :root:has([data-public-auth-button-theme="active"]) .co-facts {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+  }
+  :root:has([data-public-auth-button-theme="active"]) .sf-load-error .sf-file-action-button {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+),
+  :root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea),
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+) {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .checkout-profile-grid input,
+  .address-fields input,
+  [data-public-field-group="appointment"] input:not([type="radio"]):not([type="checkbox"]):not([type="date"]):not([type="time"]):not([type="datetime-local"])
+):focus,
+  :root:has([data-public-auth-button-theme="active"]) :is(.sr-form textarea,[data-public-field-group="appointment"] textarea):focus,
+  :root:has([data-public-auth-button-theme="active"]) :is(
+  .cart-option .ui-select-trigger,
+  .shopd-options .ui-select-trigger,
+  [data-public-field-group="appointment"] select,
+  [data-public-field-group="appointment"] input:is([type="date"],[type="time"],[type="datetime-local"])
+):focus,
+  :root:has([data-public-auth-button-theme="active"]) input:is([type="checkbox"],[type="radio"]):not(:where([data-ui-raw],[data-public-ui],.amplify-input,.gm-style *)):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+  }
+}

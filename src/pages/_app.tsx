@@ -95,6 +95,7 @@ import '../styles/workspace-shell.css';
 import '../styles/form-controls.css';
 import '../styles/public-interactions.css';
 import '../styles/public-button-theme.css';
+import '../styles/public-commerce-foundation.css';
 // Was LanguageBar. Renamed because it no longer only chooses a language: it is the single
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.

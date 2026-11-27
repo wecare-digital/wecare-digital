@@ -260,12 +260,12 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         input::placeholder{color:var(--public-muted)}
         input:focus{
           border-bottom-color:var(--public-brand-green);
-          box-shadow:0 1px 0 0 var(--public-brand-lime);
+          box-shadow:0 2px 0 0 var(--public-brand-green);
         }
         input:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         input[aria-invalid='true']{
           border-bottom-color:var(--public-brand-green);
-          box-shadow:0 1px 0 0 var(--public-brand-lime);
+          box-shadow:0 2px 0 0 var(--public-brand-green);
         }
 
         .address-grid :global(.address-state),
@@ -278,21 +278,22 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         }
         .address-grid :global(.address-state .ui-select-trigger),
         .address-grid :global(.address-country .ui-select-trigger){
-          min-height:54px !important;width:100% !important;padding:0 2px !important;
+          min-height:54px !important;width:100% !important;padding-block:0 !important;
+          padding-inline-start:2px !important;padding-inline-end:var(--control-arrow-pad) !important;
           border:0 !important;border-bottom:1px solid var(--public-hairline) !important;
-          border-radius:0 !important;background:transparent !important;color:var(--public-text) !important;
+          border-radius:0 !important;background-color:transparent !important;color:var(--public-text) !important;
           box-shadow:none !important;outline:0 !important;
           font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans) !important;
           transition:border-color .2s,box-shadow .2s !important;
         }
         .address-grid :global(.address-state .ui-select-trigger:hover),
         .address-grid :global(.address-country .ui-select-trigger:hover){
-          border-bottom-color:var(--public-hairline) !important;background:transparent !important;
+          border-bottom-color:var(--public-hairline) !important;background-color:transparent !important;
         }
         .address-grid :global(.address-state .ui-select-trigger:focus),
         .address-grid :global(.address-country .ui-select-trigger:focus){
           border-bottom-color:var(--public-brand-green) !important;
-          box-shadow:0 1px 0 0 var(--public-brand-lime) !important;
+          box-shadow:0 2px 0 0 var(--public-brand-green) !important;
           outline:0 !important;
         }
         .address-grid :global(.address-state .ui-select-trigger:focus-visible),
@@ -302,7 +303,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .address-grid :global(.address-state .ui-select-trigger[aria-invalid='true']),
         .address-grid :global(.address-country .ui-select-trigger[aria-invalid='true']){
           border-bottom-color:var(--public-brand-green) !important;
-          box-shadow:0 1px 0 0 var(--public-brand-lime) !important;
+          box-shadow:0 2px 0 0 var(--public-brand-green) !important;
         }
 
         @media(max-width:767px){
