@@ -309,7 +309,7 @@ def ensure_function(dry_run: bool, zip_bytes: bytes) -> str:
     for attempt in range(8):
         try:
             _c("lambda").create_function(
-                FunctionName=FUNCTION_NAME, Runtime="python3.14", Role=role_arn,
+                FunctionName=FUNCTION_NAME, Runtime="python3.15", Role=role_arn,
                 Handler="handler.handler", Code={"ZipFile": zip_bytes}, Timeout=15,
                 MemorySize=512, Environment={"Variables": expected_environment()},
                 Description="Phase O-1 service requests: intent, own list, activation. "

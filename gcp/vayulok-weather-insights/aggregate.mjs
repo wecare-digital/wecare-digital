@@ -12,6 +12,9 @@ const WINDOW_DAYS = 16;
 // Windows with no raw rows are stored as sentinel rows (NULL lat/lng, 0 hours) so
 // completeness can be measured. Windows overlapping the range start are included.
 export function aggregateSql(table) {
+  if (typeof table !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(table)) {
+    throw new Error('invalid_weather_insights_aggregate_table');
+  }
   const tick = String.fromCharCode(96);
   const t = tick + table + tick;
   return [

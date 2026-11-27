@@ -1,111 +1,87 @@
 #!/usr/bin/env python3
-"""Probe every RETIRED public URL this repo has ever advertised.
+"""Audit historical public paths against current registration, without reserving names.
 
-Why this exists. Removing a page from the sitemap does not remove it from Google's
-index - the sitemap is an invitation, not a manifest. What actually drops a URL is the
-response the crawler gets when it re-fetches it:
-
-    301  consolidates the old URL's signals onto the new one, then drops it   BEST
-    404  drops it, signals discarded                                         FINE
-    410  same as 404 but faster                                              FINE
-    200  the URL is STILL LIVE and still indexable. Being absent from the
-         sitemap changes nothing - this is a duplicate competing with the
-         page that replaced it                                               BAD
-
-So the only thing to verify is: no retired URL answers 200.
-
-The list is assembled from this repository's own record of removals - the comments in
-scripts/generate-sitemap.js and public/robots.txt, the Amplify custom rules, and
-docs/execution/change-authority-matrix.md. It is not guessed.
+HTTP probes do not prove browser navigation; run verify_404_home_handoff.mjs
+for that. Protected service and workspace names are reported separately.
 """
 from __future__ import annotations
 
 import concurrent.futures as cf
 import json
+from pathlib import Path
 import sys
 import urllib.error
 import urllib.request
 
+ROOT = Path(__file__).resolve().parents[1]
 SITE = "https://wecare.digital"
 
-NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/", "/niji-setu/", "/shop/niji-setu/", "/ritual-guru/", "/aastha/", "/ritual-guru/ritva/", "/ritual-guru/puja-guidance/", "/ritual-guru/diy-puja-kit/", "/shop/ritual-guru-puja-guidance/", "/shop/ritual-guru-diy-puja-kit/", "/shop/ritual-guru-ritva/"}
-RETIRED: dict[str, str] = {
-    "/shop/ritual-guru-puja-guidance/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
-    "/shop/ritual-guru-diy-puja-kit/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
-    "/shop/ritual-guru-ritva/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
-    "/ritual-guru/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
-    "/aastha/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
-    "/ritual-guru/ritva/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
-    "/ritual-guru/puja-guidance/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
-    "/ritual-guru/diy-puja-kit/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
-    "/niji-setu/": "Niji Setu is a non-clickable product family; HTTP 404/410 only",
-    "/shop/niji-setu/": "Retired Niji Setu shop detail; HTTP 404/410 only",
-    "/dispatch/": "Relay OS replaced this page; HTTP 404/410 only",
-    "/grahak-os/": "Relay OS replaced this page; HTTP 404/410 only",
-    "/vayulok/": "Nano Climate replaced this page; HTTP 404/410 only",
-    "/sehat/": "Arogya Yatra replaced this page; HTTP 404/410 only",
-    '/release-check-missing-page/': 'shared missing-page response must remain HTTP 404',
-}
 
-HOSTS = {
-    "http://wecare.digital/": "http apex must redirect to https",
-}
+def inventory():
+    history = json.loads((ROOT / "config/historical-route-paths.json").read_text())
+    catalogue = json.loads((ROOT / "config/public-pages.json").read_text())
+    active = {page["path"].rstrip("/") or "/" for page in catalogue["pages"]}
+    return history, active
 
 
-def probe(url: str) -> tuple[str, int, str]:
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *a, **kw):  # noqa: ANN002, ANN003
-            return None
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
 
-    opener = urllib.request.build_opener(NoRedirect)
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "wecare-retired-url-probe/1"})
+
+def probe(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "wecare-retired-url-probe/2"})
     try:
-        with opener.open(req, timeout=30) as r:
-            return url, r.status, ""
-    except urllib.error.HTTPError as e:
-        return url, e.code, (e.headers.get("Location", "") if e.headers else "")
-    except Exception as e:  # noqa: BLE001
-        return url, 0, type(e).__name__
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=20) as response:
+            return response.status, response.headers.get("Location", ""), ""
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.headers.get("Location", ""), (
+            exc.read(262144).decode("utf-8", "replace") if exc.code == 404 else ""
+        )
+    except Exception as exc:
+        return 0, type(exc).__name__, ""
 
 
-def verdict(code: int) -> str:
-    if code in (301, 308):
-        return "OK-redirect"
-    if code in (302, 307):
-        return "OK-temporary-redirect"
-    if code in (404, 410):
-        return "OK-gone"
-    if code == 200:
-        return "STILL-LIVE"
-    return "UNKNOWN"
+def classify(status, body, registered):
+    if status == 0:
+        return "UNVERIFIED"
+    if registered:
+        return "REUSED-ACTIVE" if status == 200 else "REGISTERED-MISMATCH"
+    if status == 404 and '"page":"/404"' in body and 'noindex' in body:
+        return "UNASSIGNED-404"
+    return "UNEXPECTED-RESPONSE"
 
 
-def main() -> int:
-    jobs = {SITE + p: why for p, why in RETIRED.items()}
-    jobs.update(HOSTS)
+def main():
+    history, active = inventory()
+    protected = set(history["infrastructureAdjacent"])
+    public = history["publicPaths"]
+    jobs = [(path, path in active) for path in public if path not in protected]
+    jobs.append(("/definitely-not-a-page", False))
 
-    rows = []
-    with cf.ThreadPoolExecutor(max_workers=8) as ex:
-        for url, code, loc in ex.map(probe, list(jobs)):
-            rows.append({"url": url, "status": code, "location": loc,
-                         "verdict": ("UNKNOWN" if url.removeprefix(SITE) in NO_REDIRECT and code not in (404, 410) else verdict(code)), "why": jobs[url]})
+    def check(job):
+        path, registered = job
+        status, location, body = probe(SITE + path + "/")
+        return {"path": path, "registered": registered, "http": status,
+                "location": location, "verdict": classify(status, body, registered)}
 
-    rows.sort(key=lambda r: (r["verdict"] != "STILL-LIVE", r["url"]))
-    print(json.dumps(rows, indent=2))
-
-    still = [r for r in rows if r["verdict"] == "STILL-LIVE"]
-    unknown = [r for r in rows if r["verdict"] == "UNKNOWN"]
-
-    print(f"\nprobed {len(rows)} retired URL(s)", file=sys.stderr)
-    for r in rows:
-        tail = f" -> {r['location']}" if r["location"] else ""
-        print(f"  {r['status']:>3} {r['verdict']:<22} {r['url']}{tail}",
-              file=sys.stderr)
-    print(f"\nSTILL LIVE (a real duplicate): {len(still)}", file=sys.stderr)
-    print(f"UNKNOWN (could not classify):  {len(unknown)}", file=sys.stderr)
-    return 1 if still or unknown else 0
+    with cf.ThreadPoolExecutor(max_workers=8) as executor:
+        rows = list(executor.map(check, jobs))
+    report = {
+        "knownHistoricalPublic": len(public),
+        "knownHistoricalWorkspace": len(history["workspacePaths"]),
+        "knownHistoricalTotal": len(public) + len(history["workspacePaths"]),
+        "protectedInfrastructureAdjacent": sorted(protected),
+        "workspaceNotPublicReuse": history["workspacePaths"],
+        "registeredHistoricalPublic": len(set(public) & active),
+        "historicalPublicResults": rows[:-1],
+        "unknownControl": rows[-1],
+        "browserNavigationVerified": False,
+    }
+    print(json.dumps(report, indent=2))
+    good = {"UNASSIGNED-404", "REUSED-ACTIVE"}
+    return int(any(row["verdict"] not in good for row in rows))
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

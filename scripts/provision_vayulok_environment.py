@@ -248,7 +248,7 @@ def ensure_function(dry_run: bool) -> str:
             FunctionName=FUNCTION_NAME,
             Role=f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}",
             Handler="handler.handler",
-            Runtime="python3.14",
+            Runtime="python3.15",
             Timeout=30,
             MemorySize=512,
             Environment={"Variables": env},
@@ -258,7 +258,7 @@ def ensure_function(dry_run: bool) -> str:
 
     client.create_function(
         FunctionName=FUNCTION_NAME,
-        Runtime="python3.14",
+        Runtime="python3.15",
         Role=f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}",
         Handler="handler.handler",
         Code={"ZipFile": payload},

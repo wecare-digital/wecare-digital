@@ -432,7 +432,7 @@
       ],
       "Properties": {
         "FunctionName": "wecare-checkout",
-        "Runtime": "python3.14",
+        "Runtime": "python3.15",
         "Handler": "handler.handler",
         "Role": {
           "Fn::GetAtt": [
@@ -493,7 +493,7 @@
           }
         ],
         "Layers": [
-          "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python314:1"
+          "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python315:1"
         ]
       }
     },

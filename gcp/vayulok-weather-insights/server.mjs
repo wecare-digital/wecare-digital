@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { URL } from 'node:url';
+import { cleanSummary, decodeRows, parseNumber } from './weather-data.mjs';
 import { aggregateComplete, aggregateSql } from './aggregate.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
@@ -14,7 +15,7 @@ const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 // 1y and 5y summaries are served from a small pre-aggregated table (half-month
 // windows per grid point) built by scripts/build_weather_history_aggregate.sh in
 // resumable, dry-run-checked, under-1-GiB chunks. The raw table is only ever read
-// for the 30d range, whose dry run is under the cap. A missing aggregate fails
+// for the 30d range, still subject to its hard query cap. A missing aggregate fails
 // closed; it never falls back to a raw multi-year scan.
 const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
   || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
@@ -23,18 +24,18 @@ const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
 const AGGREGATE_ENABLED = String(process.env.WEATHER_INSIGHTS_AGGREGATE_ENABLED || '').toLowerCase() === 'true';
 const AGGREGATE_MAX_BYTES_BILLED = '134217728'; // 128 MiB, far below the 1 GiB ceiling
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
-function boundedQueryBytes(value) {
+function boundedQueryBytes(value, ceiling = HARD_MAX_BYTES_PER_QUERY) {
   try {
     const requested = BigInt(String(value || '0'));
-    return String(requested > 0n && requested < HARD_MAX_BYTES_PER_QUERY ? requested : HARD_MAX_BYTES_PER_QUERY);
+    return String(requested > 0n && requested < ceiling ? requested : ceiling);
   } catch {
-    return String(HARD_MAX_BYTES_PER_QUERY);
+    return String(ceiling);
   }
 }
 const RANGE_MAX_BYTES_BILLED = {
   '30d': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED),
-  '1y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED),
-  '5y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED),
+  '1y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED, BigInt(AGGREGATE_MAX_BYTES_BILLED)),
+  '5y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED, BigInt(AGGREGATE_MAX_BYTES_BILLED)),
 };
 // Defence in depth: at most eight query attempts per UTC day per process by
 // default (never more than twelve). This is NOT a project-global quota:
@@ -111,11 +112,6 @@ function rateAllowed(req) {
   }
   current.count += 1;
   return current.count <= RATE_LIMIT_PER_MINUTE;
-}
-
-function parseNumber(value, min, max) {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 
 function startDate(range) {
@@ -256,43 +252,6 @@ function param(name, type, value) {
     parameterType: { type },
     parameterValue: { value: String(value) },
   };
-}
-
-function decodeValue(field, cell) {
-  if (!cell || cell.v === null || cell.v === undefined) return null;
-  if (field.type === 'RECORD' || field.type === 'STRUCT') {
-    const nested = {};
-    const values = cell.v?.f || [];
-    (field.fields || []).forEach((child, index) => {
-      nested[child.name] = decodeValue(child, values[index]);
-    });
-    return nested;
-  }
-  if (field.mode === 'REPEATED') {
-    return (cell.v || []).map((item) => decodeValue({ ...field, mode: 'NULLABLE' }, item));
-  }
-  const value = cell.v;
-  if (['INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC'].includes(field.type)) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  if (field.type === 'BOOLEAN' || field.type === 'BOOL') return value === true || value === 'true';
-  if (field.type === 'TIMESTAMP') {
-    const seconds = Number(value);
-    if (Number.isFinite(seconds)) return new Date(seconds * 1000).toISOString();
-  }
-  return value;
-}
-
-function decodeRows(result) {
-  const fields = result.schema?.fields || [];
-  return (result.rows || []).map((row) => {
-    const out = {};
-    fields.forEach((field, index) => {
-      out[field.name] = decodeValue(field, row.f?.[index]);
-    });
-    return out;
-  });
 }
 
 async function runQuery(query, parameters, maximumBytesBilled) {
@@ -437,34 +396,6 @@ function weatherSql(source) {
   ].join('\n');
 }
 
-function cleanSummary(row, range) {
-  if (!row || !Number(row.sample_hours)) return null;
-  const round = (value, digits = 1) => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return null;
-    const scale = 10 ** digits;
-    return Math.round(n * scale) / scale;
-  };
-  return {
-    range,
-    coverageStart: row.coverage_start || null,
-    coverageEnd: row.coverage_end || null,
-    gridDistanceKm: round(row.grid_distance_km, 2),
-    sampleHours: Number(row.sample_hours),
-    meanTemperatureC: round(row.mean_temperature_c),
-    minTemperatureC: round(row.min_temperature_c),
-    maxTemperatureC: round(row.max_temperature_c),
-    precipitationMm: round(row.precipitation_mm),
-    meanHumidityPct: round(row.mean_humidity_pct),
-    monthly: Array.isArray(row.monthly) ? row.monthly.map((item) => ({
-      month: Number(item.month),
-      meanTemperatureC: round(item.mean_temperature_c),
-      precipitationMm: round(item.precipitation_mm),
-      meanHumidityPct: round(item.mean_humidity_pct),
-    })) : [],
-  };
-}
-
 async function statusPayload() {
   try {
     const source = await discoverSource();
@@ -538,7 +469,7 @@ async function handleInsights(req, res, url) {
             param('lat', 'FLOAT64', gridLat),
             param('lng', 'FLOAT64', gridLng),
             param('start_date', 'DATE', startDate(range)),
-          ], AGGREGATE_MAX_BYTES_BILLED);
+          ], RANGE_MAX_BYTES_BILLED[range]);
           if (!aggregateComplete(rows[0], startDate(range), new Date().toISOString().slice(0, 10))) {
             const incomplete = new Error('historical_aggregate_incomplete');
             incomplete.code = 'historical_aggregate_incomplete';
@@ -550,11 +481,11 @@ async function handleInsights(req, res, url) {
           throw error;
         }
       } else {
-      const source = await discoverSource();
-      if (!source.ready) {
-        const error = new Error(source.reason);
-        error.code = source.reason;
-        throw error;
+        const source = await discoverSource();
+        if (!source.ready) {
+          const error = new Error(source.reason);
+          error.code = source.reason;
+          throw error;
       }
       rows = await runQuery(weatherSql(source), [
         param('lat', 'FLOAT64', gridLat),

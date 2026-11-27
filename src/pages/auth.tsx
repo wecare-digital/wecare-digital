@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import PublicNotice from '../components/public/PublicNotice';
@@ -6,6 +6,7 @@ import { DEFAULT_DIAL_CODE, DIAL_CODES, isValidNationalLength } from '../lib/dia
 import { rankNavigation } from '../lib/navigationSearch';
 import SearchClearButton from '../components/SearchClearButton';
 import { authStateQuery } from '../lib/authStateQuery';
+import { authCountryPanelGeometry } from '../lib/authCountryPanelGeometry';
 import { publicActionText, publicApiFailureText } from '../lib/publicActionNotices';
 import { authStepFeedback } from '../lib/authStepFeedback';
 import { preserveOrderRequest } from '../lib/orderRequestSelection';
@@ -43,14 +44,67 @@ const AuthPage: React.FC = () => {
   const [ countryOpen, setCountryOpen ] = useState( false );
   const [ countryQuery, setCountryQuery ] = useState( '' );
   const countryRef = useRef<HTMLDivElement | null>( null );
+  const countryTriggerRef = useRef<HTMLButtonElement | null>( null );
+  const countrySearchRef = useRef<HTMLInputElement | null>( null );
+  const phoneRef = useRef<HTMLInputElement | null>( null );
+  const focusCountrySearch = useRef( false );
+  const [ countryPanelStyle, setCountryPanelStyle ] = useState<React.CSSProperties | null>( null );
+
+  const closeCountryPicker = useCallback( () => {
+    setCountryOpen( false );
+    setCountryQuery( '' );
+    setCountryPanelStyle( null );
+    focusCountrySearch.current = false;
+  }, [] );
+
+  const openCountryPicker = ( keyboard: boolean ) => {
+    // Do not summon a software keyboard just to browse calling codes.
+    focusCountrySearch.current = keyboard || window.matchMedia( '(hover: hover) and (pointer: fine)' ).matches;
+    setCountryOpen( true );
+  };
 
   useEffect( () => {
+    if ( !countryOpen ) return;
     const onPointer = ( event: PointerEvent ) => {
-      if ( countryRef.current && !countryRef.current.contains( event.target as Node ) ) setCountryOpen( false );
+      if ( countryRef.current && !countryRef.current.contains( event.target as Node ) ) closeCountryPicker();
     };
+    const viewport = window.visualViewport;
+    const place = () => {
+      const trigger = countryTriggerRef.current;
+      if ( !trigger ) return;
+      const layoutWidth = document.documentElement.clientWidth || window.innerWidth;
+      const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+      setCountryPanelStyle( authCountryPanelGeometry( {
+        layoutWidth, layoutHeight,
+        viewportLeft: viewport?.offsetLeft ?? 0,
+        viewportTop: viewport?.offsetTop ?? 0,
+        viewportWidth: viewport?.width ?? layoutWidth,
+        viewportHeight: viewport?.height ?? layoutHeight,
+        anchor: trigger.getBoundingClientRect(),
+        rtl: getComputedStyle( trigger ).direction === 'rtl',
+      } ) );
+    };
+    place();
     document.addEventListener( 'pointerdown', onPointer );
-    return () => document.removeEventListener( 'pointerdown', onPointer );
-  }, [] );
+    window.addEventListener( 'resize', place );
+    window.addEventListener( 'scroll', place, { passive: true } );
+    viewport?.addEventListener( 'resize', place );
+    viewport?.addEventListener( 'scroll', place );
+    return () => {
+      document.removeEventListener( 'pointerdown', onPointer );
+      window.removeEventListener( 'resize', place );
+      window.removeEventListener( 'scroll', place );
+      viewport?.removeEventListener( 'resize', place );
+      viewport?.removeEventListener( 'scroll', place );
+    };
+  }, [ countryOpen, closeCountryPicker ] );
+
+  useEffect( () => {
+    if ( countryOpen && countryPanelStyle && focusCountrySearch.current ) {
+      focusCountrySearch.current = false;
+      countrySearchRef.current?.focus( { preventScroll: true } );
+    }
+  }, [ countryOpen, countryPanelStyle ] );
 
   useEffect( () => {
     let cancelled = false;
@@ -90,6 +144,55 @@ const AuthPage: React.FC = () => {
     // Only fuzzy-match names when exact name/code matching has no result.
     return rankNavigation( DIAL_CODES.map( item => ( { item, label: item.country, searchText: item.country } ) ), query ).map( hit => hit.item );
   }, [ countryQuery ] );
+
+  const selectCountry = ( nextCode: string ) => {
+    setDialCode( nextCode );
+    setError( '' );
+    closeCountryPicker();
+    phoneRef.current?.focus( { preventScroll: true } );
+  };
+
+  const onCountryKeyDown = ( event: React.KeyboardEvent<HTMLDivElement> ) => {
+    if ( event.nativeEvent.isComposing ) return;
+    if ( event.key === 'Escape' && countryOpen ) {
+      event.preventDefault();
+      closeCountryPicker();
+      countryTriggerRef.current?.focus( { preventScroll: true } );
+      return;
+    }
+    const fromSearch = event.target === countrySearchRef.current;
+    const fromTrigger = event.target === countryTriggerRef.current;
+    const options = Array.from( countryRef.current?.querySelectorAll<HTMLButtonElement>( '.country-row' ) ?? [] );
+    const current = options.indexOf( event.target as HTMLButtonElement );
+    if ( fromSearch && event.key === 'Enter' ) {
+      // Never submit the sign-in form from the country search.
+      event.preventDefault();
+      if ( countries.length === 1 ) selectCountry( countries[0].code );
+      else options[0]?.focus( { preventScroll: true } );
+      return;
+    }
+    if ( ![ 'ArrowDown', 'ArrowUp', 'Home', 'End' ].includes( event.key ) ) return;
+    if ( ( fromSearch || fromTrigger ) && ( event.key === 'Home' || event.key === 'End' ) ) return;
+    if ( !countryOpen && fromTrigger ) {
+      event.preventDefault();
+      openCountryPicker( true );
+      return;
+    }
+    if ( !countryOpen || !options.length || ( !fromSearch && !fromTrigger && current < 0 ) ) return;
+    event.preventDefault();
+    if ( event.key === 'ArrowUp' && current === 0 ) {
+      countrySearchRef.current?.focus( { preventScroll: true } );
+      return;
+    }
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
+      : event.key === 'ArrowDown' ? Math.min( options.length - 1, current + 1 )
+        : current < 0 ? options.length - 1 : current - 1;
+    const option = options[next];
+    if ( option ) {
+      option.focus( { preventScroll: true } );
+      option.scrollIntoView( { block: 'nearest', inline: 'nearest' } );
+    }
+  };
 
   const submitStep = async ( values: Record<string, string> ) => {
     if ( !step || busy ) return;
@@ -182,27 +285,32 @@ const AuthPage: React.FC = () => {
               <>
                 <label className="sr-only" htmlFor="auth-phone">WhatsApp number</label>
                 <div className="phone-control">
-                  <div className="country-picker" ref={ countryRef }>
+                  <div className="country-picker" ref={ countryRef }
+                    onKeyDown={ onCountryKeyDown }
+                    onBlur={ event => {
+                      if ( countryOpen && event.relatedTarget && !event.currentTarget.contains( event.relatedTarget as Node ) ) closeCountryPicker();
+                    } }>
                     <button
+                      ref={ countryTriggerRef }
                       className="country-trigger"
                       type="button"
                       aria-haspopup="listbox"
                       aria-expanded={ countryOpen }
-                      aria-controls="auth-country-list"
+                      aria-controls={ countryOpen ? 'auth-country-list' : undefined }
                       aria-label={ `Calling code ${ dialCode }. Choose country.` }
-                      onClick={ () => setCountryOpen( open => !open ) }
-                      onKeyDown={ event => {
-                        if ( !event.nativeEvent.isComposing && event.key === 'Escape' ) setCountryOpen( false );
-                      } }
+                      onClick={ event => { if ( countryOpen ) closeCountryPicker(); else openCountryPicker( event.detail === 0 ); } }
                       disabled={ busy }
                     >
-                      <span>{ dialCode }</span><span className="country-arrow" aria-hidden="true">⌄</span>
+                      <span>{ dialCode }</span>
+                      <span className="country-arrow" aria-hidden="true">
+                        <svg viewBox="0 0 16 16" width="16" height="16" focusable="false"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </span>
                     </button>
                     { countryOpen && (
-                      <div className="country-panel">
+                      <div className="country-panel" style={ countryPanelStyle ?? { visibility: 'hidden' } }>
                         <div className="country-search">
                           <input
-                            autoFocus
+                            ref={ countrySearchRef }
                             type="search"
                             value={ countryQuery }
                             placeholder="Search country"
@@ -213,42 +321,22 @@ const AuthPage: React.FC = () => {
                             spellCheck={ false }
                             enterKeyHint="search"
                             onChange={ event => setCountryQuery( event.target.value ) }
-                            onKeyDown={ event => {
-                              if ( event.nativeEvent.isComposing ) return;
-                              if ( event.key === 'Enter' ) {
-                                // The search is inside the sign-in form. Do not submit an OTP request.
-                                event.preventDefault();
-                                return;
-                              }
-                              if ( event.key === 'Escape' ) {
-                                event.preventDefault();
-                                if ( countryQuery ) setCountryQuery( '' );
-                                else {
-                                  setCountryOpen( false );
-                                  countryRef.current?.querySelector<HTMLButtonElement>( '.country-trigger' )?.focus( { preventScroll: true } );
-                                }
-                              }
-                            } }
                           />
                           <SearchClearButton query={ countryQuery } placement="inline" onClear={ () => setCountryQuery( '' ) } />
                         </div>
+                        { countries.length === 0 && (
+                          <p className="country-empty" role="status">No countries found.</p>
+                        ) }
                         <div id="auth-country-list" className="country-list" role="listbox" aria-label="Country code">
-                          { countries.length === 0 && (
-                            <p className="country-empty" role="status">No countries found.</p>
-                          ) }
                           { countries.map( item => (
                             <button
                               key={ item.code }
                               type="button"
                               className="country-row"
                               role="option"
+                              tabIndex={ -1 }
                               aria-selected={ item.code === dialCode }
-                              onClick={ () => {
-                                setDialCode( item.code );
-                                setCountryOpen( false );
-                                setCountryQuery( '' );
-                                setError( '' );
-                              } }
+                              onClick={ () => selectCountry( item.code ) }
                             >
                               <span>{ item.country }</span><span>{ item.code }</span>
                             </button>
@@ -258,6 +346,7 @@ const AuthPage: React.FC = () => {
                     ) }
                   </div>
                   <input
+                    ref={ phoneRef }
                     id="auth-phone"
                     type="tel"
                     inputMode="numeric"
@@ -337,9 +426,13 @@ const AuthPage: React.FC = () => {
         /* Exact public-menu search treatment: no box, no side border, no fill; one bottom hairline. */
         .phone-control{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
         .phone-control:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
-        .country-picker{position:relative;display:flex;flex:0 0 auto;min-width:0}
-        .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:0;display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);white-space:nowrap;touch-action:manipulation;cursor:pointer}
+        .country-picker{--public-hover-radius:6px;position:relative;display:flex;flex:0 0 auto;min-width:0}
+        .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:var(--public-hover-radius);display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);white-space:nowrap;touch-action:manipulation;cursor:pointer}
+        .country-trigger[aria-expanded='true']{background:var(--public-lime-tint)}
+        @media(hover:hover) and (pointer:fine){.country-trigger:not(:disabled):hover{background:var(--public-hover-surface)}}
         .country-arrow{color:var(--public-nav-arrow)}
+        .country-arrow svg{display:block;flex:none}
+        .country-trigger[aria-expanded='true'] .country-arrow{transform:rotate(180deg)}
         .country-trigger:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px;z-index:2}
         .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);text-overflow:ellipsis;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
         .phone-control>input::placeholder,.code-control::placeholder{color:var(--public-muted)}
@@ -347,21 +440,22 @@ const AuthPage: React.FC = () => {
         .country-row:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .code-control{border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;box-shadow:none;transition:border-color .2s,box-shadow .2s}
         .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
-        .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
-        .country-search{display:flex;align-items:center;gap:4px;min-width:0;padding:0 14px;border-bottom:0}
+        .country-panel{position:fixed;z-index:1200;display:flex;flex-direction:column;box-sizing:border-box;min-width:0;overflow:hidden;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-bg);box-shadow:0 6px 20px rgba(26,58,42,.10);overscroll-behavior:contain;padding:4px}
+        .country-search{display:flex;align-items:center;gap:4px;min-width:0;padding:0 4px 4px;border-bottom:0;flex:0 0 auto}
         .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 10px;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
         .country-search input::-webkit-search-cancel-button,.country-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .country-search input::-ms-clear{display:none}
         .country-search input:focus{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}
         @media (hover:hover) and (pointer:fine){.country-search input:hover{background:var(--public-hover-surface)}}
         @media (forced-colors: active){.country-search input:focus{outline:2px solid Highlight;outline-offset:-2px}}
-        .country-list{min-height:0;max-height:336px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
-        .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;border-radius:var(--public-hover-radius);background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
+        .country-list{min-height:0;flex:1 1 auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;padding:2px}
+        .country-row{width:100%;box-sizing:border-box;min-height:48px;padding:10px 10px;border:0;border-inline-start:2px solid transparent;border-radius:var(--public-hover-radius);background:transparent;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
         .country-row>span:first-child{min-width:0;overflow-wrap:anywhere;white-space:normal}
-        .country-row>span:last-child{flex:0 0 auto}
+        .country-row>span:last-child{flex:0 0 auto;font-variant-numeric:tabular-nums}
         .country-empty{margin:0;padding:18px 14px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4}
-        .country-row:hover{background:var(--public-nav-hover)}
-        .country-row[aria-selected='true']{background:var(--public-brand-lime)}
+        @media(hover:hover) and (pointer:fine){.country-row:not([aria-selected='true']):hover{background:var(--public-hover-surface)}}
+        .country-row[aria-selected='true']{background:var(--public-lime-tint);border-inline-start-color:var(--public-brand-green);font-weight:700}
+        @media(forced-colors:active){.country-row[aria-selected='true']{border-inline-start-color:Highlight}}
         /* Shared action treatment for Sign in, Verify, Resend and Edit on all viewports. */
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -377,11 +471,8 @@ const AuthPage: React.FC = () => {
           .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;font-size:16px}
           .phone-control>input{min-height:52px;padding:0 2px 0 12px;font-size:16px}
           .code-control{min-height:52px;padding:0 2px;border-radius:0;font-size:16px}
-          .country-panel{position:fixed;top:auto;inset-inline:16px;bottom:max(16px,env(safe-area-inset-bottom));width:auto;max-width:none;max-height:min(62dvh,460px);border-radius:18px}
-          .country-search{padding-inline:16px}
-          .country-search input{min-height:52px;font-size:16px}
-          .country-list{max-height:none;flex:1 1 auto}
-          .country-row{min-height:52px;padding:11px 16px;font-size:16px}
+          .country-search input{min-height:48px;font-size:16px}
+          .country-row{min-height:48px;padding:10px;font-size:16px}
         }
         @media(max-width:480px){
           .auth-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;width:100%}
@@ -392,7 +483,8 @@ const AuthPage: React.FC = () => {
           .auth-card{padding-inline:16px}
           .country-trigger{min-width:74px;padding-inline-end:8px;gap:6px}
           .phone-control>input{padding-inline-start:10px}
-          .country-panel{inset-inline:10px;bottom:max(10px,env(safe-area-inset-bottom))}
+          .country-row{gap:6px;padding-inline:6px}
+          .country-search input{padding-inline:4px}
         }
         @media(max-width:279px){
           .auth-card{padding-inline:10px}
@@ -407,7 +499,7 @@ const AuthPage: React.FC = () => {
         @media(max-height:600px) and (min-width:768px){
           .auth-card{padding-top:28px;padding-bottom:30px}
           .auth-eyebrow{margin-bottom:24px}
-          .country-panel{max-height:min(340px,58dvh)}
+          /* Picker height follows the measured visual viewport. */
         }
       `}</style>
     </>

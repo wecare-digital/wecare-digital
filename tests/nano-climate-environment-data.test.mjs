@@ -98,3 +98,23 @@ test('aggregate builder marks empty windows and de-duplicates hourly rows', () =
   assert.match(build, /C_TEMP="\$\{C_TEMP:-temperature_c\}"/);
   assert.match(build, /MAX_CHUNKS="\$\{MAX_CHUNKS:-4\}"/);
 });
+
+
+test('aggregate SQL rejects invalid table identifiers before interpolation', async () => {
+  const { aggregateSql } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+  for (const table of [undefined, '', 'p.d.t`', 'p.d.t; SELECT 1', 'p.d.t\n', 'p.d']) {
+    assert.throws(() => aggregateSql(table), /invalid_weather_insights_aggregate_table/);
+  }
+  assert.ok(aggregateSql('my-project.dataset.weather_history_in_windows').includes('my-project.dataset.weather_history_in_windows'));
+});
+
+test('container includes both historical helpers and long-range caps preserve stricter configuration', () => {
+  const docker = readFileSync(new URL('../gcp/vayulok-weather-insights/Dockerfile', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('../gcp/vayulok-weather-insights/server.mjs', import.meta.url), 'utf8');
+  assert.match(docker, /COPY package\.json server\.mjs weather-data\.mjs aggregate\.mjs \.\//);
+  assert.match(server, /import \{ cleanSummary, decodeRows, parseNumber \} from '\.\/weather-data\.mjs'/);
+  assert.match(server, /requested > 0n && requested < ceiling \? requested : ceiling/);
+  assert.match(server, /boundedQueryBytes\(process\.env\.BQ_MAX_BYTES_BILLED_1Y \|\| GLOBAL_MAX_BYTES_BILLED, BigInt\(AGGREGATE_MAX_BYTES_BILLED\)\)/);
+  assert.match(server, /boundedQueryBytes\(process\.env\.BQ_MAX_BYTES_BILLED_5Y \|\| GLOBAL_MAX_BYTES_BILLED, BigInt\(AGGREGATE_MAX_BYTES_BILLED\)\)/);
+  assert.match(server, /\], RANGE_MAX_BYTES_BILLED\[range\]\);/);
+});

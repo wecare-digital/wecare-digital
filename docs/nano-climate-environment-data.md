@@ -90,8 +90,14 @@ was a snapshot timing artifact, not a defect. Regression assertions were added.
 ### Historical Weather optimization
 
 Dry-run baseline on weather_insights.weather_history_in: 30d 0.987 GiB, 1y 12.13 GiB,
-5y 35.28 GiB. Raw 1y and 5y cannot fit the 1 GiB per-query cap and quotas are not
-raised. Approach:
+5y 35.28 GiB (earlier estimates). A later Delhi dry run on 2026-11-27 UTC
+estimated 1,077,485,760 / 13,042,935,360 / 37,902,496,320 bytes for 30d/1y/5y;
+all exceeded 1 GiB. No query was executed. The raw 30d path remains capped and
+must return an unavailable state if it exceeds the limit. Quotas are not raised.
+The following aggregate approach is a proposal only; do not execute its backfill
+without explicit owner approval of the total processing/storage budget, verified
+provider terms and project-wide quotas. Never partition a user request merely to
+circumvent the 1 GiB cap.
 
 1. scripts/build_weather_history_aggregate.sh creates
    weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
@@ -107,7 +113,7 @@ raised. Approach:
 2. Raw column names are assumed (geography, forecast_time, temperature_c, qpf_mm,
    relative_humidity_percent). Confirm with bq show --schema, or override with
    C_GEO, C_TIME, C_TEMP, C_RAIN, C_HUM. The dry run fails before billing on a mismatch.
-3. server.mjs reads only that table for 1y and 5y with a 128 MiB cap. It serves a
+3. server.mjs reads only that table for 1y and 5y with a 128 MiB ceiling (or a stricter configured cap). It serves a
    summary only when WEATHER_INSIGHTS_AGGREGATE_ENABLED=true and the table reaches
    back to the range start with about one window per 16 days (aggregateComplete in
    aggregate.mjs). Otherwise it returns query_cost_cap_exceeded (422, missing table
@@ -122,7 +128,8 @@ raised. Approach:
 Cloud Shell, in this order:
 
     bash scripts/build_weather_history_aggregate.sh            # dry run
-    bash scripts/build_weather_history_aggregate.sh --apply    # repeat daily until done
+    # Only after explicit backfill approval and verified project quota:
+    bash scripts/build_weather_history_aggregate.sh --apply
     bash scripts/build_weather_history_aggregate.sh --verify
 
 The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights,
