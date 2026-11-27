@@ -243,15 +243,15 @@ const PillButton: React.FC<PillButtonProps> = ( {
           text-align:center;
         }
 
-        /* HOVER/PRESS: the house inversion - lime to white - plus the single allowed lift and
-           shadow, exactly as .ship-close-cta and the home CTA do it.
+        /* HOVER/PRESS: use the shared darker lime hover plus the single allowed lift and
+           shadow, consistent with the home CTA.
            THE OLD HOVER WAS AN ACCESSIBILITY DEFECT AND IS GONE. It deepened the action half to
            the site's base green #3da35a while keeping #1a3a2a type, which computes 3.91:1 and
            FAILS the 4.5:1 requirement. The old comment excused it as "no small text relies on that
            shade" - wrong, because the label is 17px bold and WCAG's large-text exemption only
-           begins at 18.66px bold (or 24px regular). White gives #1a3a2a type 12.48:1 instead. */
+           begins at 18.66px bold (or 24px regular). The shared lime-hover keeps high contrast. */
         .pill:hover:not([disabled]):not([aria-disabled='true']){
-          background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
+          background:var(--public-button-hover);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
         .pill:active:not([disabled]):not([aria-disabled='true']){transform:translateY(0)}
 
