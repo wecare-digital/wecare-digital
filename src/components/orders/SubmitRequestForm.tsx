@@ -19,7 +19,7 @@ export interface SubmitRequestQuote {
   convenienceGstPaise: number;
 }
 
-export type SubmitRequestPaymentState = 'idle' | 'starting' | 'pending' | 'received' | 'failed';
+export type SubmitRequestPaymentState = 'idle' | 'starting' | 'pending' | 'saving' | 'received' | 'failed';
 
 export interface SubmitRequestFormProps {
   orderNumber: string;
@@ -47,17 +47,24 @@ export default function SubmitRequestForm ( {
   const payRequested = useRef( false );
   const starting = paymentState === 'starting';
   const pending = paymentState === 'pending';
+  const saving = paymentState === 'saving';
+  const waiting = pending || saving;
   const received = paymentState === 'received';
   const failed = paymentState === 'failed';
-  const review = reviewing || starting || pending || failed;
+  const review = reviewing || starting || waiting;
   const cleanNote = note.trim();
   const noteValid = cleanNote.length > 0 && note.length <= MAX_NOTE_LENGTH;
+  const amounts = quote ? [ quote.itemSubtotalPaise, quote.supplyGstPaise, quote.delightPaise,
+    quote.expressPaise, quote.convenienceFeePaise, quote.convenienceGstPaise ] : [];
   const price = quote && quote.orderNumber === orderNumber && quote.currency === 'INR'
     && Number.isSafeInteger( quote.totalPayablePaise ) && quote.totalPayablePaise > 0
+    && amounts.every( amount => Number.isSafeInteger( amount ) && amount >= 0 )
+    && quote.itemSubtotalPaise + quote.supplyGstPaise - quote.delightPaise
+      + quote.expressPaise + quote.convenienceFeePaise + quote.convenienceGstPaise === quote.totalPayablePaise
     ? formatPaiseINR( quote.totalPayablePaise, quote.currency ) : '';
-  const canPay = Boolean( price && noteValid && !starting && !pending && !received && !quoteUnavailable );
+  const canPay = Boolean( price && noteValid && !starting && !waiting && !received && !quoteUnavailable );
   const title = received ? 'Request received'
-    : starting || pending ? 'Complete payment' : review ? 'Review request' : 'Add a note';
+    : saving ? 'Saving request' : starting || pending ? 'Complete payment' : review ? 'Review request' : 'Add a note';
 
   useEffect( () => { heading.current?.focus( { preventScroll: true } ); }, [ title ] );
   useEffect( () => {
@@ -121,7 +128,7 @@ export default function SubmitRequestForm ( {
         <div className="sr-count" id={ id + '-count' }>{ note.length } / { MAX_NOTE_LENGTH }</div>
         { invalid && <p className="sr-error" id={ id + '-error' } role="alert">Enter a note.</p> }
       </> }
-      { !received && review && !starting && !pending && <>
+      { !received && review && !starting && !waiting && <>
         <div className="sr-review-note"><span className="sr-caption">Note</span><p>{ cleanNote }</p></div>
         { price && quote && !quoteUnavailable ? <>
           <div className="sr-total"><span>Total payable</span><strong data-wc-no-translate="true">{ price }</strong></div>
@@ -137,10 +144,11 @@ export default function SubmitRequestForm ( {
       </> }
       { starting && <p className="sr-copy" role="status">Preparing payment…</p> }
       { pending && <p className="sr-copy" role="status">Check WhatsApp to complete your payment.</p> }
+      { saving && <p className="sr-copy" role="status">Payment received. Saving your request.</p> }
       <div className="sr-actions">
         { received ? <button type="button" className="sr-action" onClick={ onDone }>Done</button>
           : starting ? <button type="button" className="sr-action" disabled>Preparing payment…</button>
-            : pending ? <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
+            : waiting ? <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
               : review ? <>
                 { quoteUnavailable ? <button type="button" className="sr-action" onClick={ onReview }>Try again</button>
                   : <button type="button" className="sr-action" onClick={ pay } disabled={ !canPay }>Pay{ price ? ' ' + price : '' }</button> }
