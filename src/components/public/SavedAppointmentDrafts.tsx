@@ -57,7 +57,7 @@ export default function SavedAppointmentDrafts ( { accountKey, onAccountChanged,
         if ( !active.current ) return;
         if ( !result.draft || result.draft.draftId !== request.draftId ||
           result.draft.revision !== request.revision + 1 ) throw new Error( 'The server did not return the expected saved draft.' );
-        const { plan: _storedPlan, ...metadata } = result.draft;
+        const metadata = { ...result.draft, plan: undefined };
         pendingSave.current = null;
         setCurrent( metadata );
         setNotice( 'Draft saved to your account for 30 days. No Apollo appointment has been booked and no payment has been taken.' );
