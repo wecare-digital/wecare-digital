@@ -9,7 +9,7 @@ const EMPTY: ApolloCatalogOption[] = [];
 
 /** Keep an old response invisible when any parent selection changes. */
 export function useApolloChoices (
-  kind: ApolloCatalogKind, selection: Selection, enabled: boolean, retry: number,
+  kind: ApolloCatalogKind, selection: Selection, enabled: boolean, retry: number | string,
   onSessionExpired: () => void,
 ): { options: ApolloCatalogOption[]; loading: boolean; error: string } {
   const { hospitalId = '', specialityId = '', doctorId = '', healthCheckId = '' } = selection;
