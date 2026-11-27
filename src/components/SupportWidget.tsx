@@ -957,7 +957,7 @@ const SupportWidget: React.FC = () => {
            two borders are NOT logical on purpose: rotated 45deg they form a chevron pointing
            DOWN, which is an orientation rather than a side, and mirroring it would point it
            down-left for no reason. */
-        .wc-arw{width:6px;height:6px;box-sizing:border-box;border-right:2px solid #1a3a2a;border-bottom:2px solid #1a3a2a;transform:translateY(-2px) rotate(45deg);margin-inline-start:7px;opacity:.7;transition:transform .2s}
+        .wc-arw{width:6px;height:6px;box-sizing:border-box;border-right:2px solid var(--public-nav-arrow);border-bottom:2px solid var(--public-nav-arrow);transform:translateY(-2px) rotate(45deg);margin-inline-start:7px;transition:transform .2s}
         .wc-chip[aria-expanded='true'] .wc-arw{transform:translateY(1px) rotate(225deg)}
 
         /* ===== THE SEARCH PANEL =====
@@ -978,9 +978,10 @@ const SupportWidget: React.FC = () => {
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
-           defect this palette has already been burned by once. One lime hairline under the
+           defect this palette has already been burned by once. One strong underline under the
            field says where the typing goes, and nothing shouts. */
-        .wc-search:focus-within{border-bottom-color:var(--public-brand-green);outline:2px solid var(--public-brand-green);outline-offset:-2px}
+        .wc-search:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}
+        @media (forced-colors: active){.wc-search:focus-within{outline:2px solid Highlight;outline-offset:-2px}}
         .wc-search>svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
 
         /* THIS RULE IS MOSTLY UNDOING OTHER RULES, and each reset is here because the global
