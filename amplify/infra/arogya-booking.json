@@ -5,7 +5,7 @@
     "AWSToolsMetrics": {
       "AWSAgentToolkit": "aws-cloudformation@3"
     },
-    "com.aws.cloudformation.Context": "Customer Cognito-authenticated drafts and opt-in provider catalogue reads. Provider permissions are absent unless explicitly enabled with exact registry, KMS, verified grant owner and credential ARNs. No booking submission, payment capture, scheduler or new secret/key/table."
+    "com.aws.cloudformation.Context": "Customer Cognito-authenticated drafts and opt-in read-only provider catalogue. Conditional permissions are restricted to the existing session row, one verified Gmail grant, KMS contexts and two exact Secrets Manager ARNs. No provider booking writes, payment capture, scheduler or new resource."
   },
   "Parameters": {
     "CodeBucket": {
@@ -45,6 +45,12 @@
       "Default": "",
       "AllowedPattern": "^$|^arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-[A-Za-z0-9]+$",
       "Description": "Existing approved workspace Google OAuth client secret ARN."
+    },
+    "ApolloServiceSecretArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-[A-Za-z0-9]+$",
+      "Description": "Exact existing Apollo service credential secret ARN. No credential values in stack parameters."
     }
   },
   "Resources": {
@@ -245,58 +251,11 @@
                       "Resource": [
                         {
                           "Ref": "ApolloGoogleOAuthSecretArn"
+                        },
+                        {
+                          "Ref": "ApolloServiceSecretArn"
                         }
                       ]
-                    },
-                    {
-                      "Ref": "AWS::NoValue"
-                    }
-                  ]
-                },
-                {
-                  "Fn::If": [
-                    "ApolloReadEnabled",
-                    {
-                      "Effect": "Allow",
-                      "Action": [
-                        "dynamodb:GetItem"
-                      ],
-                      "Resource": {
-                        "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApolloRegistryTableName}"
-                      },
-                      "Condition": {
-                        "ForAllValues:StringEquals": {
-                          "dynamodb:LeadingKeys": [
-                            "arogya:provider:credentials"
-                          ]
-                        },
-                        "Null": {
-                          "dynamodb:LeadingKeys": "false"
-                        }
-                      }
-                    },
-                    {
-                      "Ref": "AWS::NoValue"
-                    }
-                  ]
-                },
-                {
-                  "Fn::If": [
-                    "ApolloReadEnabled",
-                    {
-                      "Effect": "Allow",
-                      "Action": [
-                        "kms:Decrypt"
-                      ],
-                      "Resource": {
-                        "Ref": "ApolloTokenKeyArn"
-                      },
-                      "Condition": {
-                        "StringEquals": {
-                          "kms:EncryptionContext:purpose": "arogya-provider",
-                          "kms:EncryptionContext:record": "arogya:provider:credentials"
-                        }
-                      }
                     },
                     {
                       "Ref": "AWS::NoValue"
@@ -389,6 +348,15 @@
                 "ApolloReadEnabled",
                 {
                   "Ref": "ApolloGoogleOAuthSecretArn"
+                },
+                ""
+              ]
+            },
+            "APOLLO_SERVICE_SECRET_ARN": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloServiceSecretArn"
                 },
                 ""
               ]
@@ -524,6 +492,18 @@
               ]
             }
           ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloServiceSecretArn"
+                },
+                ""
+              ]
+            }
+          ]
         }
       ]
     }
@@ -589,10 +569,22 @@
                     ]
                   }
                 ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloServiceSecretArn"
+                      },
+                      ""
+                    ]
+                  }
+                ]
               }
             ]
           },
-          "AssertDescription": "All four provider and authorization inputs are mandatory when automation is enabled."
+          "AssertDescription": "All five provider and authorization inputs are mandatory when automation is enabled."
         }
       ]
     }
