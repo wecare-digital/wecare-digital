@@ -138,3 +138,55 @@ def test_appointment_types_and_salutations_come_from_provider_rows():
             {'appointmentTypeId': 2, 'appointmentTypeName': 'Unsupported'}]
     assert runtime.normalize('appointmentTypes', rows, now=NOW) == [{'id': '1', 'label': 'Health Checks'}]
     assert runtime.normalize('salutations', [{'salutationId': 2, 'salutationName': 'Dr.'}], now=NOW) == [{'id': '2', 'label': 'Dr'}]
+
+
+SERVICE_ARN = 'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-ABC123'
+
+
+def approved_config():
+    return {'username': runtime.MAILBOX, 'password': 'synthetic-password',
+            'websiteAddress': 'https://aauser-ic.apollohospitals.com/',
+            'providerAutomationApproved': True, 'grantOwner': OWNER,
+            'approvedSender': 'synthetic@apollohospitals.com', 'applicationHeader': 'synthetic-header'}
+
+
+def test_runtime_reads_only_pinned_current_service_secret(monkeypatch):
+    monkeypatch.setenv('APOLLO_SERVICE_SECRET_ARN', SERVICE_ARN)
+    monkeypatch.setenv('APOLLO_GMAIL_GRANT_OWNER', OWNER)
+    client = Mock()
+    client.get_secret_value.return_value = {'SecretString': json.dumps(approved_config())}
+    monkeypatch.setattr(runtime.boto3, 'client', lambda service: client)
+    assert runtime._provider_config() == approved_config()
+    client.get_secret_value.assert_called_once_with(SecretId=SERVICE_ARN, VersionStage='AWSCURRENT')
+
+
+@pytest.mark.parametrize('field,value', [
+    ('providerAutomationApproved', False),
+    ('grantOwner', 'b' * 64),
+    ('username', 'other@example.com'),
+    ('websiteAddress', 'https://example.com/'),
+    ('applicationHeader', ''),
+    ('applicationHeader', 'a\r\ninjected: header'),
+    ('approvedSender', 'wrong@example.com'),
+    ('password', ''),
+])
+def test_incomplete_or_wrong_service_config_fails_closed(field, value):
+    config = {**approved_config(), field: value}
+    with pytest.raises(runtime.CatalogueUnavailable):
+        runtime.validate_provider_config(config, OWNER)
+
+
+def test_secret_arn_is_not_a_caller_selected_resource(monkeypatch):
+    monkeypatch.setenv('APOLLO_SERVICE_SECRET_ARN', 'arn:aws:secretsmanager:us-east-1:775261844268:secret:unrelated')
+    load = Mock()
+    monkeypatch.setattr(runtime, '_secret', load)
+    with pytest.raises(runtime.CatalogueUnavailable):
+        runtime._provider_config()
+    load.assert_not_called()
+
+
+def test_saved_password_alone_does_not_enable_provider():
+    config = {'username': runtime.MAILBOX, 'password': 'synthetic',
+              'websiteAddress': 'https://aauser-ic.apollohospitals.com/'}
+    with pytest.raises(runtime.CatalogueUnavailable):
+        runtime.validate_provider_config(config, OWNER)
