@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Probe the URL/host matrix and fail on any row that does not match its expectation.
 
-WHAT THIS IS FOR. `scripts/retired_url_probe.py` answers one question - "did a retired URL
-start answering 200 again" - and answers it well. This answers a different one: does the
+WHAT THIS IS FOR. `scripts/retired_url_probe.py` checks historical public URLs against
+current explicit registration and the shared 404 fallback. This answers a different one: does the
 WHOLE host-and-path surface still behave the way it was measured to behave, including the
 rows that are supposed to be boring. Hosts, the 404 fallback, the provider passthroughs, the
 staff entry, and the aliases the owner retired, all in one pass with one exit code.
@@ -122,7 +122,7 @@ def matrix() -> list[dict]:
     rows.append(_row("fallback", f"{SITE}/definitely-not-a-page", 404,
                      "trailing-slash 301 then a real 404, judged on the terminal hop"))
     rows.append(_row("fallback", f"{SITE}/definitely-not-a-page/", 404,
-                     "must serve 404.html with noindex and the apex canonical",
+                     "must serve the shared 404.html document with noindex",
                      body_contains=('"page":"/404"', 'name="robots"', 'noindex')))
     rows.append(_row("fallback", f"{SITE}/404/", 200, "the exported page itself"))
     rows.append(_row("fallback", f"{SITE}/cart/", 404,
