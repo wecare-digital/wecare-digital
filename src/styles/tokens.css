@@ -177,6 +177,7 @@
   --public-responsive-cta-size: var(--public-cta-font-size);
 
   /* Shared public navigation controls. */
+  --public-nav-arrow: var(--public-accent-blue);
   --public-nav-icon-size: 24px;
   --public-nav-heading-size: 15px;
   --public-nav-heading-weight: 700;
