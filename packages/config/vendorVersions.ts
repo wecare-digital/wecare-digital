@@ -226,12 +226,14 @@ export const LAMBDA_PYTHON_RUNTIME: VendorVersion = {
 /** Node.js. `.nvmrc` pins the major; the local toolchain and CI must agree. */
 export const NODE_RUNTIME: VendorVersion = {
   name: 'Node.js',
-  configured: '26',
+  configured: '24',
   verifiedLatest: '26',
   verifiedOn: '2026-11-27',
   evidence: 'LIVE',
-  drift: 'must-be-latest',
-  upgradeBlockedReason: undefined,
+  drift: 'lag-allowed-with-reason',
+  upgradeBlockedReason:
+    'Amplify builds 779 through 784 failed after the Node 26 toolchain change, including the libatomic workaround. ' +
+    'Node 24 is the last successful production build major; promote 26 only after an isolated preview build passes.',
   rederive: 'node -v against .nvmrc and package.json engines.node',
 } as const;
 

@@ -9,39 +9,39 @@ frontend:
   phases:
     preBuild:
       commands:
-        # Node 26 Linux binaries link libatomic.so.1, which the Amplify build image does not
-        # ship (jobs 779-782 died with exit 127 at the first `node` call). Install it first.
-        - if ! ldconfig -p | grep -q libatomic.so.1; then (command -v dnf >/dev/null && dnf install -y -q libatomic) || yum install -y -q libatomic; fi
-        # --skip-default-packages: the build image ships /root/.nvm/default-packages, and a plain
-        # `nvm install` re-installs that whole global set (1,692 packages: vue 2, webpack-chain,
-        # docsearch...) for the new Node on EVERY build. Measured on jobs 276-278 (2026-10-27):
-        # 51 s of each ~250 s BUILD step, roughly a fifth of every billed build minute. Nothing below
-        # uses a global package; npm, npx tsc and next all resolve from this repo, and `aws` is a
-        # system binary.
-        # nvm requires its install options directly after `install`, before the version.
-        - nvm install --skip-default-packages 26 || true
-        - nvm use 26 || true
-        # The two nvm lines tolerate failure, so assert the result rather than trust it: a silent
-        # fall-back to the image's default Node must stop the build, not ship under another engine.
-        - node -e "const m=+process.versions.node.split('.')[0]; if (m < 26) { console.error('Node >= 26 required, got ' + process.version); process.exit(1); }"
-        - node -v
-        - npm -v
-        # Node 26 floats to newer bundled npm releases, while this root lockfile is
-        # generated and verified with the exact npm version declared by packageManager.
-        # Install that version before npm ci so Amplify consumes the committed lock deterministically.
-        - export PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"; npm install --global "npm@$PINNED_NPM"; test "$(npm --version)" = "$PINNED_NPM"; npm --version
-        # Proved early and loudly, because the build step below depends on it. If the
-        # Amplify image ever ships without python3, this fails here with an obvious
-        # cause instead of turning the credential gate into a silent skip.
-        - python3 --version
-        # Derive a private diagnostic location before any early gates can fail.
-        # Otherwise failed Python compilation/npm installs leave no account-readable evidence.
-        - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"
-        # Derive the content-addressed staging bucket from the credentials actually
-        # running this build. No production account id or live key ARN is stored in
-        # source. The stack deployment still requires an explicit KMS parameter or
-        # CloudFormation UsePreviousValue.
-        - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; test -n "$CUSTOMER_COMMERCE_RUNTIME_BUCKET"
+        # Establish the account-owned diagnostic destination BEFORE Node/npm setup.
+        # Keep early failure logs private, per commit, and do not log environment variables.
+        - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"; export BUILD_BOOTSTRAP_DIAGNOSTICS="$CUSTOMER_COMMERCE_DIAGNOSTICS/bootstrap/${AWS_COMMIT_ID:-unknown}"
+        # Use the same .nvmrc as GitHub CI. Node 24 is the last successful Amplify
+        # major; Node 26 must pass a separate preview deployment before promotion.
+        # Skip nvm's large, unrelated default global package set.
+        - |
+          export BUILD_NODE_MAJOR="$(cat .nvmrc)"
+          if ! {
+            test -n "$BUILD_NODE_MAJOR" &&
+            { nvm install --skip-default-packages "$BUILD_NODE_MAJOR" || nvm use "$BUILD_NODE_MAJOR"; } &&
+            nvm use "$BUILD_NODE_MAJOR" &&
+            node -e "if (String(process.versions.node.split('.')[0]) !== process.env.BUILD_NODE_MAJOR) { console.error('Expected Node major ' + process.env.BUILD_NODE_MAJOR + ', got ' + process.version); process.exit(1); }" &&
+            node -v && npm -v && python3 --version
+          } > /tmp/wecare-node-bootstrap.log 2>&1; then
+            aws s3 cp /tmp/wecare-node-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/node-failure.log" --only-show-errors || true
+            tail -n 80 /tmp/wecare-node-bootstrap.log
+            exit 1
+          fi
+          cat /tmp/wecare-node-bootstrap.log
+        # Install and verify the exact npm version that generated the root lockfile.
+        - |
+          if ! {
+            PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")" &&
+            test -n "$PINNED_NPM" &&
+            npm install --global "npm@$PINNED_NPM" &&
+            test "$(npm --version)" = "$PINNED_NPM" && npm --version
+          } > /tmp/wecare-npm-bootstrap.log 2>&1; then
+            aws s3 cp /tmp/wecare-npm-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/npm-failure.log" --only-show-errors || true
+            tail -n 80 /tmp/wecare-npm-bootstrap.log
+            exit 1
+          fi
+          tail -n 20 /tmp/wecare-npm-bootstrap.log
         # REPRODUCIBLE INSTALL for the production Amplify build.
         # `npm ci` installs exactly the committed lockfile and never writes to it, so the
         # tree that deploys is exactly the committed dependency graph. `npm install` was free to resolve a newer
@@ -56,7 +56,7 @@ frontend:
         # NO --legacy-peer-deps: the committed lockfile is generated
         # with plain `npm install`, so the flag has nothing to resolve. The exact npm version
         # is declared by packageManager and installed above before this command. Do not let
-        # `nvm install 26` silently move npm underneath the lockfile again: npm 11.19.0
+        # nvm silently move npm underneath the lockfile again: npm 11.19.0
         # currently rejects this lock with missing @emnapi entries while the pinned npm 11.6.2
         # is the version the lock was generated and verified with.
         #
