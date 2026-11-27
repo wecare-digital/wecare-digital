@@ -34,14 +34,17 @@ export default function AppointmentAccess (): React.ReactElement {
       if ( !active || inFlight ) return;
       inFlight = true;
       if ( expiry ) clearTimeout( expiry );
+      let requestToken = '';
       try {
         const session = getSession() || await restoreSession();
         if ( !active ) return;
         if ( !session ) { signIn(); return; }
+        requestToken = session.accessToken;
         // Access is independent of price or provider availability.
         const access = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'access' } );
         if ( access.phoneVerified !== true || typeof access.accountKey !== 'string' || !/^[a-f0-9]{64}$/.test( access.accountKey ) ) throw new Error( 'Customer verification unavailable.' );
         if ( !active ) return;
+        if ( getSession()?.accessToken !== requestToken ) { accountChanged(); return; }
         setAccountKey( access.accountKey ); setError( '' ); setReady( true );
         // Refresh the shared session instead of revoking it at an access-token deadline.
         expiry = setTimeout( () => { void check(); }, Math.max( 1000, session.expiresAt - Date.now() - 25000 ) );
@@ -49,7 +52,9 @@ export default function AppointmentAccess (): React.ReactElement {
         if ( !active ) return;
         setReady( false );
         if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) {
-          sessionExpired(); return;
+          if ( requestToken && getSession()?.accessToken !== requestToken ) accountChanged();
+          else sessionExpired();
+          return;
         }
         setError( 'Appointment access is temporarily unavailable. Please try again.' );
       } finally {
