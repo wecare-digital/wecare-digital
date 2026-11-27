@@ -40,7 +40,6 @@ jobs:
       PUBLIC_QA_BASE: https://wecare.digital
       PUBLIC_QA_ENGINE: ${{ matrix.engine }}
       PUBLIC_QA_PROFILE: ${{ matrix.profile }}
-      PUBLIC_QA_OUTPUT: ${{ runner.temp }}/public-acceptance
       PUBLIC_QA_REVISION: ${{ github.event.pull_request.base.sha || inputs.production_revision }}
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +54,8 @@ jobs:
           ln -s "$RUNNER_TEMP/public-qa-deps/node_modules" node_modules
           "$RUNNER_TEMP/public-qa-deps/node_modules/.bin/playwright" install --with-deps "$PUBLIC_QA_ENGINE"
       - name: Run public acceptance
+        env:
+          PUBLIC_QA_OUTPUT: ${{ runner.temp }}/public-acceptance
         run: |
           node --check scripts/audit_public_acceptance.mjs
           node scripts/audit_public_acceptance.mjs
