@@ -1,6 +1,7 @@
 """Read-only customer release gate. No OTP sends, payment requests or authenticated reads.
 
-Run after a build with --export-dir out, or against production with --live.
+Run source guards with --source-only, after a build with --export-dir out,
+or against production with --live.
 Checks real rendered anchors rather than occurrences in serialized JavaScript.
 The live route matrix separately checks www, retired access and wildcard hosts.
 """
@@ -88,8 +89,11 @@ def check_checkout_basket_source():
             or "void proceed( 'whatsapp' )" not in body
             or 'expectedTotalPaise' not in body):
         failures.append('checkout: two payment methods must share the reviewed /checkout/ cart')
-    if ('data.sendUnconfirmed === true' not in body
-            or 'goToCheckoutStatus( String( data.paymentAttemptId ) )' not in body):
+    if not re.search(
+            r"if \( status === 'SEND_FAILED' && data\.sendUnconfirmed === true \)\s*"
+            r"\{\s*if \( data\.paymentAttemptId \)\s*\{\s*"
+            r"goToCheckoutStatus\( String\( data\.paymentAttemptId \), reviewedBasket \);\s*"
+            r"return \{ kind: 'NAVIGATED' \};\s*\}\s*return \{ kind: 'LOST' \};", body):
         failures.append('checkout: uncertain WhatsApp sends must not invite another payment')
     if ('if "expectedTotalPaise" in body:' not in backend
             or 'if reviewed_paise != amount_paise:' not in backend
@@ -211,6 +215,7 @@ def paths():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--source-only', action='store_true')
     group.add_argument('--live', action='store_true')
     group.add_argument('--export-dir', type=Path)
     args = parser.parse_args()
@@ -230,13 +235,14 @@ def main():
         except Exception as error:
             return [f'{path}: {type(error).__name__}']
 
-    # Source-only Orders check runs for every Amplify export build, before deploy.
+    # Run the same source checks in GitHub Verify and before Amplify deploy.
     # --live validates public HTML only and cannot attest an authenticated UI.
-    failures = (check_orders_history_source() + check_checkout_basket_source()
-                if args.export_dir else [])
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        failures.extend(failure for result in pool.map(check, paths()) for failure in result)
-    print(json.dumps({'pages': len(paths()), 'failures': failures}, indent=2))
+    failures = [] if args.live else check_orders_history_source() + check_checkout_basket_source()
+    checked_paths = [] if args.source_only else paths()
+    if checked_paths:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            failures.extend(failure for result in pool.map(check, checked_paths) for failure in result)
+    print(json.dumps({'pages': len(checked_paths), 'failures': failures}, indent=2))
     return bool(failures)
 
 
