@@ -37,6 +37,8 @@ test('customer forms use visible focus and connect field errors to the existing 
   assert.ok(address.includes('aria-describedby={ pinBad ? postalHelpId'));
   assert.ok(address.includes('Enter a valid six-digit Indian PIN code.'));
   assert.ok(auth.includes('event.nativeEvent.isComposing'));
-  assert.ok(auth.includes("querySelector<HTMLButtonElement>( '.country-trigger' )?.focus"));
+  // Escape must dismiss the picker and restore focus to the actual trigger.
+  assert.match(auth, /if \( event\.key === 'Escape' && countryOpen \) \{\s*event\.preventDefault\(\);\s*closeCountryPicker\(\);\s*countryTriggerRef\.current\?\.focus\( \{ preventScroll: true \} \);/);
+  assert.match(auth, /<button\s+ref=\{ countryTriggerRef \}\s+className="country-trigger"/);
   assert.ok(auth.includes('@media(max-width:279px)'));
 });
