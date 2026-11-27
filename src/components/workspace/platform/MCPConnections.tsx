@@ -10,7 +10,7 @@ import styles from '../../../styles/MCPConnections.module.css';
 
 const names: Record<string, string> = {
   'meta-social': 'Meta Social', whatsapp: 'WhatsApp Business Tools', aws: 'AWS', github: 'GitHub',
-  razorpay: 'Razorpay', 'google-cloud': 'Google Cloud', 'google-ads': 'Google Ads',
+  razorpay: 'Razorpay', 'google-cloud': 'Google Cloud', 'google-ads': 'Google Ads', 'google-gmail-apollo': 'Gmail · Apollo OTP',
   'meta-ads': 'Meta Ads', plivo: 'Plivo', sinch: 'Sinch',
 };
 const descriptions: Record<string, string> = {
@@ -126,6 +126,7 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
               <p>{needsMetaSetup
                 ? 'Meta must enable sign-in for this workspace before you can connect this account here. Retry Connect after Meta enables access.'
                 : descriptions[connection.kind] || 'Connection status unavailable.'}</p>
+              {provider === 'google-gmail-apollo' && <p>Authorize wecare.digital.bw@gmail.com with read-only Gmail access for Apollo login codes. This is separate from the Gmail connection in ChatGPT. Booking activation requires the service connection to be verified.</p>}
               {remote && <p>{connection.automaticRefresh === true ? 'Saved authorization supports automatic renewal.' : 'Saved authorization persists; renewal depends on the provider.'}</p>}
               {failures[provider] && <p className={styles.notice} role="alert">{failures[provider]}</p>}
               {connection.lastVerifiedAt && <p>Last verified: {new Date(connection.lastVerifiedAt * 1000).toLocaleString()}</p>}

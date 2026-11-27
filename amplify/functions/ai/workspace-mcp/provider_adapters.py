@@ -34,6 +34,12 @@ def verify(provider, owner, secret, http, token, refuse, config):
         if result.get('entity') != 'collection' or not isinstance(result.get('items'), list):
             raise refuse('Razorpay did not confirm orders read access')
         return {'mode': 'read-only', 'resource': result.get('entity'), 'returnedCount': result.get('count')}
+    if provider == 'google-gmail-apollo':
+        result = account_http(http, refuse, 'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+            headers={'Authorization': 'Bearer ' + token(owner, provider)})
+        if str(result.get('emailAddress', '')).lower() != config.get('expectedMailbox'):
+            raise refuse('The Gmail authorization does not match the intended Apollo business mailbox')
+        return {'mode': 'read-only', 'mailboxVerified': True, 'purpose': 'Apollo IC sign-in codes'}
     if provider == 'google-cloud':
         result, _ = http('https://cloudresourcemanager.googleapis.com/v3/projects/wecaredigitalbw',
             headers={'Authorization': 'Bearer ' + token(owner, provider)})
