@@ -24,8 +24,12 @@ export default function AppointmentAccess (): React.ReactElement {
 
   useEffect( () => {
     let active = true;
+    let inFlight = false;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     const check = async () => {
+      if ( !active || inFlight ) return;
+      inFlight = true;
+      if ( expiry ) clearTimeout( expiry );
       try {
         const session = getSession() || await restoreSession();
         if ( !active ) return;
@@ -35,17 +39,32 @@ export default function AppointmentAccess (): React.ReactElement {
         if ( access.phoneVerified !== true ) throw new Error( 'Customer verification unavailable.' );
         if ( !active ) return;
         setError( '' ); setReady( true );
-        expiry = setTimeout( sessionExpired, Math.max( 0, session.expiresAt - Date.now() - 30000 ) );
+        // Refresh the shared session instead of revoking it at an access-token deadline.
+        expiry = setTimeout( () => { void check(); }, Math.max( 1000, session.expiresAt - Date.now() - 25000 ) );
       } catch ( failure ) {
         if ( !active ) return;
+        setReady( false );
         if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) {
           sessionExpired(); return;
         }
         setError( 'Appointment access is temporarily unavailable. Please try again.' );
+      } finally {
+        inFlight = false;
       }
     };
+    const verifyOnReturn = () => {
+      if ( document.visibilityState === 'visible' ) void check();
+    };
     void check();
-    return () => { active = false; if ( expiry ) clearTimeout( expiry ); };
+    window.addEventListener( 'focus', verifyOnReturn );
+    window.addEventListener( 'storage', verifyOnReturn );
+    document.addEventListener( 'visibilitychange', verifyOnReturn );
+    return () => {
+      active = false; if ( expiry ) clearTimeout( expiry );
+      window.removeEventListener( 'focus', verifyOnReturn );
+      window.removeEventListener( 'storage', verifyOnReturn );
+      document.removeEventListener( 'visibilitychange', verifyOnReturn );
+    };
   }, [ attempt, signIn, sessionExpired ] );
 
   if ( ready ) return <AppointmentPlanner onSessionExpired={ sessionExpired } />;
