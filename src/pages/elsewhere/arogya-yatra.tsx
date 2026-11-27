@@ -6,7 +6,7 @@ import PolicyDetails from '../../components/public/PolicyDetails';
 import AppointmentAccess from '../../components/public/AppointmentAccess';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
-/** Arogya Yatra: local appointment planning plus the existing service checkout.
+/** Arogya Yatra: authenticated appointment planning and provider catalogue reads.
  * Provider inventory and confirmed booking require a verified server integration.
  * This route covers appointments and medical travel; it does not retail medicines.
  */
