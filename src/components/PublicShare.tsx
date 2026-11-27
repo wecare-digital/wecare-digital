@@ -4,7 +4,6 @@ import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction }
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
-import { symbol } from '../config/materialSymbols';
 
 /**
  * The compact page-tail action dock.
@@ -84,7 +83,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     };
 
     const onKeyDown = ( event: KeyboardEvent ) => {
-      if ( event.key !== 'Escape' ) return;
+      if ( event.key !== 'Escape' || event.isComposing ) return;
       const closing = openMenu;
       setOpenMenu( null );
       if ( closing === 'contribute' ) contributeTriggerRef.current?.focus();
@@ -145,7 +144,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               aria-controls="ps-contribute-menu"
               onClick={ () => toggleMenu( 'contribute' ) }
             >
-              <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
+              <svg className="ps-vector" viewBox="0 0 24 24" width="25" height="25" aria-hidden="true" focusable="false"><path d="M6 4h12M6 8h12M7 4c7 0 7 8 0 8H6l10 8" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
               <span className="ps-tip" aria-hidden="true">Contribute</span>
             </button>
         </section>
@@ -166,7 +165,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
             stashCustomerMenuAction( 'subscribe' );
           } }
         >
-          <span className="ps-material" aria-hidden="true">{ symbol( 'notifications_active' ) }</span>
+          <svg className="ps-vector" viewBox="0 0 24 24" width="25" height="25" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-2 7-2 9h16c0-2-2-2-2-9M10 20h4M3 9a9 9 0 0 1 2-5m16 5a9 9 0 0 0-2-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span className="ps-tip" aria-hidden="true">Subscribe</span>
         </a>
 
@@ -174,12 +173,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           ref={ shareTriggerRef }
           type="button"
           className="ps-action ps-share-trigger"
-          aria-label="Share this page"
+          aria-label={ label === 'Share' ? 'Share this page' : label }
           aria-expanded={ openMenu === 'share' }
           aria-controls="ps-share-menu"
           onClick={ () => toggleMenu( 'share' ) }
         >
-          <span className="ps-material" aria-hidden="true">{ symbol( 'share' ) }</span>
+          <svg className="ps-vector" viewBox="0 0 24 24" width="25" height="25" aria-hidden="true" focusable="false"><path d="M8 12l8-5m-8 5 8 5M8 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm14-7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm0 14a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span className="ps-tip" aria-hidden="true">{ label }</span>
         </button>
       </div>
@@ -207,16 +206,15 @@ const PublicShare: React.FC<PublicShareProps> = ( {
             <a
               href={ CUSTOMER_MENU_HREFS.contribute }
               className="ps-menu-item"
-              aria-label="Checkout contribution"
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( 'shopping_cart_checkout' ) }</span>
+                <svg className="ps-vector" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M2 3h3l2.7 12H19l2-7h-8M8 11l3-3-3-3m3 3H6m3 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Checkout</span>
                 <span className="ps-menu-note">Review, then pay on website</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
+              <svg className="ps-vector ps-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </a>
           </div>
       </div>
@@ -237,7 +235,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
             href={ whatsappShareHref( resolvedTitle, resolvedUrl ) }
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Share this page on WhatsApp"
           >
             <span className="ps-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false">
@@ -248,7 +245,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               <span className="ps-menu-name">WhatsApp</span>
               <span className="ps-menu-note">Share on WhatsApp</span>
             </span>
-            <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
+            <svg className="ps-vector ps-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </a>
 
           { canNativeShare && (
@@ -256,16 +253,15 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               type="button"
               className="ps-menu-item"
               onClick={ onNativeShare }
-              aria-label="Share this page using another app"
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( 'ios_share' ) }</span>
+                <svg className="ps-vector" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">More apps</span>
                 <span className="ps-menu-note">Choose another app</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
+              <svg className="ps-vector ps-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           ) }
 
@@ -274,16 +270,15 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               type="button"
               className="ps-menu-item"
               onClick={ onCopy }
-              aria-label="Copy link to this page"
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( 'link' ) }</span>
+                <svg className="ps-vector" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M10 13a4 4 0 0 0 6 .5l4-4a4 4 0 0 0-6-5.7l-2 2m2 5.2a4 4 0 0 0-6-.5l-4 4a4 4 0 0 0 6 5.7l2-2" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Copy link</span>
                 <span className="ps-menu-note">Copy page link</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
+              <svg className="ps-vector ps-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           ) }
         </div>
@@ -347,24 +342,19 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-action:focus-visible,.ps-menu-item:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
-        .ps-material{
-          font-family:'Material Symbols Rounded';font-weight:normal;font-style:normal;
-          font-size:25px;line-height:1;letter-spacing:normal;text-transform:none;
-          white-space:nowrap;word-wrap:normal;direction:ltr;
-          -webkit-font-feature-settings:'liga';font-feature-settings:'liga';
-          -webkit-font-smoothing:antialiased;
-          font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
-        }
+        /* Decorative vectors never expose ligature words when webfonts are blocked
+           or delayed. Keep the icon's box stable, including on the smallest layout. */
+        .ps-vector{display:block;flex:0 0 auto;max-width:100%;pointer-events:none}
         .ps-tip{
           position:absolute;inset-inline-start:50%;bottom:calc(100% + 9px);
           transform:translateX(-50%) translateY(4px);
           padding:6px 9px;border-radius:8px;background:var(--public-brand-green);color:#fff;
           white-space:nowrap;font-size:14px;font-weight:650;line-height:1.2;
-          opacity:0;pointer-events:none;z-index:40;
+          opacity:0;visibility:hidden;pointer-events:none;z-index:40;
           transition:opacity .15s,transform .15s;
         }
         .ps-action:hover .ps-tip,.ps-action:focus-visible .ps-tip{
-          opacity:1;transform:translateX(-50%) translateY(0);
+          opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);
         }
 
         /* ANCHORED TO THE BOTTOM OF THE BUTTON ROW, not a fixed offset. top was 82px (78px on
@@ -409,7 +399,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           background:#eef7d6;color:var(--public-brand-green);
         }
         .ps-menu-icon svg{width:18px;height:18px;display:block}
-        .ps-menu-icon .ps-material{font-size:20px}
         .ps-menu-copy{min-width:0;overflow-wrap:anywhere}
         .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
         .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
@@ -435,6 +424,10 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           .ps-menu-icon{width:28px;height:28px}
           .ps-chevron{display:none}
           .ps-menu-head{padding-inline:4px}
+          .ps-kicker{min-width:0;box-sizing:border-box;padding-inline:8px;overflow-wrap:anywhere}
+          .ps-tip{inset-inline-start:0;max-width:calc(100vw - 40px);white-space:normal;overflow-wrap:anywhere;transform:translateY(4px)}
+          .ps-subscribe .ps-tip{inset-inline-start:auto;inset-inline-end:0}
+          .ps-action:hover .ps-tip,.ps-action:focus-visible .ps-tip{transform:none}
         }
         /* Below 192px the three 48px buttons and their 8px gaps no longer fit in one row and
            Share wraps under Contribute, so the arrows' fixed offsets would point at the wrong
