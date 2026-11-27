@@ -9,6 +9,9 @@ frontend:
   phases:
     preBuild:
       commands:
+        # Node 26 Linux binaries link libatomic.so.1, which the Amplify build image does not
+        # ship (jobs 779-782 died with exit 127 at the first `node` call). Install it first.
+        - if ! ldconfig -p | grep -q libatomic.so.1; then (command -v dnf >/dev/null && dnf install -y -q libatomic) || yum install -y -q libatomic; fi
         # --skip-default-packages: the build image ships /root/.nvm/default-packages, and a plain
         # `nvm install` re-installs that whole global set (1,692 packages: vue 2, webpack-chain,
         # docsearch...) for the new Node on EVERY build. Measured on jobs 276-278 (2026-10-27):
