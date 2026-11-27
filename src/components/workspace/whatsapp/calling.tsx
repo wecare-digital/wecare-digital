@@ -767,12 +767,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
       };
 
       // 5. Log ICE candidates
-      pc.onicecandidate = ( event ) => {
-        if ( event.candidate )
-        {
-          console.log( 'ICE candidate:', event.candidate.candidate );
-        }
-      };
 
       pc.onconnectionstatechange = () => {
         console.log( 'WebRTC connection state:', pc.connectionState );
@@ -890,7 +884,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
     autoAnsweredRef.current.add( callId );
 
     const mode = autoPickupMode;
-    console.log( `[AUTO-ANSWER] mode=${mode} call=${callId} from=${call.fromNumber || 'unknown'}` );
     toast.info( `Auto-answering (${mode}) call from ${call.callerName || call.fromNumber || 'unknown'}...` );
 
     try
