@@ -714,8 +714,8 @@ export default function OrdersPage (): React.ReactElement {
             accessToken={ token } onDone={ closeSubmitRequest } onExpired={ expire } />
         </main>
         <style jsx>{ `
-          .ord-web-request{min-width:0;box-sizing:border-box;width:100%;max-width:100%;padding:24px 16px 48px}
-          @media(min-width:768px){.ord-web-request{padding:48px 24px 64px}}
+          .ord-web-request{min-width:0;box-sizing:border-box;width:100%;max-width:100%;padding:calc(120px + var(--safe-top,0px)) 16px 48px}
+          @media(min-width:768px){.ord-web-request{padding:calc(156px + var(--safe-top,0px)) 24px 64px}}
         ` }</style>
       </>
     );
