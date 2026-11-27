@@ -79,7 +79,7 @@ import os
 import re
 import time
 from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import boto3

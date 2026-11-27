@@ -5004,7 +5004,7 @@ def _get_ab_test_flow_id(flow_code: str, phone: str) -> str:
         if not ab.get('enabled'):
             return config.get('flowId', '')
         split = ab.get('splitPercent', 50)
-        phone_hash = int(hashlib.md5(phone.encode()).hexdigest()[:8], 16) % 100
+        phone_hash = int(hashlib.md5(phone.encode(), usedforsecurity=False).hexdigest()[:8], 16) % 100
         if phone_hash < split:
             return config.get('flowId', '')
         return ab.get('variantB_flowId', config.get('flowId', ''))

@@ -25,17 +25,14 @@ Lambda Layer: Klayers-p312-Pillow:10 (Pillow 12.1.1)
 
 import os
 import json
-import logging
 import uuid
 import urllib.request
 import urllib.error
 import io
-import base64
-from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
 import boto3
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.middleware import require_auth

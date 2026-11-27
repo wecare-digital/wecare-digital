@@ -22,7 +22,6 @@ import os
 import json
 import hmac
 import hashlib
-import logging
 import re
 import time
 import boto3
