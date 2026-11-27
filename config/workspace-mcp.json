@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -154,6 +154,19 @@
       "agentToolsWebsite": "https://sinch.com/ai/agent-tools/",
       "documentationMcp": "https://developers.sinch.com/mcp",
       "rcsDocs": "https://developers.sinch.com/docs/conversation/channel-support/rcs/ai-support"
+    },
+    "google-gmail-apollo": {
+      "kind": "oauth-sdk",
+      "clientId": "756034744787-occ06h9v22rh0kbm83mmedpfqqqfni44.apps.googleusercontent.com",
+      "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+      "tokenEndpoint": "https://oauth2.googleapis.com/token",
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.readonly"
+      ],
+      "expectedMailbox": "wecare.digital.bw@gmail.com",
+      "purpose": "Apollo IC sign-in codes for Arogya Yatra",
+      "tools": {},
+      "_note": "Separate explicit Gmail consent for the intended business mailbox. Verification reads profile only. This grant alone does not enable bookings or share credentials with customer browsers."
     }
   }
 }
