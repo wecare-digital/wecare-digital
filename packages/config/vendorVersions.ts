@@ -226,16 +226,12 @@ export const LAMBDA_PYTHON_RUNTIME: VendorVersion = {
 /** Node.js. `.nvmrc` pins the major; the local toolchain and CI must agree. */
 export const NODE_RUNTIME: VendorVersion = {
   name: 'Node.js',
-  configured: '24',
+  configured: '26',
   verifiedLatest: '26',
-  verifiedOn: '2026-11-27',
+  verifiedOn: '2026-11-28',
   evidence: 'LIVE',
-  drift: 'lag-allowed-with-reason',
-  upgradeBlockedReason:
-    'Node 26 Linux binaries need libatomic.so.1, which the Amplify build image does not have: ' +
-    '`node` exited 127 on Amplify jobs 779-783. The build user is not root, so `dnf install ' +
-    'libatomic` failed as well (jobs 784 and 786). Node 24 is supported until 2028-04-30. Move ' +
-    'only after a preview build proves Node 26 starts on the build image (e.g. a custom image).',
+  drift: 'must-be-latest',
+  upgradeBlockedReason: undefined,
   rederive: 'node -v against .nvmrc and package.json engines.node',
 } as const;
 
