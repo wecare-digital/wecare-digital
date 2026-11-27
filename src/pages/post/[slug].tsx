@@ -318,20 +318,13 @@ export default function BlogPostPage ( {
             results anyway). Re-add it only together with a visible FAQ block that renders the
             same questions and answers. No exported post carried one on 2026-10-27. */}
       </Head>
-      {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + ROTATING lime pill +
-          one-shot entrance as every other hero, via the shared RotatingHero. Frame is "Read" and
-          the pill cycles a short set of reading verbs - reflect, consider, revisit, return - each
-          on its own tint/dot from the house palette, so the post hero animates like the home,
-          Grahak OS and VayuLok heroes rather than sitting static. A post has one subject (its
-          title), so the title is NOT the pill - it stays the article's own h2 below; the pill
-          carries the quiet "what you do with a piece" verb instead. RotatingHero owns the <main>
-          and the ONE h1 (the hero), so the page keeps exactly one h1 (htmlcheck H1-MANY). Single
-          dynamic template, so every post - today's and any added tomorrow - gets it automatically.
-          The shared action dock is outside this template and owned once by _app. */}
+      {/* The article title is the only h1; the reading cue below it is visual only. */}
       <RotatingHero
         badgeLabel="Blog article"
         mobileFoundation
-        frame="Read and"
+        frame={ post.title }
+        decorativeRotation
+        pillPrefix="Read and"
         words={ [
           { word: 'reflect', tint: '#e0f7c8', dot: '#3da35a' },
           { word: 'consider', tint: '#dbeafe', dot: '#2563eb' },
@@ -369,10 +362,6 @@ export default function BlogPostPage ( {
             />
           </form>
           { post.category && <div className="category">{ post.category }</div> }
-          {/* The article title is an h2 now: the RotatingHero pill above is the page's single h1,
-              so the title steps down one level to keep exactly one h1. .post-title class carries
-              the old h1 styling so the visible treatment is unchanged. */}
-          <h2 className="post-title">{ post.title }</h2>
           {/* NO PUBLISHED DATE IN THE BYLINE, on owner instruction. It rendered beside the
               author as a formatted en-IN date and is gone from every blog and post surface.
               WHAT DELIBERATELY STAYS: datePublished and dateModified in the BlogPosting
@@ -547,11 +536,6 @@ export default function BlogPostPage ( {
            .category in BlogIndexView.tsx for why identity takes the fill and not the .22
            tint - the short version is that .22 composites to a barely-not-white wash. */
         .category{display:inline-block;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}
-        /* .post-title carries the article title's old h1 treatment unchanged - it is an <h2> now
-           (RotatingHero's pill is the page's one h1), but the visible size/weight is identical so
-           the article still opens on its title at full weight. */
-        /* A word longer than the column breaks instead of pushing the page sideways at 280px. */
-        .post-title{font-size:var(--public-hero-size);line-height:var(--public-hero-leading);letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0 0 20px;font-weight:var(--public-hero-weight);text-wrap:balance;max-width:20ch;overflow-wrap:anywhere}
         /* AUTHOR ONLY NOW, so the row is no longer a row. The flex, the gap and the wrap all
            existed to lay out two children - the author and the date - and with the date gone
            they described a layout that cannot happen.
@@ -732,7 +716,6 @@ export default function BlogPostPage ( {
              Body copy deliberately stays on --public-body-size (20px): the foundation
              says that value is global, not a mobile-only token to shrink locally. */
           .article-shell{padding:0;min-width:0}
-          .post-title{font-size:var(--public-mobile-hero-size);max-width:none}
           .post-search{max-width:100%}
           .post-search input{font-size:var(--public-mobile-form-font-size)}
           .byline{margin-bottom:34px}

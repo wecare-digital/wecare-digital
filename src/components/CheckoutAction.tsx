@@ -1,5 +1,4 @@
 import React from 'react';
-import { symbol } from '../config/materialSymbols';
 
 interface CheckoutActionProps {
   children: React.ReactNode;
@@ -32,7 +31,14 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       aria-busy={ busy }
       aria-label={ busy ? undefined : ariaLabel }
     >
-      <span className="checkout-action-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
+      {/* A ligature renders as unbreakable text before its font loads. Keep
+          the decorative icon a fixed-size vector in the button's layout. */}
+      <svg className="checkout-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="20" height="20">
+        <path
+          fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+          d="M2 3h3l2.7 12H19l2-7h-8M8 11l3-3-3-3m3 3H6m3 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"
+        />
+      </svg>
       <span>{ busy ? 'One moment…' : children }</span>
     </button>
     <style jsx>{`
@@ -47,11 +53,8 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
         touch-action:manipulation;-webkit-tap-highlight-color:transparent;
         transition:background-color .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s;
       }
-      .checkout-action > span:not(.checkout-action-icon){min-width:0;overflow-wrap:anywhere}
-      .checkout-action-icon{flex-shrink:0;
-        font-family:'Material Symbols Rounded';font-size:20px;font-weight:500;line-height:1;
-        font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 20;
-      }
+      .checkout-action > span{min-width:0;overflow-wrap:anywhere}
+      .checkout-action-icon{flex:0 0 20px;width:20px;height:20px}
       .checkout-action:active:not(:disabled){
         background:var(--public-accent-amber-tint);border-color:var(--public-accent-amber);
         transform:translateY(0) scale(.98);box-shadow:none;

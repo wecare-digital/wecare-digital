@@ -78,6 +78,8 @@ interface RotatingHeroProps {
   pillAfterFrame?: boolean;
   /** Fixed second headline line used with `pillAfterFrame`. */
   secondLine?: string;
+  /** Keep the exact article or product title as the heading; put the visual rotation below it. */
+  decorativeRotation?: boolean;
   words: CycleWord[];
   /** Optional remount key for the rotating pill when an external mode must become the first word. */
   pillKey?: React.Key;
@@ -139,7 +141,7 @@ interface RotatingHeroProps {
   compact?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = true, compact = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, decorativeRotation = false, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = true, compact = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -230,25 +232,35 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
             </div>
           ) }
 
-          <Head className={ pillPrefix ? 'rh-head has-prefix' : 'rh-head' }>
-            { pillAfterFrame ? (
-              <>
-                <span className="rh-head-line rh-head-inline-rotate">
-                  <span>{ frame }</span>
-                  <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
-                </span>
-                { secondLine && <span className="rh-head-line">{ secondLine }</span> }
-              </>
-            ) : (
-              <>
-                <span className="rh-head-line">{ frame }</span>
-                <span className="rh-head-line rh-head-rotate">
-                  { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-                  <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
-                </span>
-              </>
-            ) }
-          </Head>
+          { decorativeRotation ? (
+            <>
+              <Head className="rh-head rh-title">{ frame }</Head>
+              <div className="rh-head rh-head-rotate rh-decoration" aria-hidden="true">
+                { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
+                <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+              </div>
+            </>
+          ) : (
+            <Head className={ pillPrefix ? 'rh-head has-prefix' : 'rh-head' }>
+              { pillAfterFrame ? (
+                <>
+                  <span className="rh-head-line rh-head-inline-rotate">
+                    <span>{ frame }</span>
+                    <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+                  </span>
+                  { secondLine && <span className="rh-head-line">{ secondLine }</span> }
+                </>
+              ) : (
+                <>
+                  <span className="rh-head-line">{ frame }</span>
+                  <span className="rh-head-line rh-head-rotate">
+                    { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
+                    <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+                  </span>
+                </>
+              ) }
+            </Head>
+          ) }
 
           { sub && <p className="rh-sub">{ sub }</p> }
           <HeroRotationControl count={ words.length } paused={ rotationPaused } onToggle={ () => setRotationPaused( value => !value ) } />
@@ -335,6 +347,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
         .rh-head-inline-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:wrap;min-width:0}
         .rh-head-prefix{display:inline-block;min-width:0;overflow-wrap:anywhere}
+        .rh-title{text-wrap:balance}
+        .rh-decoration{margin-top:.12em}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
            rgba(0,0,0,.898). 560px rather than the headline's 900px, because at 20px a

@@ -74,6 +74,14 @@ function cardTags ( card: BlogCard ): string[] {
     .slice( 0, CARD_TAGS );
 }
 
+/** Keep focus inside the pager before a swipe or keyboard turn makes a card inert. */
+function preserveTrackFocus ( track: HTMLDivElement, nextPage: number ): void {
+  const focusedPage = track.ownerDocument.activeElement?.closest( '.pbp-page' );
+  if ( focusedPage && focusedPage.parentElement === track && focusedPage !== track.children.item( nextPage ) ) {
+    track.focus( { preventScroll: true } );
+  }
+}
+
 const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCards, categories: initialCategories, heading = 'From the blog' } ) => {
   const [ allCards, setAllCards ] = useState<BlogCard[] | null>( null );
   const [ failed, setFailed ] = useState( false );
@@ -125,8 +133,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   // native touch swipe: the browser snaps to the nearest page and we read that back on scroll.
   const goToPage = useCallback( ( next: number ): void => {
     const clamped = Math.min( Math.max( 0, next ), Math.max( 0, pageCount - 1 ) );
-    setPage( clamped );
     const el = trackRef.current;
+    if ( el ) preserveTrackFocus( el, clamped );
+    setPage( clamped );
     if ( el ) {
       const left = clamped * el.clientWidth * ( window.getComputedStyle( el ).direction === 'rtl' ? -1 : 1 );
       if ( typeof el.scrollTo === 'function' ) el.scrollTo( { left, behavior: prefersReducedMotion() ? 'auto' : 'smooth' } );
@@ -139,14 +148,16 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   const onTrackScroll = useCallback( (): void => {
     const el = trackRef.current;
     if ( !el || el.clientWidth === 0 ) return;
-    const nearest = Math.round( Math.abs( el.scrollLeft ) / el.clientWidth );
-    setPage( p => ( p === nearest ? p : Math.min( Math.max( 0, nearest ), Math.max( 0, pageCount - 1 ) ) ) );
+    const nearest = Math.min( Math.round( Math.abs( el.scrollLeft ) / el.clientWidth ), Math.max( 0, pageCount - 1 ) );
+    preserveTrackFocus( el, nearest );
+    setPage( nearest );
   }, [ pageCount ] );
 
   // When the result set changes (new category or query), jump back to the first page.
   const resetToFirstPage = useCallback( (): void => {
-    setPage( 0 );
     const el = trackRef.current;
+    if ( el ) preserveTrackFocus( el, 0 );
+    setPage( 0 );
     if ( el ) {
       if ( typeof el.scrollTo === 'function' ) el.scrollTo( { left: 0, behavior: 'auto' } );
       else el.scrollLeft = 0;
@@ -244,6 +255,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                   className="pbp-page"
                   key={ pageIndex }
                   aria-hidden={ pageIndex === activePage ? undefined : true }
+                  inert={ pageIndex !== activePage }
                 >
                   { pageCards.map( card => (
                     <li key={ card.slug } className="pbp-card">
@@ -253,7 +265,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                           link would end early and the layout would break. So the tag nav is a
                           SIBLING after the card link, still inside the <li>: the card stays
                           clickable to the post, and each tag is its own link to a search. */}
-                      <Link className="pbp-link" href={ `/post/${card.slug}/` } tabIndex={ pageIndex === activePage ? undefined : -1 }>
+                      <Link className="pbp-link" href={ `/post/${card.slug}/` } prefetch={ false } tabIndex={ pageIndex === activePage ? undefined : -1 }>
                         <h3 className="pbp-title">{ card.title }</h3>
                         { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
                       </Link>
@@ -262,7 +274,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                           The category is NOT repeated here because the active category pill at
                           the top already says which stream this is. Renders nothing when the post
                           carries no tags. */}
-                      <BlogTags tags={ cardTags( card ) } className="pbp-tagrow" />
+                      <BlogTags tags={ cardTags( card ) } className="pbp-tagrow" tabIndex={ pageIndex === activePage ? undefined : -1 } />
                     </li>
                   ) ) }
                 </ul>
@@ -308,7 +320,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       ) }
 
       <div className="pbp-foot">
-        <Link className="pbp-browse" href="/blog/">Browse perspectives <span aria-hidden="true">→</span></Link>
+        <Link className="pbp-browse" href="/blog/" prefetch={ false }>Browse perspectives <span aria-hidden="true">→</span></Link>
         <RssIcon />
       </div>
 

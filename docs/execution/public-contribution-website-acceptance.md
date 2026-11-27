@@ -1,9 +1,11 @@
 # Website contribution acceptance
 
-Public Contribute (₹300) opens /checkout/?contribute=1. Navigation alone neither
+The public Contribute (₹300) dock, Shop’s Contribute product and the Orders
+actions menu all open /checkout/?contribute=1. Navigation alone neither
 replaces the cart nor initiates a payment or send. Explicitly review the fixed
 contribution; if another cart exists the user must choose to replace it or keep
-it. The existing ProductsTable-backed quote and Razorpay Standard Checkout,
+it. Contributions have a fixed quantity of one; customers can remove the line.
+The existing ProductsTable-backed quote and Razorpay Standard Checkout,
 capture verification, authenticated status and receipt remain authoritative.
 Unexpected contribution totals fail closed. Identity is required, not delivery.
 Ordinary shop/WhatsApp checkout and OTP remain unchanged. Legacy website

@@ -646,7 +646,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuoteNotice( 'Checkout is temporarily unavailable. Please try again later. Nothing has been charged.' );
       return () => { live = false; };
     }
-    if ( !ready || items.length === 0 ) {
+    // The review asks whether to keep a saved basket or replace it; do not
+    // quote and open profile controls for the old basket behind that choice.
+    if ( !ready || contributionReview || items.length === 0 ) {
       setQuote( null );
       setQuoteFor( '' );
       setQuoteLoading( false );
@@ -723,7 +725,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       }
     } )();
     return () => { live = false; };
-  }, [ items, ready, profile, profileStatus, quoteRevision ] );
+  }, [ items, ready, contributionReview, profile, profileStatus, quoteRevision ] );
 
   /**
    * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
@@ -1993,13 +1995,15 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
-                      <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
-                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
-                          disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
-                        <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
-                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
-                          disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
-                      </div>
+                      { !isContributionItem( item ) && (
+                        <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
+                          <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
+                            disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
+                          <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
+                          <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
+                            disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
+                        </div>
+                      ) }
                       <button
                         className="cart-remove"
                         type="button"
@@ -2280,6 +2284,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             .cart-remove{width:42px;height:42px;min-height:42px}
             .cart-actions{display:grid;grid-template-columns:1fr;width:100%;margin-top:22px}
             .cart-auth-action{width:100%}
+          }
+          /* Keep step labels and basket controls readable when zoom reduces the available width. */
+          @media(max-width:279px){
+            .cart-in,.cart-customer-summary,.cart-order-summary,.cart-quote{padding-inline:10px}
+            .cart-progress{display:grid;grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere}
+            .cart-progress b{flex:0 0 28px}
+            .cart-row,.cart-row-controls,.cart-qty{flex-wrap:wrap;overflow-wrap:anywhere}
+            .cart-row-main,.cart-order-summary,.cart-quote,.cart-customer-summary{overflow-wrap:anywhere}
+            .cart-row-controls,.cart-qty{min-width:0;max-width:100%;justify-content:flex-start;gap:4px}
+            .cart-actions{grid-template-columns:minmax(0,1fr)}
+            .cart-auth-action{overflow-wrap:anywhere}
           }
           @media(prefers-reduced-motion:reduce){
             .cart-auth-action{transition:none}

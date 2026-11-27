@@ -156,10 +156,8 @@ const Footer: React.FC = () => {
    * line still announces itself once on arrival for anyone who never points at it.
    *
    * IT RESTARTS THE ANIMATION, NOT THE ARMED STATE. The obvious implementation is to drop .is-in
-   * and re-add it, and that is wrong here: .is-armed without .is-in sets opacity 0 and a 14px
-   * offset, so every hover would begin with a frame of the line vanishing. Clearing and restoring
-   * the inline `animation` property restarts the keyframes while opacity and transform stay where
-   * they are.
+   * and re-add it, which would restart the 14px entrance and move the line on every hover.
+   * Clearing and restoring the inline `animation` property restarts only the colour keyframes.
    *
    * The reflow between the two writes is load-bearing. Without reading offsetWidth the browser
    * coalesces both style changes into one frame, sees no net change, and the animation does not
@@ -369,9 +367,9 @@ const Footer: React.FC = () => {
         margin:0;max-width:min(340px,100%);overflow-wrap:anywhere;text-wrap:balance;
         /* AN ENTRANCE, NOT A HOVER - and that distinction is the whole point.
            The default below is the FINAL state, per the .is-armed pattern this file already
-           uses for the dash: opacity 1, no offset. JavaScript adds .is-armed to hide the
-           start state only once it knows it can animate, then .is-in plays it. So no JS, no
-           IntersectionObserver or reduced motion all leave the line simply readable.
+           uses for the dash: no offset. JavaScript arms the movement only when it can
+           play. Keep the text fully opaque in both states: even a partial fade makes
+           the muted tagline too low contrast against the background.
            Same easing as the dash below so the two read as one settling movement, and 24ms
            ahead of it: the words arrive, then the lime rule closes the block under them.
            WHAT THIS DELIBERATELY IS NOT. This line used to darken to #1a3a2a on hover and
@@ -392,10 +390,10 @@ const Footer: React.FC = () => {
            line box, so the movement registers without reading as a jump, and 560ms keeps the
            velocity close to the dash's rather than making the line faster for being farther.
            footerprobe.js asserts the travel, so a future tidy cannot quietly shrink it back. */
-        transition:opacity .56s cubic-bezier(.22,.61,.36,1),transform .56s cubic-bezier(.22,.61,.36,1);
+        transition:transform .56s cubic-bezier(.22,.61,.36,1);
       }
-      .ft-tagline.is-armed{opacity:0;transform:translateY(14px)}
-      .ft-tagline.is-armed.is-in{opacity:1;transform:none}
+      .ft-tagline.is-armed{transform:translateY(14px)}
+      .ft-tagline.is-armed.is-in{transform:none}
 
       /* A COLOUR RUNNING ACROSS THE LINE, ONCE. Owner asked for a colour effect on this line
          "running over" it, so a band of brand green travels left to right through the muted
@@ -504,7 +502,7 @@ const Footer: React.FC = () => {
            The effect already returns before arming under this preference, so this is the
            guard for the preference changing AFTER the class is on the node. */
         .ft-tagline{transition:none}
-        .ft-tagline.is-armed{opacity:1;transform:none}
+        .ft-tagline.is-armed{transform:none}
         /* THE COLOUR SWEEP, AND IT IS NOT ENOUGH TO STOP THE ANIMATION. background-clip:text
            works by making the text itself transparent and painting a gradient through it, so
            animation:none on its own would leave transparent text over a gradient parked off

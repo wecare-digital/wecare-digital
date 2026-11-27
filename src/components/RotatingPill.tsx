@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 
 /**
  * THE ROTATING LIME PILL, EXTRACTED SO EVERY HERO SHARES ONE IMPLEMENTATION.
@@ -57,10 +57,15 @@ export interface RotatingPillProps {
   blockBelow?: number;
 }
 
+// The static export cannot operate the pause button. The hydration snapshot
+// keeps it disabled on first paint and enables it when React has attached.
+const subscribeToHydration = () => () => {};
+const readyInBrowser = () => true;
+const readyInExport = () => false;
+
 /** Visible, keyboard-accessible control outside the headline. */
 export function HeroRotationControl( { paused, onToggle, count }: { paused: boolean; onToggle: () => void; count: number } ) {
-  const [ ready, setReady ] = useState( false );
-  useEffect( () => { setReady( true ); }, [] );
+  const ready = useSyncExternalStore( subscribeToHydration, readyInBrowser, readyInExport );
   if ( count <= 1 ) return null;
   return (
     <>

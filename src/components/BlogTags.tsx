@@ -61,6 +61,8 @@ export interface BlogTagsProps {
   className?: string;
   /** The landmark's accessible name. Defaults to a plain 'Tags'. */
   ariaLabel?: string;
+  /** Exclude tags on offscreen carousel pages, including in WebViews without inert. */
+  tabIndex?: -1;
 }
 
 /**
@@ -76,7 +78,7 @@ export interface BlogTagsProps {
  * styled-jsx does not scope a composite component, so a className passed to Link would arrive
  * unstyled.
  */
-const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags' } ) => {
+const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags', tabIndex } ) => {
   const clean = ( tags || [] ).map( t => t.trim() ).filter( Boolean );
   if ( clean.length === 0 ) return null;
 
@@ -92,8 +94,10 @@ const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags
         <Link
           key={ tag }
           href={ `/blog/?q=${encodeURIComponent( tag )}` }
+          prefetch={ false }
           className={ `tag-h${tagHue( tag )}` }
           aria-label={ `Search posts tagged ${tag}` }
+          tabIndex={ tabIndex }
         >{ tag }</Link>
       ) ) }
 

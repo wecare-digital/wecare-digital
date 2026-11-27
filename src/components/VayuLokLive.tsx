@@ -4528,6 +4528,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         @media(max-width:1050px){
           .vl-live-mobile-snapshot{display:none}
         }
+        /* Leave the independent location and clock full rows at narrow widths;
+           the nonshrinking time glyph can overlap the location otherwise. */
+        @media(max-width:360px){
+          .vl-live-air-context{flex-direction:column;align-items:stretch}
+          .vl-live-air-context-item.is-location{max-width:none}
+          .vl-live-air-context-item.is-time{justify-content:flex-start;margin-inline-start:0;white-space:normal}
+          .vl-live-air-context-item strong,.vl-live-local-datetime{min-width:0;overflow-wrap:anywhere;white-space:normal}
+          .vl-live-local-datetime{align-items:flex-start}
+        }
+        @media(max-width:279px){.vl-live-air-card{padding-inline:12px}}
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-map-shell{--vl-map-height:clamp(400px,85svh,560px);min-height:0}
           .vl-live-search-field{height:52px}

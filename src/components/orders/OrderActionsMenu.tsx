@@ -70,7 +70,7 @@ const OTHER_ACTIONS: readonly Action[] = [
     icon: 'subscribe', keywords: 'profile address account' },
   { label: 'Referral', subtitle: 'Refer & earn', href: CUSTOMER_MENU_HREFS.referral,
     icon: 'referral', keywords: 'refer referral partner earn reward' },
-  { label: 'Contribute', subtitle: 'Give back', href: '/orders/',
+  { label: 'Contribute', subtitle: 'Give back', href: CUSTOMER_MENU_HREFS.contribute,
     icon: 'rupee', keywords: 'contribute give back voluntary payment' },
 ];
 
