@@ -172,7 +172,7 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
         <h3 ref={ heading } tabIndex={ -1 }>{ STEPS[step - 1] }</h3>
         { step < 4 ? (
           <form onSubmit={ advance }>
-            <div className={ styles.fields }>
+            <div className={ styles.fields } data-public-field-group="appointment">
               { step === 1 && <>
                 { liveSelect( 'hospital', 'hospitalId', 'Hospital', hospitals.options, hospitals.loading ) }
                 { hospitalSelected && !hospitals.options.find( item => item.id === hospitalId )?.city && input( 'city', 'City', { required: true, maxLength: 80 } ) }
