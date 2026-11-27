@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { publicSupportGeometry } from '../src/lib/publicSupportGeometry.ts';
+import { voiceSearchFailureMessage } from '../src/lib/publicVoiceSearch.ts';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
 test('public support geometry stays in the visible viewport and keeps a usable panel when possible', () => {
@@ -35,16 +36,22 @@ test('footer parking uses layout coordinates even when the visual viewport pans'
 
 test('voice failure and language activation retain typed and accessible alternatives', () => {
   const voice = read('src/components/VoiceSearchMic.tsx');
-  assert.ok(voice.includes('Voice search unavailable. Type your search instead.'));
-  assert.ok(voice.includes('role="status" aria-live="polite"'));
+  assert.match(voiceSearchFailureMessage('not-allowed'), /permissions.*type your search/i);
+  assert.ok(voice.includes('role="status" aria-live="polite" aria-atomic="true"'));
   assert.ok(voice.includes("event.error !== 'aborted'"));
+  assert.ok(voice.includes('voiceSearchFailureMessage( event.error )'));
+  assert.ok(voice.includes('aria-describedby={ feedback ? statusId : undefined }'));
+  assert.ok(voice.includes('activeRef.current = true'));
+  assert.ok(voice.includes('cancelledRef.current = true'));
+  assert.ok(voice.includes('.voice-search-status.is-visible{position:static;display:block;flex:0 0 100%'));
+  assert.doesNotMatch(read('src/styles/public-interactions.css'), /\.voice-search-feedback/);
   const support = read('src/components/SupportWidget.tsx');
   assert.ok(support.includes('tabIndex={ -1 }'));
   assert.ok(support.includes('onClick={ event => { closePanel( event.detail === 0 ); void applyLanguage( lang.code ); } }'));
   assert.ok(support.includes('list.scrollTop += rowBox.bottom - listBox.bottom'));
   assert.ok(support.includes('document.documentElement.clientHeight || window.innerHeight'));
   const qa = read('scripts/verify_public_browser.mjs');
-  for (const token of ['PUBLIC_QA_INTERACTIONS_ONLY','DeniedSpeechRecognition','translationAttempted','verifySupport','verifyVoiceFallback']) assert.ok(qa.includes(token),token);
+  for (const token of ['PUBLIC_QA_INTERACTIONS_ONLY','DeniedSpeechRecognition','translationAttempted','verifySupport','verifyVoiceFallback',voiceSearchFailureMessage('not-allowed'),'aria-describedby','voice-search-status.is-visible']) assert.ok(qa.includes(token),token);
 });
 
 test('the seven public search surfaces opt into the same non-overlapping layout', () => {

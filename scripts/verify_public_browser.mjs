@@ -211,9 +211,16 @@ async function verifyVoiceFallback(page, route, name) {
   await field.fill(route.query || 'Drafting');
   const value = await field.inputValue();
   await parent.locator('button.voice-search-mic').click();
-  const feedback = parent.getByText('Voice search unavailable. Type your search instead.', {exact:true});
+  const feedback = parent.locator('.voice-search-status.is-visible');
   await feedback.waitFor({state:'visible'});
+  assert.equal(await feedback.innerText(), 'Microphone access is unavailable. Check your permissions or type your search.', name + ': permission-specific fallback');
   assert.equal(await feedback.getAttribute('role'), 'status', name + ': missing voice status semantics');
+  assert.equal(await feedback.getAttribute('aria-atomic'), 'true', name + ': incomplete announcement');
+  const mic = parent.locator('button.voice-search-mic');
+  const statusId = await feedback.getAttribute('id');
+  assert.ok(statusId, name + ': status has no id');
+  assert.equal(await mic.getAttribute('aria-describedby'), statusId, name + ': microphone status not linked');
+  assert.equal(await mic.getAttribute('aria-pressed'), 'false', name + ': microphone remains active after denial');
   assert.equal(await field.inputValue(), value, name + ': permission denial changed query');
   await assertSharedSearchGeometry(field, name);
   await parent.getByRole('button', {name:'Clear search',exact:true}).click();

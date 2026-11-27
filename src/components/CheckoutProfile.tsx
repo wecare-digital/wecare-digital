@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import PublicNotice from './public/PublicNotice';
 import { publicActionText } from '../lib/publicActionNotices';
 
@@ -64,6 +64,7 @@ const CheckoutProfile: React.FC<Props> = ( {
   const [ saving, setSaving ] = useState( false );
   const [ message, setMessage ] = useState( '' );
   const [ addressField, setAddressField ] = useState( '' );
+  const noticeId = useId();
 
   const showProfile = mode === 'create' || mode === 'profile' || mode === 'name';
   const showAddress = mode === 'create' || mode === 'address';
@@ -139,7 +140,7 @@ const CheckoutProfile: React.FC<Props> = ( {
   };
 
   return (
-    <section className="checkout-profile" aria-label="Checkout details">
+    <section className="checkout-profile" aria-label="Checkout details" aria-busy={ saving }>
 
       { showProfile && (
         <div className="checkout-profile-grid">
@@ -147,6 +148,7 @@ const CheckoutProfile: React.FC<Props> = ( {
             <span>Full name</span>
             <input
               value={ fullName }
+              disabled={ saving }
               onChange={ event => setFullName( event.target.value ) }
               autoComplete="name"
               maxLength={ 200 }
@@ -158,6 +160,7 @@ const CheckoutProfile: React.FC<Props> = ( {
             <span>WhatsApp username</span>
             <input
               value={ username }
+              disabled={ saving }
               onChange={ event => setUsername( event.target.value ) }
               autoComplete="off"
               maxLength={ 50 }
@@ -168,6 +171,7 @@ const CheckoutProfile: React.FC<Props> = ( {
             <span>Organisation</span>
             <input
               value={ companyName }
+              disabled={ saving }
               onChange={ event => setCompanyName( event.target.value ) }
               autoComplete="organization"
               maxLength={ 200 }
@@ -178,6 +182,7 @@ const CheckoutProfile: React.FC<Props> = ( {
             <span>Job title</span>
             <input
               value={ designation }
+              disabled={ saving }
               onChange={ event => setDesignation( event.target.value ) }
               autoComplete="organization-title"
               maxLength={ 200 }
@@ -193,6 +198,7 @@ const CheckoutProfile: React.FC<Props> = ( {
             <input
               type="email"
               value={ email }
+              disabled={ saving }
               onChange={ event => setEmail( event.target.value ) }
               autoComplete="email"
               maxLength={ 254 }
@@ -208,11 +214,12 @@ const CheckoutProfile: React.FC<Props> = ( {
           onChange={ setAddress }
           disabled={ saving }
           invalidField={ addressField }
+          errorDescriptionId={ message ? noticeId : undefined }
         />
       ) }
 
       { message && (
-        <PublicNotice mode="inline" tone="error" message={ message } />
+        <PublicNotice id={ noticeId } mode="inline" tone="error" message={ message } />
       ) }
 
       <div className="checkout-profile-actions">
@@ -233,14 +240,14 @@ const CheckoutProfile: React.FC<Props> = ( {
           background:transparent;color:var(--public-text);font-family:var(--font-sans);
         }
         .checkout-profile-grid{
-          display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;margin:0 0 24px;
+          display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:0 0 24px;
         }
         .checkout-profile-grid .span-2{grid-column:1/-1}
         .checkout-profile-grid label{
           display:flex;flex-direction:column;gap:7px;min-width:0;color:var(--public-text);
           font-size:var(--public-supporting-size);font-weight:600;
         }
-        .checkout-profile-grid label>span{min-width:0}
+        .checkout-profile-grid label>span{min-width:0;overflow-wrap:anywhere}
         .checkout-profile-grid input{
           min-width:0;width:100%;min-height:54px;padding:0 2px;box-sizing:border-box;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;
@@ -249,16 +256,17 @@ const CheckoutProfile: React.FC<Props> = ( {
           box-shadow:none;outline:0;-webkit-appearance:none;appearance:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .checkout-profile-grid input::placeholder{color:rgba(0,0,0,.42)}
+        .checkout-profile-grid input::placeholder{color:var(--public-muted)}
         .checkout-profile-grid input:focus{
           border-bottom-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
+        .checkout-profile-grid input:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .checkout-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
         .checkout-profile-action{
-          min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
+          min-height:48px;min-width:48px;max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:8px 14px;border:0;border-radius:10px;
           background:var(--public-lime-tint);color:var(--public-brand-green);
-          font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+          font:600 var(--public-responsive-cta-size)/1.35 var(--font-sans);
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
           touch-action:manipulation;cursor:pointer;
           transition:background-color .18s,transform .18s,box-shadow .18s;

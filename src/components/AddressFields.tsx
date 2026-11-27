@@ -1,5 +1,5 @@
-import React from 'react';
-import { publicActionText } from '../lib/publicActionNotices';
+import React, { useId } from 'react';
+import PublicNotice from './public/PublicNotice';
 
 import { COUNTRY_OPTIONS, countryCodeForName, countryNameForCode } from '../config/countryOptions';
 import { INDIA_SUBDIVISION_NAMES } from '../config/indiaSubdivisions';
@@ -92,9 +92,11 @@ interface Props {
   onChange: ( next: AddressDraft ) => void;
   disabled?: boolean;
   invalidField?: string;
+  errorDescriptionId?: string;
 }
 
-const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidField } ) => {
+const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidField, errorDescriptionId } ) => {
+  const postalHelpId = useId();
   const patch = ( field: keyof AddressDraft, next: string ) =>
     onChange( { ...value, [ field ]: next } );
 
@@ -127,6 +129,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             maxLength={ 200 }
             aria-required="true"
             aria-invalid={ invalidField === 'addressLine1' ? 'true' : undefined }
+            aria-describedby={ invalidField === 'addressLine1' ? errorDescriptionId : undefined }
           />
         </label>
 
@@ -138,6 +141,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             autoComplete="address-line2"
             maxLength={ 200 }
             aria-invalid={ invalidField === 'addressLine2' ? 'true' : undefined }
+            aria-describedby={ invalidField === 'addressLine2' ? errorDescriptionId : undefined }
           />
         </label>
 
@@ -149,6 +153,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             autoComplete="address-level3"
             maxLength={ 100 }
             aria-invalid={ invalidField === 'locality' ? 'true' : undefined }
+            aria-describedby={ invalidField === 'locality' ? errorDescriptionId : undefined }
           />
         </label>
 
@@ -161,6 +166,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             maxLength={ 100 }
             aria-required="true"
             aria-invalid={ invalidField === 'city' ? 'true' : undefined }
+            aria-describedby={ invalidField === 'city' ? errorDescriptionId : undefined }
           />
         </label>
 
@@ -188,6 +194,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
               maxLength={ 100 }
               aria-required="true"
               aria-invalid={ invalidField === 'state' ? 'true' : undefined }
+            aria-describedby={ invalidField === 'state' ? errorDescriptionId : undefined }
             />
           </label>
         ) }
@@ -207,7 +214,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             maxLength={ india ? 6 : 100 }
             aria-required="true"
             aria-invalid={ pinBad || invalidField === 'postalCode' ? 'true' : undefined }
-            aria-describedby={ pinBad ? 'address-postal-help' : undefined }
+            aria-describedby={ pinBad ? postalHelpId : invalidField === 'postalCode' ? errorDescriptionId : undefined }
           />
         </label>
 
@@ -224,9 +231,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
       </div>
 
       { pinBad && (
-        <p id="address-postal-help" className="address-help" role="alert">
-          { publicActionText( 'failure' ) }
-        </p>
+        <PublicNotice id={ postalHelpId } mode="inline" tone="error" message="Enter a valid six-digit Indian PIN code." />
       ) }
 
       <style jsx>{`
@@ -237,13 +242,13 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
           clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
-        .address-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;align-items:start}
+        .address-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;align-items:start}
         .span-2{grid-column:1/-1}
         label{
           display:flex;flex-direction:column;gap:7px;min-inline-size:0;
           color:var(--public-text);font-size:var(--public-supporting-size);font-weight:600;
         }
-        label>span{min-inline-size:0}
+        label>span{min-inline-size:0;overflow-wrap:anywhere}
         input{
           min-inline-size:0;width:100%;min-height:54px;padding:0 2px;box-sizing:border-box;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;
@@ -252,11 +257,12 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           box-shadow:none;outline:0;-webkit-appearance:none;appearance:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        input::placeholder{color:rgba(0,0,0,.42)}
+        input::placeholder{color:var(--public-muted)}
         input:focus{
           border-bottom-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
+        input:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         input[aria-invalid='true']{
           border-bottom-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);
@@ -289,16 +295,14 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           box-shadow:0 1px 0 0 var(--public-brand-lime) !important;
           outline:0 !important;
         }
+        .address-grid :global(.address-state .ui-select-trigger:focus-visible),
+        .address-grid :global(.address-country .ui-select-trigger:focus-visible){
+          outline:2px solid var(--public-brand-green) !important;outline-offset:-2px !important;
+        }
         .address-grid :global(.address-state .ui-select-trigger[aria-invalid='true']),
         .address-grid :global(.address-country .ui-select-trigger[aria-invalid='true']){
           border-bottom-color:var(--public-brand-green) !important;
           box-shadow:0 1px 0 0 var(--public-brand-lime) !important;
-        }
-
-        .address-help{
-          margin:12px 0 0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);
-          border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);
-          font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
         }
 
         @media(max-width:767px){
