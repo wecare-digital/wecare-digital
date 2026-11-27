@@ -212,7 +212,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Checkout</span>
-                <span className="ps-menu-note">Review, then pay on website</span>
+                <span className="ps-menu-note">A gesture of appreciation</span>
               </span>
               <svg className="ps-vector ps-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </a>

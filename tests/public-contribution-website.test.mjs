@@ -11,7 +11,7 @@ test('public contribution points to website review, never automatic WhatsApp pay
   const share = read('src/components/PublicShare.tsx');
   const menu = read('src/lib/customerMenuActions.ts');
   assert.ok(share.includes('href={ CUSTOMER_MENU_HREFS.contribute }'));
-  assert.ok(share.includes('Review, then pay on website'));
+  assert.ok(share.includes('A gesture of appreciation'));
   assert.ok(!share.includes("stashCustomerMenuAction( 'contribute' )"));
   assert.ok(menu.includes('contribute: CONTRIBUTE_CTA_HREF'));
   assert.ok(menu.includes("if ( action === 'contribute' ) return { kind: 'blocked' };"));
