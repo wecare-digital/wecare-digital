@@ -21,6 +21,7 @@ const playwright = await import('playwright').catch(() => {
 const engineNames = (process.env.PUBLIC_QA_ENGINES || 'chromium').split(',').map(name => name.trim()).filter(Boolean);
 for (const engine of engineNames) assert.ok(['chromium', 'firefox', 'webkit'].includes(engine), 'Unknown browser engine: ' + engine);
 assert.ok(engineNames.length, 'Select at least one browser engine');
+const menuOnly = process.env.PUBLIC_QA_MENU_ONLY === '1';
 const requestedRoute = process.env.PUBLIC_QA_ROUTE;
 const normalizedRoute = requestedRoute ? new URL(requestedRoute, origin).pathname.replace(/\/+$/, '') || '/' : null;
 if (requestedRoute) assert.equal(new URL(requestedRoute, origin).origin, origin.origin, 'QA route must use the approved origin');
@@ -70,7 +71,8 @@ for (const [path, eyebrow] of expected) {
   if (existing) existing.eyebrow = eyebrow;
   else routes.push({path: url, name: path.slice(1).replaceAll('/', '-'), eyebrow});
 }
-const selectedRoutes = normalizedRoute ? routes.filter(route => (route.path.replace(/\/+$/, '') || '/') === normalizedRoute) : routes;
+const selectedRoutes = normalizedRoute ? routes.filter(route => (route.path.replace(/\/+$/, '') || '/') === normalizedRoute)
+  : menuOnly ? routes.filter(route => ['/', '/grahak-os/', '/shop/', '/terms/'].includes(route.path)) : routes;
 assert.ok(selectedRoutes.length, 'No registered QA route matches ' + normalizedRoute);
 const focusedDevices = [
   ['desktop-2560', 2560, 1440, false], ['desktop-1920', 1920, 1080, false],
@@ -80,7 +82,73 @@ const focusedDevices = [
   ['phone-430', 430, 932, true], ['phone-landscape', 844, 390, true],
   ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
 ];
-const matrix = normalizedRoute ? [...devices, ...focusedDevices] : devices;
+const matrix = normalizedRoute || menuOnly ? [...devices, ...focusedDevices] : devices;
+async function verifyMenu(page, name, width, height, touch) {
+  const trigger = page.getByRole('button', {name: 'Open navigation', exact: true});
+  const nav = page.getByRole('navigation', {name: 'Public navigation'});
+  const field = nav.getByRole('searchbox', {name: 'Search navigation'});
+  const assertBounds = async () => {
+    await page.waitForFunction(() => {
+      const el = document.getElementById('public-navigation-menu');
+      if (!el || !el.classList.contains('open')) return false;
+      const box = el.getBoundingClientRect();
+      const v = window.visualViewport;
+      const x = v?.offsetLeft || 0, y = v?.offsetTop || 0;
+      return box.width > 0 && box.height > 0 && box.left >= x - 2 && box.top >= y - 2
+        && box.right <= x + (v?.width || document.documentElement.clientWidth) + 2
+        && box.bottom <= y + (v?.height || window.innerHeight) + 2;
+    }, null, {timeout: 5000});
+  };
+  const triggerBox = await trigger.boundingBox();
+  const cartBox = await page.locator('.hdr-cart').boundingBox();
+  assert.ok(triggerBox && triggerBox.width >= 44 && triggerBox.height >= 44, name + ': menu tap target');
+  assert.ok(cartBox && cartBox.width >= 44 && cartBox.height >= 44, name + ': cart tap target');
+  assert.ok(triggerBox.x + triggerBox.width <= cartBox.x + 1 || cartBox.x + cartBox.width <= triggerBox.x + 1, name + ': overlapping header controls');
+  await trigger.click();
+  await nav.waitFor({state: 'visible'});
+  assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
+  await assertBounds();
+  await page.screenshot({path: join(output, name + '-menu.png')});
+  const row = nav.locator('.nav-item:visible').first();
+  const rowBox = await row.boundingBox();
+  assert.ok(rowBox && rowBox.height >= 44 && rowBox.width >= 44, name + ': navigation row target');
+  assert.ok(await row.evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 18), name + ': navigation text too small');
+  const family = nav.locator('.nav-family-label').filter({hasText: 'Elsewhere'}).first();
+  if (await family.count()) {
+    const before = await family.getAttribute('aria-expanded');
+    await family.click();
+    assert.notEqual(await family.getAttribute('aria-expanded'), before, name + ': submenu did not toggle');
+  }
+  await field.fill('Drafting');
+  await nav.getByRole('link', {name: /Drafting/i}).first().waitFor({state: 'visible'});
+  await assertBounds();
+  const clear = nav.getByRole('button', {name: 'Clear search', exact: true});
+  const clearBox = await clear.boundingBox();
+  assert.ok(clearBox && clearBox.width >= 44 && clearBox.height >= 44, name + ': clear target');
+  await clear.click();
+  assert.equal(await field.inputValue(), '', name + ': clear query');
+  assert.ok(await field.evaluate(el => el === document.activeElement), name + ': clear focus');
+  await field.fill('zzzzzzzzzzzzzzzz');
+  await nav.getByText('No matching page.', {exact: false}).waitFor({state: 'visible'});
+  if (touch && height >= 390) {
+    // Resized viewport is a keyboard-size stress approximation, not native IME testing.
+    await page.setViewportSize({width, height: Math.max(220, Math.floor(height * .6))});
+    try { await assertBounds(); }
+    finally { await page.setViewportSize({width, height}); }
+  }
+  await field.press('Escape');
+  assert.equal(await field.inputValue(), '', name + ': Escape clears query');
+  await field.press('Escape');
+  await nav.waitFor({state: 'hidden'});
+  assert.ok(await trigger.evaluate(el => el === document.activeElement), name + ': navigation focus recovery');
+  assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
+  await trigger.click();
+  await field.focus();
+  await page.locator('.hdr-cart').focus();
+  await nav.waitFor({state: 'hidden'});
+  assert.ok(await page.locator('.hdr-cart').evaluate(el => el === document.activeElement), name + ': outside focus was stolen');
+}
+
 const results = [];
 for (const engine of engineNames) {
 const browser = await playwright[engine].launch({headless: true});
@@ -100,6 +168,12 @@ try {
             scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth,
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
+
+          if (menuOnly) {
+            await verifyMenu(page, name, width, height, touch);
+            results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'pass'});
+            continue;
+          }
 
           // Home is the reference. Check actual text bounds, not just document
           // scrollWidth, since overflow clipping can hide otherwise unreadable text.
@@ -153,20 +227,7 @@ try {
             // Read-only navigation and illustration interactions, no account,
             // checkout, contribution or WhatsApp submissions.
             if (width >= 280) {
-              const trigger = page.getByRole('button', {name: 'Open navigation', exact: true});
-              await trigger.click();
-              const nav = page.getByRole('navigation', {name: 'Public navigation'});
-              await nav.waitFor({state: 'visible'});
-              const navBox = await nav.boundingBox();
-              assert.ok(navBox && navBox.x >= -2 && navBox.x + navBox.width <= width + 2, name + ': menu leaves viewport');
-              const field = nav.getByRole('searchbox', {name: 'Search navigation'});
-              await field.fill('Drafting');
-              await nav.getByRole('link', {name: /Drafting/i}).first().waitFor({state: 'visible'});
-              await field.press('Escape');
-              assert.equal(await field.inputValue(), '', name + ': navigation search clear');
-              await field.press('Escape');
-              await nav.waitFor({state: 'hidden'});
-              assert.ok(await trigger.evaluate(el => el === document.activeElement), name + ': navigation focus recovery');
+              await verifyMenu(page, name, width, height, touch);
               const playback = page.locator('.wt-play');
               await playback.waitFor({state: 'visible'});
               const before = await playback.getAttribute('aria-label');

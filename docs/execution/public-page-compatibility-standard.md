@@ -32,6 +32,21 @@ Playwright viewport profiles and engines are approximations, not device or nativ
 WebView certification. Use actual Android/iOS shells, physical foldables, browser
 zoom, Safari/Edge, screen readers, safe-area and keyboard tests separately.
 
+## Shared menu compatibility
+
+Audit the header and navigation before migrating individual product pages.
+Use the same live Home reference and representative product, shop and legal routes:
+
+    PUBLIC_QA_BASE=https://wecare.digital PUBLIC_QA_MENU_ONLY=1 PUBLIC_QA_ENGINES=chromium,webkit,firefox node scripts/verify_public_browser.mjs
+
+Add PUBLIC_QA_ROUTE to limit the menu run to one registered route. Verify the
+menu bounds, search results and no-result state, clear and Escape, focus recovery,
+expandable families, tap targets, short-height/keyboard-size viewport changes and
+navigation screenshots. No links that initiate transactions are activated.
+Physically verify iOS/Android WebView keyboard, safe areas, foldable hinge, native
+back and screen-reader behavior separately. Preserve all menu destinations and
+commerce/contact action semantics.
+
 ## Per-page completion record
 
 - Name and live URL; reviewed source commit and PR.
