@@ -4,7 +4,7 @@
   "metaGraphApiBase": "https://graph.facebook.com/v27.0",
   "metaAuthTemplateName": "wecare_otp",
   "metaAuthTemplateLanguage": "en",
-  "lambdaPythonRuntime": "python3.14",
+  "lambdaPythonRuntime": "python3.15",
   "rejectedRuntimes": [
     "python3.9",
     "nodejs18.x",

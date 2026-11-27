@@ -206,21 +206,18 @@ export const GOOGLE_ADDRESS_VALIDATION: VendorVersion = {
 /**
  * Lambda runtime for the zip-packaged fleet.
  *
- * Moved python3.12 -> python3.14 on 2026-11-27. The Python suite passes on 3.14, every handler
- * compiles on it with warnings as errors, no removed stdlib module is imported, and the Pillow
- * and cryptography layers were rebuilt from cp314 wheels and verified in a throwaway 3.14 function.
- * python3.15 is GA but was not tested here; 3.14 is supported until 2029-06-30.
+ * python3.12 -> python3.14 on 2026-11-27, python3.14 -> python3.15 on 2026-11-28. Verified on
+ * Lambda's own python3.15 (3.15.2): the full Python suite fails only the tests that need git (the
+ * same set fails on a python3.14 control in the same environment), every handler compiles with
+ * warnings as errors, and the cp315 Pillow and cryptography layers load and run.
  */
 export const LAMBDA_PYTHON_RUNTIME: VendorVersion = {
   name: 'AWS Lambda Python runtime',
-  configured: 'python3.14',
+  configured: 'python3.15',
   verifiedLatest: 'python3.15',
-  verifiedOn: '2026-11-27',
+  verifiedOn: '2026-11-28',
   evidence: 'LIVE',
-  drift: 'lag-allowed-with-reason',
-  upgradeBlockedReason:
-    'python3.14 is the newest runtime this repo has been verified on (suite, compile, layers). ' +
-    'python3.15 needs the same verification before the fleet moves again.',
+  drift: 'must-be-latest',
   rederive: "aws lambda list-functions --query 'Functions[].Runtime' | sort -u",
 } as const;
 /** Node.js. `.nvmrc` pins the major; the local toolchain and CI must agree. */

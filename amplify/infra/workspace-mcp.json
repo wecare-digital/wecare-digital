@@ -289,7 +289,7 @@
       ],
       "Properties": {
         "FunctionName": "wecare-workspace-mcp",
-        "Runtime": "python3.14",
+        "Runtime": "python3.15",
         "Architectures": [
           "arm64"
         ],
