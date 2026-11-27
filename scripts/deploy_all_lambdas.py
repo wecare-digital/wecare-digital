@@ -112,10 +112,14 @@ STATIC_KB = SHARED / "static_knowledge_base.py"
 # v1 python3.14 (2026-11-27): the same Pillow 13.0.0 and cryptography 50.0.2 builds, from cp314
 # manylinux wheels, for the fleet move to python3.14. The python312 layers stay published so a
 # rollback to a python3.12 version keeps working.
-PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python314:1"
-CRYPTOGRAPHY_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python314:1"
+#
+# v1 python3.15 (2026-11-28): the same builds from cp315 wheels. Verified on Lambda python3.15
+# (3.15.2): Pillow draw and a cryptography AESGCM round trip. The python314 layers stay
+# published for rollback to a python3.14 version.
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python315:1"
+CRYPTOGRAPHY_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python315:1"
 # Every zip function runs this runtime. Reconciled on each deploy like memory and timeout.
-LAMBDA_RUNTIME = "python3.14"
+LAMBDA_RUNTIME = "python3.15"
 _LAYER_FAMILY = re.compile(r"-python3\d+$")
 def layer_family(arn: str) -> str:
     """`pillow` for any `...:layer:pillow-python312:3` or `pillow-python314:1` ARN."""
@@ -634,7 +638,7 @@ def layer_modules(lam, arn: str) -> frozenset:
             for entry in archive.namelist():
                 # Layer zips built on Windows carry `\` separators.
                 path = entry.replace("\\", "/")
-                for prefix in ("python/lib/python3.14/site-packages/", "python/lib/python3.12/site-packages/", "python/"):
+                for prefix in ("python/lib/python3.15/site-packages/", "python/lib/python3.14/site-packages/", "python/lib/python3.12/site-packages/", "python/"):
                     if path.startswith(prefix):
                         rest = path[len(prefix):]
                         break

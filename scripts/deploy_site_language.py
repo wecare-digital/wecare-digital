@@ -173,7 +173,7 @@ def deploy_lambda(zip_bytes: bytes) -> str:
             FunctionName=FUNCTION_NAME,
             Role=ROLE_ARN,
             Handler="handler.handler",
-            Runtime="python3.14",
+            Runtime="python3.15",
             Timeout=30,
             MemorySize=512,
             Environment={"Variables": env},
@@ -185,7 +185,7 @@ def deploy_lambda(zip_bytes: bytes) -> str:
     except lam.exceptions.ResourceNotFoundException:
         created = lam.create_function(
             FunctionName=FUNCTION_NAME,
-            Runtime="python3.14",
+            Runtime="python3.15",
             Role=ROLE_ARN,
             Handler="handler.handler",
             Code={"ZipFile": zip_bytes},

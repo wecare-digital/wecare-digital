@@ -139,7 +139,7 @@ def ensure_function(dry_run: bool) -> str:
         return "would create"
     _lambda().create_function(
         FunctionName=FUNCTION,
-        Runtime="python3.14",
+        Runtime="python3.15",
         Role=ROLE,
         Handler="handler.handler",
         Code={"ZipFile": build_package()},
