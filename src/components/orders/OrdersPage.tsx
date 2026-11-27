@@ -17,6 +17,7 @@ import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
+import SubmitRequestJourney from './SubmitRequestJourney';
 import PublicNotice from '../public/PublicNotice';
 import PolicyDetails from '../public/PolicyDetails';
 import { ORDERS_POLICY_DETAILS } from '../../content/publicPolicyDetails';
@@ -344,9 +345,10 @@ export default function OrdersPage (): React.ReactElement {
   const [ view, setView ] = useState<View>( 'loading' );
   const [ token, setToken ] = useState( '' );
   const [ requestSelection, setRequestSelection ] = useState<OrderRequestId | null>( null );
+  const [ submitOrderNumber, setSubmitOrderNumber ] = useState<string | null>( null );
   const requestPanel = useRef<HTMLDivElement>( null );
   const selectedRequest = orderRequestById( requestSelection );
-  const requestLink = selectedRequest ? whatsappServiceLink( selectedRequest.id ) : undefined;
+  const requestLink = selectedRequest && selectedRequest.id !== 'submit-request' ? whatsappServiceLink( selectedRequest.id ) : undefined;
   const [ orders, setOrders ] = useState<OrderRow[]>( [] );
   const [ cursor, setCursor ] = useState( '' );
   const [ rechecked, setRechecked ] = useState( false );
@@ -683,6 +685,7 @@ export default function OrdersPage (): React.ReactElement {
       const selected = orderRequestFromHash( window.location.hash );
       void takeOrderRequest();
       setRequestSelection( selected );
+      setSubmitOrderNumber( null );
     };
     window.addEventListener( 'hashchange', onHashChange );
     return () => window.removeEventListener( 'hashchange', onHashChange );
@@ -695,6 +698,28 @@ export default function OrdersPage (): React.ReactElement {
       requestPanel.current.scrollIntoView( { block: 'start' } );
     }
   }, [ signedIn, requestSelection ] );
+
+  const closeSubmitRequest = () => {
+    setSubmitOrderNumber( null );
+    setRequestSelection( null );
+    window.history.replaceState( window.history.state, '', '/orders/' );
+  };
+
+  if ( signedIn && requestSelection === 'submit-request' && submitOrderNumber ) {
+    return (
+      <>
+        <PageMeta title="Submit Request" description="Submit a request for your order." path="/orders/" />
+        <main className="ord-web-request" aria-label="Submit Request">
+          <SubmitRequestJourney key={ submitOrderNumber } orderNumber={ submitOrderNumber }
+            accessToken={ token } onDone={ closeSubmitRequest } onExpired={ expire } />
+        </main>
+        <style jsx>{ `
+          .ord-web-request{min-width:0;box-sizing:border-box;width:100%;max-width:100%;padding:24px 16px 48px}
+          @media(min-width:768px){.ord-web-request{padding:48px 24px 64px}}
+        ` }</style>
+      </>
+    );
+  }
 
   return (
     <>
@@ -766,6 +791,11 @@ export default function OrdersPage (): React.ReactElement {
               { /* RIGHT: the order history. The list and the empty state are alternatives and
                    never render together. */ }
               <div className="ord-main">
+                { selectedRequest?.id === 'submit-request' && (
+                  <div ref={ requestPanel } tabIndex={ -1 } className="ord-request-action">
+                    <p>Choose an order and select Submit Request.</p>
+                  </div>
+                ) }
                 { selectedRequest && requestLink && (
                   <div ref={ requestPanel } tabIndex={ -1 } className="ord-request-action">
                     <PillButton as="a" href={ requestLink } action={ selectedRequest.label } onClick={ event => {
@@ -931,6 +961,8 @@ export default function OrdersPage (): React.ReactElement {
                                 ) }
                               <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
                                 setRequestSelection( id );
+                                setSubmitOrderNumber( id === 'submit-request' ? order.orderNumber : null );
+                                if ( id === 'submit-request' ) window.scrollTo( 0, 0 );
                                 window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
                               } } />
                               </span>

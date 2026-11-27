@@ -6991,6 +6991,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from flows.catalog_services import handle
         return handle(event, lambda_client)
 
+    if event.get('internalAction') == 'websiteF004Readiness':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        from lambda_utils.ecommerce import website_submit_request
+        from flows.service_flow_launcher import WEBSITE_F004_COMPLETION_VERSION
+        return {'version': WEBSITE_F004_COMPLETION_VERSION if
+                WEBSITE_F004_COMPLETION_VERSION == website_submit_request.VERSION else ''}
+
     if event.get('internalAction') == 'preparePaidSubmitRequest':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})

@@ -108,7 +108,7 @@ from lambda_utils.ecommerce.blog_contribution import (
     CONTRIBUTION_CHOICES_PAISE, CONTRIBUTION_PRODUCT_IDS, ContributionRejected)
 # Phase O-1 services (Submit Request / Request Amendment): the server allow-list and its
 # per-line price assertion. All logic lives in the module; this file only calls it.
-from lambda_utils.ecommerce import service_requests, request_service_contracts
+from lambda_utils.ecommerce import service_requests, request_service_contracts, website_submit_request
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
 from lambda_utils.ecommerce import contribute_taxable, service_pricing_native, staff_contribution
@@ -645,7 +645,8 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
     if explicit:
         if explicit in ("create", "status", "prepare", "quote", "verify", "profile",
-                        "claim-basket", "order", "request-service-start"):
+                        "claim-basket", "order", "request-service-start",
+                        "request-service-web-quote", "request-service-web-start", "request-service-web-status"):
             return explicit
         # Never reinterpret an unrecognized explicit read (especially 'quote')
         # as create: payment attempts and provider orders are side effects.
@@ -893,6 +894,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _hardened(cors_response(410, {"error": "ORDER_DETAILS_RETIRED"}, origin))
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
+        if action in ("request-service-web-quote", "request-service-web-start", "request-service-web-status"):
+            return _website_f004(identity, body, origin, action)
         if action == "create":
             # Only the authenticated public API dispatch enters here. Native
             # catalog and staff payment flows have separate, proven entrypoints.
@@ -3019,6 +3022,108 @@ def _website_verify(identity: customer_auth.CustomerIdentity, body: Dict[str, An
     }, origin)
 
 
+def _website_f004_ready() -> bool:
+    """Read-only handshake with the active post-invoice receiver."""
+    try:
+        response = _lambda_client().invoke(
+            FunctionName="wecare-whatsapp-business-api:live",
+            InvocationType="RequestResponse",
+            Payload=json.dumps({"internalAction": "websiteF004Readiness"}).encode(),
+        )
+        result = json.loads(response["Payload"].read())
+        return (not response.get("FunctionError")
+                and result.get("version") == website_submit_request.VERSION)
+    except Exception:
+        return False
+
+
+def _website_f004(identity, body, origin, action):
+    """Authenticated order-scoped quote, start and status for the F004 website form."""
+    def answer(code, data):
+        return _hardened(cors_response(code, data, origin))
+
+    allowed = {"action", "selectedOrderNumber"}
+    if action == "request-service-web-start":
+        allowed |= {"requestKey", "note", "expectedTotalPaise"}
+    if not isinstance(body, dict) or set(body) - allowed:
+        return answer(400, {"error": "INVALID_REQUEST_FIELDS"})
+    number = str(body.get("selectedOrderNumber") or "").strip().upper()
+    if not order_keys.is_public_order_number(number):
+        return answer(400, {"error": "INVALID_ORDER_NUMBER"})
+    keys = _keys_table()
+    row = keys.get_item(Key={"orderId": order_keys.ORDER_NUMBER_PREFIX + number},
+                        ConsistentRead=True).get("Item") or {}
+    oid = str(row.get("orderIdRef") or "")
+    order = (_orders_table().get_item(Key={"orderId": oid}, ConsistentRead=True).get("Item") or {}) if oid else {}
+    if (not oid or order.get("customerId") != identity.customer_id
+            or str(order.get("orderNumber") or "").upper() != number
+            or payment_status.canonical(order.get("paymentStatus")) != payment_status.CAPTURED):
+        return answer(404, {"error": "ORDER_NOT_AVAILABLE"})
+
+    def state():
+        return website_submit_request.state(keys, _attempts_table(), owner=identity.customer_id,
+                                            order_id=oid, number=number)
+
+    if action == "request-service-web-status":
+        current = state()
+        # Existing attempts stay readable even during a receiver rollback.
+        if current["state"] == "idle" and not _website_f004_ready():
+            return answer(503, {"error": "WEBSITE_FORM_UNAVAILABLE"})
+        return answer(200, current)
+    if not _website_f004_ready():
+        return answer(503, {"error": "WEBSITE_FORM_UNAVAILABLE"})
+    contract = request_service_contracts.request_service_contract(website_submit_request.SERVICE)
+    if (contract is None or contract.fulfillment_kind != "flow"
+            or contract.flow_capability != website_submit_request.CAPABILITY):
+        return answer(503, {"error": "WEBSITE_FORM_UNAVAILABLE"})
+    line_items = [{"catalogReference": {"catalogItemId": contract.product_id,
+                   "options": {"variantId": contract.sku}}, "quantity": 1}]
+    verified = {
+        "singleOrder": True, "serviceCode": contract.service_code, "selectedOrderId": oid,
+        "selectedOrderNumber": number, "sku": contract.sku,
+        "flowCapability": contract.flow_capability, "fulfillmentKind": contract.fulfillment_kind,
+    }
+    if action == "request-service-web-quote":
+        refusal = service_requests.checkout_preflight(line_items, {}, verified_service_context=verified)
+        if refusal is not None:
+            return answer(refusal[0], refusal[1])
+        try:
+            snapshot = _native_quote(identity, line_items, int(time.time()))
+            return answer(200, {"quote": website_submit_request.quote(snapshot, number),
+                                "requestKey": uuid4().hex})
+        except (catalog_pricing.CatalogPricingError, ValueError, ServicePriceChanged):
+            return answer(503, {"error": "QUOTE_UNAVAILABLE"})
+
+    try:
+        note = website_submit_request.clean_note(body.get("note"))
+    except ValueError:
+        return answer(400, {"error": "INVALID_NOTE"})
+    key = body.get("requestKey")
+    amount = body.get("expectedTotalPaise")
+    if not website_submit_request.valid_key(key) or type(amount) is not int or amount <= 0:
+        return answer(400, {"error": "INVALID_REQUEST"})
+    verified.update(websiteForm=website_submit_request.VERSION,
+                    websiteRequestKey=key, websiteRequestNote=note)
+    # Trusted context is built above, never copied from a browser dictionary.
+    response = _create(identity, {"lineItems": line_items, "expectedTotalPaise": amount},
+                       origin, verified_service_context=verified)
+    if response.get("statusCode") == 409:
+        try:
+            error = json.loads(response.get("body") or "{}").get("error")
+        except (TypeError, ValueError):
+            error = None
+        if error == "REQUEST_KEY_CONFLICT":
+            return _hardened(response)
+    current = state()
+    if current.get("requestKey") == key:
+        return answer(200, current)
+    # A different click may hold the order's active lock. Return only that
+    # customer's state, never mint another payable attempt or expose its note.
+    if current["state"] in ("pending", "saving"):
+        return answer(200, current)
+    return _hardened(response)
+
+
 def _request_service_start(identity: customer_auth.CustomerIdentity,
                            body: Dict[str, Any], origin: str, *, native_contact=None,
                            expected_total_paise=None, staff_actor_hash="", staff_item_process_id="") -> Dict[str, Any]:
@@ -3358,6 +3463,21 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # 3. Reserve a canonical reference bound to a fresh attempt id, then build the attempt. The
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
+    web_f004 = bool(verified_service_context and
+                    verified_service_context.get("websiteForm") == website_submit_request.VERSION)
+    if web_f004:
+        try:
+            won = website_submit_request.reserve(
+                _keys_table(), _attempts_table(), owner=identity.customer_id,
+                order_id=verified_service_context["selectedOrderId"],
+                number=verified_service_context["selectedOrderNumber"],
+                key=verified_service_context["websiteRequestKey"],
+                note=verified_service_context["websiteRequestNote"], amount=amount_paise,
+                attempt_id=attempt_id)
+        except ValueError:
+            return cors_response(409, {"error": "REQUEST_KEY_CONFLICT"}, origin)
+        if not won:
+            return cors_response(409, {"error": "REQUEST_ALREADY_RESERVED"}, origin)
     checkout_mode = (
         CHECKOUT_MODE if catalog_session is not None
         else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE
@@ -3418,6 +3538,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
     except order_keys.OrderIdentityUnavailable:
+        if web_f004:
+            # No payment request can have left before reference allocation.
+            website_submit_request.refused(_keys_table(),
+                order_id=verified_service_context["selectedOrderId"], attempt_id=attempt_id)
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE",
                                    "message": "Please try again shortly."}, origin)
 
@@ -3448,6 +3572,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             serviceKind=single["serviceCode"],
             flowCapability=single["flowCapability"],
         )
+    if web_f004:
+        attempt.update(websiteForm=website_submit_request.VERSION,
+                       websiteRequestKey=verified_service_context["websiteRequestKey"],
+                       websiteRequestNote=verified_service_context["websiteRequestNote"])
     if snapshot is not None:
         catalog_contents = _catalog_contents(snapshot)
         if catalog_contents:
@@ -3529,7 +3657,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED)
-    if wa_request_key:
+    if wa_request_key or web_f004:
         # The ORDER_DETAILS window (`now + 900`, the same expiry `_cart_order_details` stamps
         # into Meta) recorded on the attempt so the cross-rail guard can tell a request the
         # customer can still pay from a lapsed one WITHOUT asking Meta. Emitted only on this
@@ -3543,6 +3671,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({"event": "checkout_attempt_store_failed",
                                  "error": type(error).__name__}))
+        if web_f004:
+            # The sender is never invoked on this failure path, even if storage
+            # accepted the attempt but lost the write response.
+            website_submit_request.refused(_keys_table(),
+                order_id=verified_service_context["selectedOrderId"], attempt_id=attempt_id)
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
 
 
@@ -3600,6 +3733,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         _record_cross_rail_pointer(snapshot, customer_id=identity.customer_id,
                                    attempt_id=attempt_id, request_key=wa_request_key)
     if sent != SEND_SENT:
+        if web_f004 and sent == SEND_FAILED:
+            # Only a definitive refusal may release the active order slot.
+            # A timeout, crash or unknown delivery retains the original attempt.
+            website_submit_request.refused(_keys_table(),
+                order_id=verified_service_context["selectedOrderId"], attempt_id=attempt_id)
         # The attempt is stored and ready; no confirmed message. Still NO order and NO charge.
         # `sendUnconfirmed` tells an internal caller (the WhatsApp cart leg) that the request may
         # already be on the customer's phone, so it must keep its dedupe key rather than retry.
