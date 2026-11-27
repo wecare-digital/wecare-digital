@@ -8,12 +8,13 @@ import RotatingHero from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_DETAIL_PRODUCTS } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
-import { addItem, setContribution } from '../../lib/cart';
-import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
+import { addItem } from '../../lib/cart';
+import { CONTRIBUTE_CTA_HREF, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
 import Select from '../../components/ui/Select';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import CheckoutAction from '../../components/CheckoutAction';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
+import { shopHeroWords } from '../../content/shopHeroWords';
 import { productCheckoutLine } from '../../config/productCheckout';
 import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } from '../../lib/metaPixel';
 
@@ -27,8 +28,7 @@ import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } fr
  * The document head is owned by components/ShopProductHead, not by PageMeta and the sitewide block
  * in _app.tsx - see that component for why a dynamic route cannot use a pathname-keyed map.
  *
- * The top band is components/RotatingHero (it replaced PageTopBand): "Explore" and the product
- * name as the h1, and its tagline as the sub-line. The PRICE IS NOT IN THE BAND, and that is the rule rather than a layout preference -
+ * RotatingHero gives the product its own h1, with supporting rotation and tagline. The PRICE IS NOT IN THE BAND, and that is the rule rather than a layout preference -
  * the top section says what the page is and the conversion furniture belongs below it, so the price
  * sits with the button that acts on it.
  *
@@ -70,20 +70,21 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
     setBusy( true );
     try {
       if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
-        const choice = CONTRIBUTION_CHOICES[ 0 ];
-        if ( choice ) setContribution( choice.variantId );
-      } else {
-        const chosenVariant = variantId || analyticsVariant;
-        addItem( product, 1, chosenVariant || undefined );
-        if ( chosenVariant ) {
-          trackMetaAddToCart( {
-            productId: checkoutLine?.productId || product.id,
-            variantId: chosenVariant,
-            name: product.name,
-            value: rupeesFromFormattedPrice( product.formattedPrice ),
-            currency: product.currency || 'INR',
-          } );
-        }
+        // All contribution entry points share the review. Selecting this offer
+        // must not overwrite an existing cart before the user confirms.
+        await router.push( CONTRIBUTE_CTA_HREF );
+        return;
+      }
+      const chosenVariant = variantId || analyticsVariant;
+      addItem( product, 1, chosenVariant || undefined );
+      if ( chosenVariant ) {
+        trackMetaAddToCart( {
+          productId: checkoutLine?.productId || product.id,
+          variantId: chosenVariant,
+          name: product.name,
+          value: rupeesFromFormattedPrice( product.formattedPrice ),
+          currency: product.currency || 'INR',
+        } );
       }
       await router.push( '/checkout/' );
     } finally {
@@ -96,12 +97,9 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
       <ShopProductHead product={ product } />
       <RotatingHero
         badgeLabel={ `Shop · ${product.name}` }
-        frame={ `Explore ${product.name}` }
-        words={ [
-          { word: 'details', tint: '#e0f7c8', dot: '#3da35a' },
-          { word: 'options', tint: '#dbeafe', dot: '#2563eb' },
-          { word: 'pricing', tint: '#ede9fe', dot: '#9849e8' },
-        ] }
+        frame={ product.name }
+        decorativeRotation
+        words={ shopHeroWords( product.slug ) }
         sub={ product.tagline }
         ariaLabel={ product.name }
       >

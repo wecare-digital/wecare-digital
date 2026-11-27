@@ -61,7 +61,7 @@ export interface BlogTagsProps {
   className?: string;
   /** The landmark's accessible name. Defaults to a plain 'Tags'. */
   ariaLabel?: string;
-  /** Keep tags out of sequential focus on inactive carousel pages. */
+  /** Keep tags out of sequential focus on inactive carousel pages, including legacy WebViews. */
   tabIndex?: number;
 }
 
@@ -94,6 +94,7 @@ const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags
         <Link
           key={ tag }
           href={ `/blog/?q=${encodeURIComponent( tag )}` }
+          prefetch={ false }
           className={ `tag-h${tagHue( tag )}` }
           aria-label={ `Search posts tagged ${tag}` }
           tabIndex={ tabIndex }

@@ -629,7 +629,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-composer-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
         .eta-hint{color:var(--public-muted);font-size:15px;font-weight:400;line-height:1.35;letter-spacing:var(--public-body-tracking)}
         .eta-tools{display:flex;align-items:center;gap:2px;margin-inline-start:auto}
-        .eta-keyhint{margin-inline-end:4px;color:var(--public-muted);font-size:12px}
+        .eta-keyhint{margin-inline-end:4px;color:var(--text-muted);font-size:12px}
         .eta-clear{
           display:grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:0;background:transparent;color:#7a8278;cursor:pointer;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease,color .14s ease;

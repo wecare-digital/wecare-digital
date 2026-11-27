@@ -317,7 +317,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                      from it. */
                   return here
                     ? <span key={ category } className="cat-here" aria-current="page">{ category }</span>
-                    : <Link key={ category } href={ href }>{ category }</Link>;
+                    : <Link key={ category } href={ href } prefetch={ false }>{ category }</Link>;
                 } ) }
               </nav>
             ) }
@@ -328,7 +328,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                   <article key={ post.slug } className="post-card">
                     <div className="post-copy">
                       { post.category && <span className="category">{ post.category }</span> }
-                      <h2><Link href={ `/post/${post.slug}/` }>{ post.title }</Link></h2>
+                      <h2><Link href={ `/post/${post.slug}/` } prefetch={ false }>{ post.title }</Link></h2>
                       { post.excerpt && <p>{ post.excerpt }</p> }
                       {/* NO DATE ON A CARD, on owner instruction, and the flag moved with it.
                           This row held the author beside a formatted publishedDate. The date is

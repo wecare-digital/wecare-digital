@@ -264,7 +264,9 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                     ) }
                   </span>
                 ) }
-                <Link className="shop-card-action" href={ listing.href }>View details</Link>
+                {/* Browse-only shelf visits should not download detail bundles for each card.
+                    Keep crawlable links and intent-based client navigation. */}
+                <Link className="shop-card-action" href={ listing.href } prefetch={ false }>View details</Link>
               </article>
             ) ) }
           </section>
