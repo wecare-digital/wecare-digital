@@ -51,7 +51,14 @@ jobs:
       - name: Lint
         env:
           WECARE_LINT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/check_lint_warning_ratchet.mjs
+        run: |
+          # The event's base SHA can be older than the base parent of the depth-2 merge
+          # checkout when the base branch moved just before the run ("fatal: not a tree
+          # object"). Fetch that one commit so the warning budget compares against it.
+          if [ -n "$WECARE_LINT_BASE_SHA" ] && ! git cat-file -e "$WECARE_LINT_BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$WECARE_LINT_BASE_SHA"
+          fi
+          node scripts/check_lint_warning_ratchet.mjs
 
       - name: Test
         run: npm test
