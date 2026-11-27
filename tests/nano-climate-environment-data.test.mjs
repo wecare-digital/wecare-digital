@@ -43,3 +43,24 @@ test('source addition preserves the shared hero and original map design', () => 
   assert.equal((live.match(/ref=\{ mapHost \}/g)||[]).length,1);
   assert.match(live, /useVayuLokEnvironmentData/);
 });
+
+test('environment cards are keyed to the selected coordinates so a new search never shows older place data', () => {
+  const source=readFileSync(new URL('../src/components/VayuLokEnvironmentData.ts',import.meta.url),'utf8');
+  assert.match(source, /const key = active \? \[lat, lng, region, building\]\.join\( ':' \)/);
+  assert.match(source, /result\?\.key === key \? result\.data : loading/);
+  assert.match(source, /envelope\.latitude !== lat \|\| envelope\.longitude !== lng/);
+  assert.match(source, /controller\.abort\(\)/);
+});
+
+test('historical weather 1y and 5y read a bounded aggregate and never scan the raw table', () => {
+  const server=readFileSync(new URL('../gcp/vayulok-weather-insights/server.mjs',import.meta.url),'utf8');
+  const build=readFileSync(new URL('../scripts/build_weather_history_aggregate.sh',import.meta.url),'utf8');
+  assert.match(server, /if \(range !== '30d'\) \{[\s\S]*aggregateSql\(AGGREGATE_TABLE\)[\s\S]*\} else \{[\s\S]*weatherSql\(source\)/);
+  assert.match(server, /HARD_MAX_BYTES_PER_QUERY = 1073741824n/);
+  assert.match(server, /AGGREGATE_MAX_BYTES_BILLED = '134217728'/);
+  assert.match(server, /error\.code = 'query_cost_cap_exceeded'/);
+  assert.match(build, /--maximum_bytes_billed="\$CAP_BYTES"/);
+  assert.match(build, /MAX_CHUNKS" -le 12/);
+  assert.match(build, /NOT EXISTS/);
+  assert.doesNotMatch(build, /gcloud[^\n]*quota|services quota|apply_quota/i);
+});

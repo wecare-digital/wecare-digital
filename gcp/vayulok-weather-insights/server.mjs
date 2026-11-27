@@ -10,6 +10,14 @@ const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || 'wecaredigitalbw.we
 // old 1Y/5Y defaults of 15 GB / 40 GB per visitor could exhaust the free tier.
 // Higher environment values cannot silently bypass this absolute ceiling.
 const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
+// 1y and 5y summaries are served from a small pre-aggregated table (half-month
+// windows per grid point) built by scripts/build_weather_history_aggregate.sh in
+// resumable, dry-run-checked, under-1-GiB chunks. The raw table is only ever read
+// for the 30d range, whose dry run is under the cap. A missing aggregate fails
+// closed; it never falls back to a raw multi-year scan.
+const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
+  || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
+const AGGREGATE_MAX_BYTES_BILLED = '134217728'; // 128 MiB, far below the 1 GiB ceiling
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
 function boundedQueryBytes(value) {
   try {
@@ -425,6 +433,53 @@ function weatherSql(source) {
   ].join('\n');
 }
 
+// Reads only the pre-aggregated table. Columns are written by the build script:
+// lat, lng, window_start, window_end, sample_hours, temp_sum, temp_min, temp_max,
+// precip_sum, humidity_sum, humidity_n, first_observed_at, last_observed_at.
+function aggregateSql(table) {
+  const tick = String.fromCharCode(96);
+  const t = tick + table + tick;
+  return [
+    'WITH candidate AS (',
+    '  SELECT lat, lng,',
+    '    SQRT(POW((lat - @lat) * 111.0, 2) + POW((lng - @lng) * 111.0 * COS(RADIANS(@lat)), 2)) AS distance_km',
+    '  FROM ' + t,
+    '  WHERE window_start >= @start_date',
+    '    AND lat BETWEEN @lat - 0.3 AND @lat + 0.3',
+    '    AND lng BETWEEN @lng - 0.3 AND @lng + 0.3',
+    '  GROUP BY lat, lng',
+    '  HAVING distance_km <= 10',
+    '  ORDER BY distance_km',
+    '  LIMIT 1',
+    '),',
+    'base AS (',
+    '  SELECT a.*, c.distance_km',
+    '  FROM ' + t + ' AS a JOIN candidate AS c ON a.lat = c.lat AND a.lng = c.lng',
+    '  WHERE a.window_start >= @start_date',
+    '),',
+    'monthly AS (',
+    '  SELECT EXTRACT(MONTH FROM window_start) AS month,',
+    '    SAFE_DIVIDE(SUM(temp_sum), SUM(sample_hours)) AS mean_temperature_c,',
+    '    SUM(precip_sum) AS precipitation_mm,',
+    '    SAFE_DIVIDE(SUM(humidity_sum), SUM(humidity_n)) AS mean_humidity_pct',
+    '  FROM base GROUP BY month',
+    ')',
+    'SELECT',
+    '  ANY_VALUE(distance_km) AS grid_distance_km,',
+    '  MIN(first_observed_at) AS coverage_start,',
+    '  MAX(last_observed_at) AS coverage_end,',
+    '  SUM(sample_hours) AS sample_hours,',
+    '  SAFE_DIVIDE(SUM(temp_sum), SUM(sample_hours)) AS mean_temperature_c,',
+    '  MIN(temp_min) AS min_temperature_c,',
+    '  MAX(temp_max) AS max_temperature_c,',
+    '  SUM(precip_sum) AS precipitation_mm,',
+    '  SAFE_DIVIDE(SUM(humidity_sum), SUM(humidity_n)) AS mean_humidity_pct,',
+    '  ARRAY(SELECT AS STRUCT month, mean_temperature_c, precipitation_mm, mean_humidity_pct',
+    '    FROM monthly ORDER BY month) AS monthly',
+    'FROM base',
+  ].join('\n');
+}
+
 function cleanSummary(row, range) {
   if (!row || !Number(row.sample_hours)) return null;
   const round = (value, digits = 1) => {
@@ -514,17 +569,37 @@ async function handleInsights(req, res, url) {
   if (!pending) {
     if (!reserveQueryBudget()) return budgetFallback();
     pending = (async () => {
+      let rows;
+      if (range !== '30d') {
+        if (!validTable(AGGREGATE_TABLE)) {
+          const error = new Error('invalid_weather_insights_aggregate_table');
+          error.code = 'query_cost_cap_exceeded';
+          throw error;
+        }
+        try {
+          rows = await runQuery(aggregateSql(AGGREGATE_TABLE), [
+            param('lat', 'FLOAT64', gridLat),
+            param('lng', 'FLOAT64', gridLng),
+            param('start_date', 'DATE', startDate(range)),
+          ], AGGREGATE_MAX_BYTES_BILLED);
+        } catch (error) {
+          // Missing aggregate table: report the cost cap honestly, never scan raw data.
+          if (/Not found/i.test(String(error?.message || error))) error.code = 'query_cost_cap_exceeded';
+          throw error;
+        }
+      } else {
       const source = await discoverSource();
       if (!source.ready) {
         const error = new Error(source.reason);
         error.code = source.reason;
         throw error;
       }
-      const rows = await runQuery(weatherSql(source), [
+      rows = await runQuery(weatherSql(source), [
         param('lat', 'FLOAT64', gridLat),
         param('lng', 'FLOAT64', gridLng),
         param('start_ts', 'TIMESTAMP', startDate(range) + 'T00:00:00Z'),
       ], RANGE_MAX_BYTES_BILLED[range]);
+      }
       const summary = cleanSummary(rows[0], range);
       if (!summary) {
         const error = new Error('no_historical_weather_for_location');
@@ -549,7 +624,7 @@ async function handleInsights(req, res, url) {
     const message = String(error?.message || error);
     const tooLarge = /maximum bytes billed|bytes.*limit|billingTierLimitExceeded/i.test(message);
     const code = error?.code || (tooLarge ? 'query_cost_cap_exceeded' : 'weather_insights_query_failed');
-    const status = tooLarge ? 422 : code === 'no_historical_weather_for_location' ? 404 : 503;
+    const status = tooLarge || code === 'query_cost_cap_exceeded' ? 422 : code === 'no_historical_weather_for_location' ? 404 : 503;
     return json(res, status, { error: code, detail: DEBUG_SCHEMA ? message : undefined }, origin);
   } finally {
     if (inFlight.get(cacheKey) === pending) inFlight.delete(cacheKey);

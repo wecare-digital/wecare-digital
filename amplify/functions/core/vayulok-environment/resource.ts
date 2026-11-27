@@ -5,7 +5,7 @@
  * NEXT_PUBLIC_GOOGLE_BROWSER_KEY remains a browser-only Maps JavaScript credential.
  *
  * Lambda: wecare-vayulok-environment
- * Runtime: Python 3.12
+ * Runtime: Python 3.14
  * Region: us-east-1
  * Route: POST /vayulok/environment
  *
