@@ -1153,7 +1153,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               appId: '${process.env.NEXT_PUBLIC_FB_APP_ID || ''}',
               cookie: true,
               xfbml: true,
-              version: 'v25.0'
+              version: 'v27.0'
             });
             FB.AppEvents.logPageView();
           };

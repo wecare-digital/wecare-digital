@@ -82,7 +82,12 @@ export interface VendorVersion {
 /**
  * Meta Graph API version.
  *
- * Moved v25.0 → v26.0 on 2026-10-01. The pin that held it at v25.0 rested on a false
+ * Moved v26.0 → v27.0 on 2026-11-27 (v27.0 released 2026-11-04; Meta's changelog lists it as the
+ * latest version). Its deprecations are the Catalog Batch API, `meta_moment_maker_spec` and the
+ * lookalike `country`/`location_spec` fields, and nothing in this repo calls them. v25.0 stops
+ * being available on 2027-02-23.
+ *
+ * Earlier: moved v25.0 → v26.0 on 2026-10-01. The pin that held it at v25.0 rested on a false
  * premise, and the audit that established that is
  * `docs/execution/meta-graph-version-audit-20261001.md`.
  *
@@ -108,9 +113,9 @@ export interface VendorVersion {
  */
 export const META_GRAPH: VendorVersion = {
   name: 'Meta Graph API / WhatsApp Cloud API',
-  configured: 'v26.0',
-  verifiedLatest: 'v26.0',
-  verifiedOn: '2026-10-01',
+  configured: 'v27.0',
+  verifiedLatest: 'v27.0',
+  verifiedOn: '2026-11-27',
   evidence: 'DOC',
   drift: 'lag-allowed-with-reason',
   rederive: 'https://developers.facebook.com/docs/graph-api/changelog/versions/',
@@ -238,13 +243,11 @@ export const NODE_RUNTIME: VendorVersion = {
  */
 export const FRONTEND_FRAMEWORK: VendorVersion = {
   name: 'Next.js (storefront and admin shell)',
-  configured: '16.2.9',
-  verifiedLatest: '16.3.6',
-  verifiedOn: '2026-09-26',
+  configured: '16.4.6',
+  verifiedLatest: '16.4.6',
+  verifiedOn: '2026-11-27',
   evidence: 'LIVE',
-  drift: 'lag-allowed-with-reason',
-  upgradeBlockedReason:
-    'Patch-level lag only. Bump with the normal dependency gate; not on the critical path.',
+  drift: 'must-be-latest',
   rederive: 'npm view next version',
 } as const;
 
@@ -253,12 +256,13 @@ export const TYPESCRIPT: VendorVersion = {
   name: 'TypeScript',
   configured: '6.0.3',
   verifiedLatest: '7.0.2',
-  verifiedOn: '2026-09-26',
+  verifiedOn: '2026-11-27',
   evidence: 'LIVE',
   drift: 'lag-allowed-with-reason',
   upgradeBlockedReason:
-    'A major version behind. Upgrading is a typecheck-wide change across 127 pages and ' +
-    'must land as its own commit with `npm run typecheck` green, not inside a feature.',
+    'TypeScript 7.0.2 typechecks this repo cleanly, but typescript-eslint (via eslint-config-next) ' +
+    'refuses to load on it ("does not support TS 7.0"; support for TS >=7.1 is tracked upstream in ' +
+    'typescript-eslint issue 10940), which fails the lint gate. Move when typescript-eslint supports it.',
   rederive: 'npm view typescript version',
 } as const;
 

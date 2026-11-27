@@ -10,7 +10,7 @@
  * Config (env):
  *   NEXT_PUBLIC_ENABLE_PARTNER_SIGNUP = "true"   // enable the live button
  *   NEXT_PUBLIC_FB_ES_CONFIG_ID       = <config> // Tech Provider / ES config id
- *   NEXT_PUBLIC_FB_GRAPH_VERSION      = "v25.0"   // optional
+ *   NEXT_PUBLIC_FB_GRAPH_VERSION      = "v27.0"   // optional
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../config/constants';

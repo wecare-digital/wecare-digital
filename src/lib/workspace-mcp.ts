@@ -30,7 +30,7 @@ export async function workspaceMCP<T>(name: string, args: Record<string, unknown
 
 export function metaAuthorizationURL(value: string): string {
   const url = new URL(value);
-  const meta = url.origin === 'https://www.facebook.com' && url.pathname === '/v26.0/dialog/oauth';
+  const meta = url.origin === 'https://www.facebook.com' && /^\/v2[67]\.0\/dialog\/oauth$/.test(url.pathname);
   const google = url.origin === 'https://accounts.google.com' && url.pathname === '/o/oauth2/v2/auth'
     && url.searchParams.get('client_id') === '756034744787-occ06h9v22rh0kbm83mmedpfqqqfni44.apps.googleusercontent.com';
   // Permissions arrive either as scope, or as a Facebook Login for Business config_id that

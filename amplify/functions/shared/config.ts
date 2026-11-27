@@ -54,7 +54,7 @@ export const S3_PREFIXES = {
 
 // WhatsApp Configuration
 export const WHATSAPP_CONFIG = {
-  META_API_VERSION: 'v25.0',
+  META_API_VERSION: 'v27.0',
   PHONE_NUMBER_ID_1: process.env.WHATSAPP_PHONE_NUMBER_ID_1 || 'phone-number-id-waba1-direct-1016149501586345',
   PHONE_NUMBER_ID_2: process.env.WHATSAPP_PHONE_NUMBER_ID_2 || 'phone-number-id-waba-t-direct-1055232054343117',
   DISPLAY_PHONE_1: '+91 93309 94400',

@@ -315,7 +315,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <div>
                             <ValidationErrorList errors={ result?.errors } />
                             <WarningList warnings={ result?.warnings } />
-                            <CurlPreview spec={ { method: 'POST', url: 'https://graph.facebook.com/v25.0/{WABA_ID}/message_templates', body: templateDef } } />
+                            <CurlPreview spec={ { method: 'POST', url: 'https://graph.facebook.com/v27.0/{WABA_ID}/message_templates', body: templateDef } } />
                             <RawJsonDrawer data={ templateDef } label="Template JSON payload" defaultOpen />
                             { submitError && <MetaErrorPanel error={ submitError } /> }
                             <button onClick={ submit } disabled={ submitting || ( result ? !result.ok : false ) } style={ { marginTop: 12, padding: '10px 18px', borderRadius: 6, border: 'none', fontWeight: 700, background: ( result && !result.ok ) ? '#ccc' : '#1a7a3a', color: '#fff', cursor: 'pointer' } }>
