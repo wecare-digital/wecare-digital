@@ -29,6 +29,25 @@ class ReleaseGateError(RuntimeError):
     pass
 
 
+class RateLimitedError(ReleaseGateError):
+    def __init__(self, retry_seconds: float | None = None):
+        super().__init__("GitHub Actions API rate limited the gate; retry after it resets "
+                         "or configure the scoped Actions-read token")
+        self.retry_seconds = retry_seconds
+
+
+def rate_limit_delay(headers) -> float | None:
+    """Respect GitHub's provider headers; never retry before the primary reset."""
+    delays = []
+    retry = headers.get("Retry-After", "")
+    if retry.isdigit():
+        delays.append(float(retry))
+    reset = headers.get("X-RateLimit-Reset", "")
+    if headers.get("X-RateLimit-Remaining") == "0" and reset.isdigit():
+        delays.append(max(1.0, float(reset) - time.time() + 1))
+    return max(1.0, *delays) if delays else None
+
+
 class _NoRedirect(HTTPRedirectHandler):
     # Never forward the optional Actions-read credential to another origin.
     def redirect_request(self, *_args, **_kwargs):
@@ -48,9 +67,10 @@ def _json(path: str) -> dict:
         with build_opener(_NoRedirect()).open(request, timeout=10) as response:
             result = json.load(response)
     except HTTPError as exc:
-        if exc.code == 429 or exc.headers.get("X-RateLimit-Remaining") == "0":
-            raise ReleaseGateError("GitHub Actions API rate limited the gate; retry after it resets "
-                                   "or configure the scoped Actions-read token") from None
+        if exc.code == 429 or exc.headers.get("X-RateLimit-Remaining") == "0" or (
+            exc.code == 403 and exc.headers.get("Retry-After")
+        ):
+            raise RateLimitedError(rate_limit_delay(exc.headers)) from None
         raise ReleaseGateError(f"GitHub Actions API could not verify release (HTTP {exc.code})") from None
     if not isinstance(result, dict):
         raise ReleaseGateError("Unexpected response from GitHub Actions")
@@ -90,14 +110,31 @@ def check_release(commit: str, *, read=_json) -> dict | None:
 
 def wait_for_release(commit: str, wait_seconds: int) -> dict:
     deadline = time.monotonic() + wait_seconds
+    rate_attempts = 0
     while True:
-        evidence = check_release(commit)
-        if evidence:
-            return evidence
+        delay = 30.0
+        try:
+            evidence = check_release(commit)
+            if evidence:
+                return evidence
+            rate_attempts = 0
+        except RateLimitedError as exc:
+            rate_attempts += 1
+            delay = exc.retry_seconds or min(60 * 2 ** min(rate_attempts - 1, 4), 900)
+            remaining = deadline - time.monotonic()
+            if remaining < delay:
+                raise ReleaseGateError(
+                    f"GitHub Actions API rate limited the gate; retry in {int(delay) + 1}s "
+                    "(outside this build's remaining wait budget)"
+                ) from None
+            print(f"GitHub CI gate rate limited; waiting {int(delay) + 1}s before retry.", flush=True)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ReleaseGateError(f"Verified production CI is not available for {commit}")
-        time.sleep(min(30, remaining))
+        # Short sleep chunks keep the process responsive without querying GitHub early.
+        next_read = time.monotonic() + min(delay, remaining)
+        while time.monotonic() < next_read:
+            time.sleep(min(30, next_read - time.monotonic()))
 
 
 def clean_checkout_commit(root: Path) -> str:
@@ -159,8 +196,8 @@ def main() -> int:
     parser.add_argument("--commit", required=True)
     parser.add_argument("--wait-seconds", type=int, default=0)
     args = parser.parse_args()
-    if not 0 <= args.wait_seconds <= 600:
-        parser.error("--wait-seconds must be between 0 and 600")
+    if not 0 <= args.wait_seconds <= 3000:
+        parser.error("--wait-seconds must be between 0 and 3000")
     try:
         print(json.dumps(wait_for_release(args.commit, args.wait_seconds), sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError, ReleaseGateError) as exc:
