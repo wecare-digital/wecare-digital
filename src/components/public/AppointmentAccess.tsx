@@ -11,6 +11,7 @@ export const APPOINTMENT_AUTH_URL = '/auth?return=%2Felsewhere%2Farogya-yatra%2F
 /** Never mount patient fields until the owning API confirms a verified customer. */
 export default function AppointmentAccess (): React.ReactElement {
   const [ ready, setReady ] = useState( false );
+  const [ accountKey, setAccountKey ] = useState( '' );
   const [ error, setError ] = useState( '' );
   const [ attempt, setAttempt ] = useState( 0 );
   const signIn = useCallback( () => {
@@ -36,9 +37,9 @@ export default function AppointmentAccess (): React.ReactElement {
         if ( !session ) { signIn(); return; }
         // Access is independent of price or provider availability.
         const access = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'access' } );
-        if ( access.phoneVerified !== true ) throw new Error( 'Customer verification unavailable.' );
+        if ( access.phoneVerified !== true || typeof access.accountKey !== 'string' || !/^[a-f0-9]{64}$/.test( access.accountKey ) ) throw new Error( 'Customer verification unavailable.' );
         if ( !active ) return;
-        setError( '' ); setReady( true );
+        setAccountKey( access.accountKey ); setError( '' ); setReady( true );
         // Refresh the shared session instead of revoking it at an access-token deadline.
         expiry = setTimeout( () => { void check(); }, Math.max( 1000, session.expiresAt - Date.now() - 25000 ) );
       } catch ( failure ) {
@@ -67,7 +68,7 @@ export default function AppointmentAccess (): React.ReactElement {
     };
   }, [ attempt, signIn, sessionExpired ] );
 
-  if ( ready ) return <AppointmentPlanner onSessionExpired={ sessionExpired } />;
+  if ( ready ) return <AppointmentPlanner key={ accountKey } onSessionExpired={ sessionExpired } />;
   return <section className={ styles.planner } aria-label="Appointment access">
     <h2>Request an appointment</h2>
     { error ? <>
