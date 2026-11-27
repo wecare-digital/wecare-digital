@@ -81,8 +81,8 @@ test('shared cards, actions and paging keep responsive tokens and logical scroll
   assert.ok(support.includes('publicSupportGeometry( {'));
 });
 
-test('public navigation arrows use one contrasting deep-lime token, with search focus underlines', () => {
-  assert.ok(read('src/styles/tokens.css').includes('--public-nav-arrow: #557f20'));
+test('public navigation arrows use the same brand-green token as icons, with search focus underlines', () => {
+  assert.ok(read('src/styles/tokens.css').includes('--public-nav-arrow: var(--public-brand-green)'));
   for (const [path, marker] of [
     ['src/components/Header.tsx', '.nav-row-chevron{margin-inline-start:auto;fill:var(--public-nav-arrow)'],
     ['src/components/orders/OrderActionsMenu.tsx', 'flex:none;fill:var(--public-nav-arrow)'],
