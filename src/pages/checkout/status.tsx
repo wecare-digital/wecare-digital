@@ -207,7 +207,7 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { stalled && ( view === 'confirming' || view === 'finalizing' || view === 'unavailable' ) && (
             <div className="co-actions">
-              <button className="co-auth-action co-auth-primary" type="button" onClick={ () => window.location.reload() }>Check status again</button>
+              <button className="co-auth-action co-auth-primary" type="button" onClick={ () => window.location.reload() }>Check payment status</button>
               <Link className="co-auth-action" href="/orders/">View orders</Link>
             </div>
           ) }
@@ -220,6 +220,7 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { view === 'unavailable' && !stalled && (
             <div className="co-actions">
+              <button className="co-auth-action co-auth-primary" type="button" onClick={ () => window.location.reload() }>Check payment status</button>
               <Link className="co-auth-action" href="/orders/">Orders</Link>
             </div>
           ) }

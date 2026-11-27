@@ -22,7 +22,13 @@ test('non-shipping checkout has explicit name-only recovery and expired-session 
 });
 test('website payment preserves modal and status recovery guards', () => {
   assert.ok(cart.includes('disabled={ busy || modalOpen || !quoteReady }'));
-  assert.ok(cart.includes('goToCheckoutStatus( pendingAttempt )'));
+  assert.ok(cart.includes('goToCheckoutStatus( pendingAttempt.id, pendingAttempt.basket )'));
   assert.ok(cart.includes('modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current'));
   assert.ok(cart.includes('expectedTotalPaise !== CONTRIBUTION_CHOICES[0]?.paise'));
+});
+
+test('aborted obsolete quotes cannot overwrite current review state', () => {
+  assert.match(cart, /live = false;[\s\S]*?controller\.abort\(\)/);
+  assert.match(cart, /if \( live \) setQuoteNotice\( controller\.signal\.aborted/);
+  assert.match(cart, /Price review timed out/);
 });

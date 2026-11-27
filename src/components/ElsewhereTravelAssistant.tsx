@@ -567,7 +567,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-meta{display:flex;flex-wrap:wrap;gap:0;margin-top:10px;color:var(--public-muted);font-size:14px;font-weight:500;line-height:1.4}
         .eta-meta span{display:inline;padding:0;background:none;color:inherit;font:inherit}
-        .eta-meta span:not(:last-child)::after{content:' · ';white-space:pre;color:#9aa196}
+        .eta-meta span:not(:last-child)::after{content:' · ';white-space:pre;color:var(--public-muted)}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
         .eta-price{
           display:inline-flex;align-items:center;justify-content:flex-end;gap:1px;color:var(--public-heading);
@@ -624,11 +624,12 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-field textarea:focus-visible{
           border:0!important;border-color:transparent!important;border-radius:0!important;outline:0!important;box-shadow:none!important;
         }
-        .eta-field textarea::placeholder{color:rgba(0,0,0,.42)}
+        .eta-field textarea::placeholder{color:var(--public-muted)}
+        .eta-field textarea:focus-visible{outline:2px solid var(--public-brand-green)!important;outline-offset:2px}
         .eta-composer-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
         .eta-hint{color:var(--public-muted);font-size:15px;font-weight:400;line-height:1.35;letter-spacing:var(--public-body-tracking)}
         .eta-tools{display:flex;align-items:center;gap:2px;margin-inline-start:auto}
-        .eta-keyhint{margin-inline-end:4px;color:#8a9288;font-size:12px}
+        .eta-keyhint{margin-inline-end:4px;color:var(--public-muted);font-size:12px}
         .eta-clear{
           display:grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:0;background:transparent;color:#7a8278;cursor:pointer;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease,color .14s ease;

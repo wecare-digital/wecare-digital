@@ -127,8 +127,8 @@ function cartFromDirectTestLink (): CartItem[] {
  * cart once the server reports that attempt PAID (`lib/checkoutHandoff`). The cart stays until
  * then: the hand-off itself proves nothing about money.
  */
-function goToCheckoutStatus ( attemptId: string ): void {
-  rememberCheckoutAttempt( attemptId );
+function goToCheckoutStatus ( attemptId: string, reviewedBasket: string ): void {
+  rememberCheckoutAttempt( attemptId, reviewedBasket );
   window.location.assign( `/checkout/status/?a=${ encodeURIComponent( attemptId ) }` );
 }
 /**
@@ -510,7 +510,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ busy, setBusy ] = useState<boolean>( false );
   const [ modalOpen, setModalOpen ] = useState( false );
   const modalOpenRef = useRef( false );
-  const [ pendingAttempt, setPendingAttempt ] = useState( '' );
+  const [ pendingAttempt, setPendingAttempt ] = useState<{ id: string; basket: string } | null>( null );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
@@ -671,7 +671,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuoteNotice( 'Checkout is temporarily unavailable. Please try again later. Nothing has been charged.' );
       return () => { live = false; };
     }
-    if ( !ready || contributionReview || cartUnavailable || items.length === 0 ) {
+    if ( !ready || contributionReview || items.length === 0 || cartUnavailable ) {
       setQuote( null );
       setQuoteFor( '' );
       setQuoteNotice( '' );
@@ -762,7 +762,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         setQuoteFor( fingerprint );
         setQuoteNotice( '' );
       } catch {
-        if ( live ) setQuoteNotice( 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
+        // Cleanup flips live before aborting; obsolete quotes must never render a failure.
+        // A timeout on the *current* request still needs a visible retry action.
+        if ( live ) setQuoteNotice( controller.signal.aborted
+          ? 'Price review timed out. Refresh prices to try again. Nothing has been charged.'
+          : 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
       } finally {
         if ( timeout !== undefined ) window.clearTimeout( timeout );
         if ( live ) setQuoteLoading( false );
@@ -921,6 +925,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
   ): Promise<Outcome> => {
+    const reviewedBasket = basketFingerprint( lineItems );
     try
     {
       let serviceIntent = serviceIntentFor( lineItems );
@@ -1022,7 +1027,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         const sdkReady = await loadRazorpaySdk();
         if ( !sdkReady || !window.Razorpay )
         {
-          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
 
@@ -1101,11 +1106,15 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                  * reads the attempt from the server by id and never reads the cart, and the
                  * `assign` below is the last statement on this path.
                  */
-                clearCart();
-                window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
-                window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
+                // The cart can change in another tab while the provider is open.
+                // A verified capture must never discard that newer basket.
+                if ( basketFingerprint() === reviewedBasket ) {
+                  clearCart();
+                  window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
+                  window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
+                }
                 // The same hand-off as every other path: remember the attempt, then navigate.
-                goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
+                goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ), reviewedBasket );
                 return;
               }
               /*
@@ -1117,11 +1126,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                * a latched cart, told to "check your orders". The screen never says a charge was
                * or was not made; the cart is emptied there only if this attempt is reported PAID.
                */
-              goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
+              goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ), reviewedBasket );
             } catch {
               // The verify request itself failed. Same hand-off: the attempt is the one Razorpay
               // just returned, and the status screen asks the server about it.
-              goToCheckoutStatus( attemptId );
+              goToCheckoutStatus( attemptId, reviewedBasket );
             }
           },
           modal: {
@@ -1139,14 +1148,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             message: 'Payment was not confirmed. Check payment status before trying again.',
           } );
         } );
-        setPendingAttempt( attemptId );
+        setPendingAttempt( { id: attemptId, basket: reviewedBasket } );
         modalOpenRef.current = true;
         setModalOpen( true );
         try { razorpay.open(); }
         catch {
           modalOpenRef.current = false;
           setModalOpen( false );
-          goToCheckoutStatus( attemptId );
+          goToCheckoutStatus( attemptId, reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
         return { kind: 'OPENED' };
@@ -1154,7 +1163,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
       if ( status === 'CHECKOUT_AMBIGUOUS' && data.paymentAttemptId )
       {
-        goToCheckoutStatus( String( data.paymentAttemptId ) );
+        goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
         return { kind: 'NAVIGATED' };
       }
 
@@ -1204,11 +1213,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         // invite another request. Inspect the in-flight attempt on the status screen.
         if ( data.amountPaise !== expectedTotalPaise )
         {
-          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
         // Message acceptance is NOT a charge; status waits for verified capture.
-        goToCheckoutStatus( String( data.paymentAttemptId ) );
+        goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
         return { kind: 'NAVIGATED' };
       }
 
@@ -1226,7 +1235,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         if ( data.paymentAttemptId )
         {
-          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
         return { kind: 'LOST' };
@@ -1803,7 +1812,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading, contributionReview ] );
+  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading, contributionReview, applyOutcome, postPrepare ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
@@ -1834,7 +1843,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    * already see.
    */
   const proceed = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    if ( proceedInFlightRef.current )
+    if ( proceedInFlightRef.current || modalOpenRef.current || railTerminalRef.current )
     {
       resetCartRef.current = false;
       return;
@@ -2062,7 +2071,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               { contributionNeedsReview && (
                 <div className="cart-status">
                   Review a single contribution separately. You can remove other items or explicitly replace the current cart.
-                  <div className="cart-actions"><a className="cart-auth-action" href="/checkout/?contribute=1">Review contribution</a></div>
+                  <div className="cart-actions"><button className="cart-auth-action" type="button" onClick={ () => { setContributionReviewError( '' ); setContributionReview( true ); } }>Review contribution</button></div>
                 </div>
               ) }
               <ul className="cart-list">
@@ -2222,7 +2231,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   </> }
               </div>
               { pendingAttempt && !modalOpen && !railTerminal && (
-                <div className="cart-actions"><button className="cart-auth-action" type="button" disabled={ busy } onClick={ () => goToCheckoutStatus( pendingAttempt ) }>Check payment status</button></div>
+                <div className="cart-actions"><button className="cart-auth-action" type="button" disabled={ busy } onClick={ () => goToCheckoutStatus( pendingAttempt.id, pendingAttempt.basket ) }>Check payment status</button></div>
               ) }
               { !railTerminal && !hasContribution && !whatsappEligible && (
                 <p className="cart-price-note" role="status">
@@ -2252,7 +2261,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
           .cart-progress{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:0 0 20px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:var(--public-supporting-size);color:var(--public-brand-green)}
-          .cart-progress span{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
+          .cart-progress span{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}.cart-progress b{display:grid;place-items:center;flex:0 0 28px;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
           .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel,.cart-payment-panel{min-width:0;display:grid;gap:16px;align-content:start}.cart-customer-summary,.cart-order-summary{min-width:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}.cart-panel-heading{margin:0 0 16px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);color:var(--public-heading);text-wrap:balance}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
           @media(max-width:800px){.cart-review-grid{grid-template-columns:minmax(0,1fr)}.cart-progress{font-size:12px;gap:8px}.cart-progress span{gap:5px}}
           .cart-contribution-review{min-width:0;overflow-wrap:anywhere;padding:clamp(12px,4vw,24px);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}
@@ -2400,6 +2409,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           @media(max-width:279px){
             .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-reflow)}
             .cart-progress{display:grid;grid-template-columns:minmax(0,1fr)}
+            .cart-row-main,.cart-order-summary,.cart-quote,.cart-customer-summary{overflow-wrap:anywhere}
+            .cart-row-controls,.cart-qty{max-width:100%;justify-content:flex-start;gap:4px}
             .cart-qty{gap:4px}
           }
           @media(prefers-reduced-motion:reduce){

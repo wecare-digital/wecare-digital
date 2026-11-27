@@ -61,8 +61,8 @@ export interface RotatingPillProps {
 export function HeroRotationControl( { paused, onToggle, count }: { paused: boolean; onToggle: () => void; count: number } ) {
   const [ ready, setReady ] = useState( false );
   useEffect( () => {
-    const timer = window.setTimeout( () => setReady( true ), 0 );
-    return () => window.clearTimeout( timer );
+    const frame = window.requestAnimationFrame( () => setReady( true ) );
+    return () => window.cancelAnimationFrame( frame );
   }, [] );
   if ( count <= 1 ) return null;
   return (

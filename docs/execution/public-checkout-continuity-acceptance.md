@@ -21,3 +21,5 @@ This change preserves server-priced quotes, verified payment capture, customer a
 5. Check ordinary product and service checkout, delivery, and the existing WhatsApp rail for regressions. Capture per-screen screenshots from that exact revision. The success link is not proof of payment.
 
 CI unit tests are not a substitute for browser tests, payment sandbox capture, or physical-device checks. Re-run the public acceptance matrix after deployment and use failing element targets to resolve any remaining accessibility or geometry findings.
+
+Merge repair: retain production PR #2439's hero hydration and language disclosure, its backend website-only rail guard, and its status recheck; the status page now checks the same attempt after a stall or unavailable result. Associate a delayed status handoff with the originally reviewed basket, not a later cart.
