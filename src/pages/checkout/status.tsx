@@ -240,13 +240,9 @@ export default function CheckoutStatus (): React.ReactElement {
           .co-facts dd{margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
           .co-note{margin:0 0 18px;font-size:var(--public-supporting-size);line-height:1.55;color:var(--public-brand-green);overflow-wrap:anywhere}
           .co-actions{margin-block-start:28px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-          .co-card :global(.co-auth-action){display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);min-width:0;max-width:100%;padding:8px 18px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-bg);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:none;text-align:center;white-space:normal;overflow-wrap:anywhere;touch-action:manipulation;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}
-          .co-card :global(.co-auth-primary){font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime)}
-          .co-card :global(.co-auth-action:hover){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
-          .co-card :global(.co-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
           @keyframes co-spin{to{transform:rotate(360deg)}}
           @media(max-width:767px){.co-card{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}.co-title{margin-bottom:18px;font-size:var(--public-mobile-card-size)}.co-mark{inline-size:48px;block-size:48px;margin-block-end:18px}.co-actions{display:grid;grid-template-columns:1fr;width:100%;margin-block-start:22px}.co-card :global(.co-auth-action){width:100%}}
-          @media(prefers-reduced-motion:reduce){.co-mark-confirming,.co-mark-finalizing{animation:none}.co-card :global(.co-auth-action){transition:none}.co-card :global(.co-auth-action:hover){transform:none;box-shadow:none}}
+          @media(prefers-reduced-motion:reduce){.co-mark-confirming,.co-mark-finalizing{animation:none}}
         `}</style>
       </RotatingHero>
     </>

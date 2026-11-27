@@ -1130,37 +1130,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-status-label{font-size:16px;font-weight:600}
           .ord-status-firm .ord-status-label{font-weight:700}
 
-          /* The quiet secondary, reused from /checkout/status/'s co-btn-quiet so the page keeps
-             exactly one lime SURFACE (the pill) and this one carries a lime EDGE instead. The
-             control is identified by its <button> semantics and its #1a3a2a-on-white label, not
-             by the edge - #d1f470 on white is 1.24:1 and does not clear 1.4.11 on its own - and
-             the focus indicator is the dark outline. */
-          /* THE INVOICE AND COPY CONTROLS ARE NEW SIZES OF THIS, NOT NEW BUTTONS, and
-             "inherits" is not a CSS mechanism - so the mechanism is to EXTEND this selector
-             list. Nothing in the body changes. A duplicated block was rejected by name: two
-             copies of border:2px solid #d1f470 and min-height:44px drift independently, and
-             the tap-target gate would then pass on whichever copy still said 44px. Two of these
-             classes on one element was rejected too - the override would depend on source order
-             between two classes of equal specificity, which is the fragility that gets "fixed"
-             with !important.
-
-             The first :disabled selector is kept on purpose: dropping it would stop dimming
-             "Show more orders" at rest. align-self:flex-start comes along from this body and is
-             inert inside a <td>, which is not a flex container - noted so it is not read as a
-             mistake. */
-          .ord-quiet,.ord-inv,.ord-copy{
-            align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
-            min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
-            background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
-          }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-hover-surface)}
-          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
-
-          /* The only differences, as overrides AFTER the shared body. font-size has to be
-             re-stated because that body sets font:inherit, a shorthand that resets it. */
-          .ord-inv{font-size:15px;padding:0 16px}
-          .ord-copy{font-size:14px;padding:0 12px}
+          .ord-quiet{align-self:flex-start}
           .ord-list{
             width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:18px;
             padding:clamp(24px,3.2vw,32px);border:1px solid var(--public-hairline);
@@ -1199,7 +1169,7 @@ export default function OrdersPage (): React.ReactElement {
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
             min-height:44px;display:inline-flex;align-items:center;justify-content:center;
             padding:0;margin:0;border:0;border-radius:var(--public-hover-radius);
-            background:var(--public-brand-lime);color:var(--public-brand-green);
+            background:var(--public-lime-tint);color:var(--public-brand-green);
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
           }
@@ -1214,7 +1184,7 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-account-action:focus-visible,
           .ord-copy:focus-visible,.ord-inv:focus-visible{
-            background:var(--public-brand-lime);outline:2px solid var(--public-brand-green);
+            background:var(--public-lime-tint);outline:2px solid var(--public-brand-green);
             outline-offset:2px;
           }
           .ord-account-action:disabled,.ord-copy:disabled,.ord-inv:disabled{

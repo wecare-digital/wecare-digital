@@ -869,24 +869,7 @@ function VaultFileContent ( { targetFileId }: FilesPageProps ) {
                 .sf-file-divider{height:1px;background:var(--public-hairline);margin:22px 0}
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
-                .sf-file-action-button{
-                  display:inline-flex;align-items:center;width:max-content;max-width:100%;
-                  min-height:48px;padding:8px 14px;border:0;border-radius:10px;
-                  background:var(--public-lime-tint);color:var(--public-brand-green);
-                  font-family:inherit;font-size:var(--public-cta-font-size);font-weight:700;line-height:1.35;
-                  text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
-                  cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-                  transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
-                }
-                .sf-file-action-button:hover:not(:disabled){
-                  background:var(--public-brand-lime);transform:translateY(-1px);
-                  box-shadow:0 5px 14px rgba(26,58,42,.10);text-decoration-color:transparent;
-                }
-                .sf-file-action-button:focus-visible{
-                  background:var(--public-brand-lime);text-decoration-color:transparent;
-                  outline:3px solid var(--public-brand-green);outline-offset:3px;
-                }
-                .sf-file-action-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+                .sf-file-action-button{width:max-content;max-width:100%}
                 .sf-expired-button:disabled{opacity:1;cursor:not-allowed}
                 .sf-payment-options{display:grid;gap:12px;min-width:0}
                 .sf-payment-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
@@ -899,18 +882,12 @@ function VaultFileContent ( { targetFileId }: FilesPageProps ) {
                   padding:4px 9px;background:var(--public-brand-lime);color:var(--public-brand-green);
                   font-size:12px;line-height:1.3;font-weight:750}
                 .sf-payment-option .sf-file-action-button{justify-content:center;width:100%;text-align:center}
-                .sf-payment-option .sf-secondary-btn,.sf-pay-waiting .sf-secondary-btn{border:1px solid #d0e0c8;background:#fff;color:var(--public-brand-green)}
                 .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-heading);
                   padding:12px 14px;margin:0;line-height:1.5;background:var(--public-lime-tint);
                   border-radius:12px;border:1px solid #dce8d6}
                 .sf-pay-waiting{display:grid;gap:12px}
 
                 .sf-empty-state{display:grid;justify-items:start;gap:16px}
-                .sf-back-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;
-                  border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
-                  font-weight:700;text-decoration:underline;text-underline-offset:3px}
-                .sf-back-link:hover{background:var(--public-brand-lime)}
-                .sf-back-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px;margin-top:-8px}
@@ -923,12 +900,9 @@ function VaultFileContent ( { targetFileId }: FilesPageProps ) {
                   .sf-card-title{font-size:22px}
                   .sf-file-head{gap:12px}
                   .sf-file-icon{width:42px;height:42px}
-                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}
                   .sf-file-action-button:not(.sf-download-button){width:100%;justify-content:center;text-align:center}
                 }
                 @media(prefers-reduced-motion:reduce){
-                  .sf-file-action-button{transition:none}
-                  .sf-file-action-button:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
         </CustomerVaultChrome>

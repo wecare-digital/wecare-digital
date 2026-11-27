@@ -47,31 +47,8 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         margin:8px 0 0;max-inline-size:700px;min-inline-size:0;
         font-family:var(--font-sans);
       }
-      .wc-policy summary{
-        display:inline-flex;align-items:center;
-        inline-size:max-content;max-inline-size:100%;
-        min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;
-        padding:6px 12px;border-radius:var(--public-hover-radius);cursor:pointer;
-        color:var(--public-brand-green);background:var(--public-lime-tint);
-        font-family:inherit;font-size:var(--public-responsive-cta-size);
-        font-weight:var(--public-cta-font-weight);line-height:1.4;
-        letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;
-        text-align:start;text-decoration:underline;
-        text-decoration-thickness:1.5px;text-underline-offset:3px;
-        list-style:none;
-        transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
-      }
+      .wc-policy summary{inline-size:max-content;max-inline-size:100%;list-style:none}
       .wc-policy summary::-webkit-details-marker{display:none}
-      .wc-policy summary:hover{
-        background:var(--public-hover-surface);
-        text-decoration-color:transparent;
-        transform:translateY(-1px);
-        box-shadow:0 5px 14px rgba(26,58,42,.1);
-      }
-      .wc-policy summary:focus-visible{
-        background:var(--public-brand-lime);text-decoration-color:transparent;
-        outline:3px solid var(--public-brand-green);outline-offset:3px;
-      }
       .wc-policy-body{padding:4px 0 0}
       .wc-policy p{
         max-inline-size:680px;margin:14px 0 0;
@@ -96,10 +73,6 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       .wc-policy p.wc-policy-disclaimer{
         margin-block-start:20px;padding-block-start:13px;
         border-block-start:1px solid var(--public-hairline);
-      }
-      @media(prefers-reduced-motion:reduce){
-        .wc-policy summary{transition:none}
-        .wc-policy summary:hover{transform:none;box-shadow:none}
       }
     `}</style>
   </details>
