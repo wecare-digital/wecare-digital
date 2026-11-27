@@ -34,15 +34,3 @@
 .fields input:focus,.fields select:focus,.fields textarea:focus{border-bottom-color:var(--public-brand-green)}
 .actions button:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:767px){.fields input:not([type=radio]),.fields select,.fields textarea{font-size:16px}.actions button{font-size:var(--public-mobile-cta-font-size)}}
-
-
-/* Public provider handoff: separate from live inventory and appointment drafts. */
-.directoryHandoff{box-sizing:border-box;min-width:0;margin:20px 0;padding:18px;border:1px solid var(--public-hairline);border-radius:14px;overflow-wrap:anywhere}
-.directoryHandoff h3{margin:0 0 8px;color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading)}
-.directoryHandoff p{margin:0;color:var(--public-body);font-size:var(--public-supporting-size);line-height:1.5}
-.directoryLinks{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;min-width:0}
-.directoryLinks a{display:inline-flex;align-items:center;min-height:44px;max-width:100%;color:var(--public-brand-green);font-size:var(--public-supporting-size);font-weight:700;text-underline-offset:4px;overflow-wrap:anywhere}
-.directoryLinks a:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:3px}
-
-.directoryLinks .directoryPrimary{box-sizing:border-box;flex:0 1 100%;justify-content:center;padding:12px 18px;min-height:52px;border-radius:12px;background:var(--public-brand-lime);text-align:center;font-size:var(--public-responsive-cta-size);line-height:1.35}
-@media(max-width:767px){.directoryLinks .directoryPrimary{font-size:var(--public-mobile-cta-font-size)}}
