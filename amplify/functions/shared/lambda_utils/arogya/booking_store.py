@@ -54,6 +54,9 @@ def validate_plan(value, *, now):
         if not isinstance(text, str) or len(text) > limit or any(ord(c) < 32 for c in text):
             raise InvalidPlan('Appointment fields exceed the allowed format.')
         plan[key] = text.strip()
+    for key in ('hospitalId', 'specialityId', 'doctorId', 'healthCheckId'):
+        if plan[key] and not re.fullmatch(r'[1-9][0-9]{0,9}', plan[key]):
+            raise InvalidPlan('Invalid provider selection.')
     for key, choices in ENUMS.items():
         if plan[key] and plan[key] not in choices:
             raise InvalidPlan('Choose a valid appointment option.')
