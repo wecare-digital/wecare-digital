@@ -40,12 +40,6 @@
       "NoEcho": true,
       "Description": "Exact verified staff OAuth owner hash, selected by an authorized administrator."
     },
-    "ApolloCredentialSecretArn": {
-      "Type": "String",
-      "Default": "",
-      "AllowedPattern": "^$|^arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-credentials-[A-Za-z0-9]+$",
-      "Description": "Exact dedicated Apollo service credential secret ARN. No plaintext parameters."
-    },
     "ApolloGoogleOAuthSecretArn": {
       "Type": "String",
       "Default": "",
@@ -250,12 +244,59 @@
                       ],
                       "Resource": [
                         {
-                          "Ref": "ApolloCredentialSecretArn"
-                        },
-                        {
                           "Ref": "ApolloGoogleOAuthSecretArn"
                         }
                       ]
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "dynamodb:GetItem"
+                      ],
+                      "Resource": {
+                        "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApolloRegistryTableName}"
+                      },
+                      "Condition": {
+                        "ForAllValues:StringEquals": {
+                          "dynamodb:LeadingKeys": [
+                            "arogya:provider:credentials"
+                          ]
+                        },
+                        "Null": {
+                          "dynamodb:LeadingKeys": "false"
+                        }
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "kms:Decrypt"
+                      ],
+                      "Resource": {
+                        "Ref": "ApolloTokenKeyArn"
+                      },
+                      "Condition": {
+                        "StringEquals": {
+                          "kms:EncryptionContext:purpose": "arogya-provider",
+                          "kms:EncryptionContext:record": "arogya:provider:credentials"
+                        }
+                      }
                     },
                     {
                       "Ref": "AWS::NoValue"
@@ -339,15 +380,6 @@
                 "ApolloReadEnabled",
                 {
                   "Ref": "ApolloGmailGrantOwner"
-                },
-                ""
-              ]
-            },
-            "APOLLO_CREDENTIAL_SECRET_ARN": {
-              "Fn::If": [
-                "ApolloReadEnabled",
-                {
-                  "Ref": "ApolloCredentialSecretArn"
                 },
                 ""
               ]
@@ -486,18 +518,6 @@
             {
               "Fn::Equals": [
                 {
-                  "Ref": "ApolloCredentialSecretArn"
-                },
-                ""
-              ]
-            }
-          ]
-        },
-        {
-          "Fn::Not": [
-            {
-              "Fn::Equals": [
-                {
                   "Ref": "ApolloGoogleOAuthSecretArn"
                 },
                 ""
@@ -563,18 +583,6 @@
                   {
                     "Fn::Equals": [
                       {
-                        "Ref": "ApolloCredentialSecretArn"
-                      },
-                      ""
-                    ]
-                  }
-                ]
-              },
-              {
-                "Fn::Not": [
-                  {
-                    "Fn::Equals": [
-                      {
                         "Ref": "ApolloGoogleOAuthSecretArn"
                       },
                       ""
@@ -584,7 +592,7 @@
               }
             ]
           },
-          "AssertDescription": "All five provider and authorization inputs are mandatory when automation is enabled."
+          "AssertDescription": "All four provider and authorization inputs are mandatory when automation is enabled."
         }
       ]
     }
