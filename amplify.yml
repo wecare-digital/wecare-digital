@@ -98,7 +98,7 @@ frontend:
         - python3 scripts/verify_public_bundle_secrets.py > /tmp/wecare-public-bundle-check.log 2>&1 || { aws s3 cp /tmp/wecare-public-bundle-check.log "$WEB_BUILD_DIAGNOSTICS/public-bundle-failure.log" --only-show-errors || true; cat /tmp/wecare-public-bundle-check.log; exit 1; }; cat /tmp/wecare-public-bundle-check.log
         # An Amplify build may start before GitHub Verify. Fail closed before production
         # publish if the exact production push has no successful Verify check.
-        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then (test -n "${AWS_COMMIT_ID:-}" && python3 scripts/require_release_ci.py --commit "$AWS_COMMIT_ID" --wait-seconds 300) > /tmp/wecare-release-ci.log 2>&1 || { aws s3 cp /tmp/wecare-release-ci.log "$WEB_BUILD_DIAGNOSTICS/release-ci-failure.log" --only-show-errors || true; cat /tmp/wecare-release-ci.log; exit 1; }; cat /tmp/wecare-release-ci.log; fi
+        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then (test -n "${AWS_COMMIT_ID:-}" && python3 scripts/require_release_ci.py --commit "$AWS_COMMIT_ID" --wait-seconds 3000) > /tmp/wecare-release-ci.log 2>&1 || { aws s3 cp /tmp/wecare-release-ci.log "$WEB_BUILD_DIAGNOSTICS/release-ci-failure.log" --only-show-errors || true; cat /tmp/wecare-release-ci.log; exit 1; }; cat /tmp/wecare-release-ci.log; fi
         # Stage only reviewed, content-addressed Lambda packages AFTER all site
         # compilation and public-credential checks pass. Staging DOES NOT publish.
         # Amplify provides AWS_COMMIT_ID even when no .git checkout is mounted.

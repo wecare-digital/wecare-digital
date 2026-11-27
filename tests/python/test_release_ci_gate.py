@@ -177,3 +177,61 @@ def test_canonical_apply_uploads_only_verified_commit_bytes(monkeypatch, tmp_pat
     monkeypatch.setattr(deploy, "deploy", upload)
     assert deploy.main() == 0
     assert len(captured) == 1
+
+
+def fake_clock(monkeypatch):
+    clock = [0.0]
+    sleeps = []
+    monkeypatch.setattr(gate.time, 'monotonic', lambda: clock[0])
+    def sleep(seconds):
+        assert 0 < seconds <= 30
+        sleeps.append(seconds)
+        clock[0] += seconds
+    monkeypatch.setattr(gate.time, 'sleep', sleep)
+    return clock, sleeps
+
+
+def test_rate_limit_uses_provider_reset_and_then_requires_real_evidence(monkeypatch):
+    clock, sleeps = fake_clock(monkeypatch)
+    evidence = {'commit': SHA, 'jobId': 15}
+    reads = []
+    def check(commit):
+        reads.append(clock[0])
+        assert commit == SHA
+        if len(reads) == 1:
+            raise gate.RateLimitedError(91)
+        return evidence
+    monkeypatch.setattr(gate, 'check_release', check)
+    assert gate.wait_for_release(SHA, 120) == evidence
+    assert reads == [0, 91]
+    assert sum(sleeps) == 91
+
+
+def test_rate_limit_without_headers_backs_off_and_never_authorizes(monkeypatch):
+    clock, sleeps = fake_clock(monkeypatch)
+    reads = []
+    def check(_):
+        reads.append(clock[0])
+        raise gate.RateLimitedError()
+    monkeypatch.setattr(gate, 'check_release', check)
+    with pytest.raises(gate.ReleaseGateError, match='remaining wait budget'):
+        gate.wait_for_release(SHA, 200)
+    assert reads == [0, 60, 180]
+    assert sum(sleeps) == 180
+
+
+def test_terminal_ci_failure_is_not_retried(monkeypatch):
+    _, sleeps = fake_clock(monkeypatch)
+    def check(_):
+        raise gate.ReleaseGateError('Production CI run 8 did not pass: failure')
+    monkeypatch.setattr(gate, 'check_release', check)
+    with pytest.raises(gate.ReleaseGateError, match='did not pass'):
+        gate.wait_for_release(SHA, 3000)
+    assert not sleeps
+
+
+def test_rate_headers_never_retry_before_either_provider_limit(monkeypatch):
+    monkeypatch.setattr(gate.time, 'time', lambda: 1000)
+    assert gate.rate_limit_delay({'Retry-After':'60','X-RateLimit-Reset':'1090','X-RateLimit-Remaining':'0'}) == 91
+    assert gate.rate_limit_delay({'Retry-After':'invalid','X-RateLimit-Reset':'invalid'}) is None
+    assert gate.rate_limit_delay({'Retry-After':'0'}) == 1
