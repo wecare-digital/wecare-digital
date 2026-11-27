@@ -10,7 +10,7 @@ import datetime as dt
 import re
 import uuid
 
-FIELDS = frozenset('city hospital professional patientMode appointmentType speciality healthCheck time userType salutation patientName age gender area email mobile uhid pickup remarks pickupFrom vehicleNo arrivalDate arrivalTime attendants journeyRemarks shiftingFrom shiftingDate shiftingTime healthDescription ambulancePickup ambulanceFrom ambulanceArea ambulanceDate ambulanceTime date'.split())
+FIELDS = frozenset('hospitalId specialityId doctorId healthCheckId city hospital professional patientMode appointmentType speciality healthCheck time userType salutation patientName age gender area email mobile uhid pickup remarks pickupFrom vehicleNo arrivalDate arrivalTime attendants journeyRemarks shiftingFrom shiftingDate shiftingTime healthDescription ambulancePickup ambulanceFrom ambulanceArea ambulanceDate ambulanceTime date'.split())
 ENUMS = {
     'patientMode': {'Telephone', 'Camp'},
     'appointmentType': {'Consultation', 'Health Checks', 'Admission'},
