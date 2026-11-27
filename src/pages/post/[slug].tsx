@@ -512,9 +512,9 @@ export default function BlogPostPage ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .post-search input{
-          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .post-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
@@ -624,7 +624,7 @@ export default function BlogPostPage ( {
         }
         /* .22, not .28 - hover is transient state, which is precisely the role the .22 tint
            exists for. .28 was an alpha the language does not contain. */
-        .post-nav :global(.post-nav-step:hover){background:var(--public-lime-tint)}
+        .post-nav :global(.post-nav-step:hover){background:var(--public-hover-surface)}
         .post-nav :global(.post-nav-step:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:2px}
         .post-nav :global(.post-nav-step.is-off){border-color:var(--public-hairline);color:rgba(0,0,0,.32);cursor:default}
         .post-nav :global(.post-nav-step.is-next){align-items:flex-end;text-align:end}

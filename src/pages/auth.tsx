@@ -349,14 +349,14 @@ const AuthPage: React.FC = () => {
         .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
         .country-search{display:flex;align-items:center;gap:4px;min-width:0;padding:0 14px;border-bottom:0}
-        .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
+        .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 10px;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
         .country-search input::-webkit-search-cancel-button,.country-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .country-search input::-ms-clear{display:none}
         .country-search input:focus{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}
-        @media (hover:hover) and (pointer:fine){.country-search input:hover{background:var(--public-lime-tint)}}
+        @media (hover:hover) and (pointer:fine){.country-search input:hover{background:var(--public-hover-surface)}}
         @media (forced-colors: active){.country-search input:focus{outline:2px solid Highlight;outline-offset:-2px}}
         .country-list{min-height:0;max-height:336px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
-        .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
+        .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;border-radius:var(--public-hover-radius);background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
         .country-row>span:first-child{min-width:0;overflow-wrap:anywhere;white-space:normal}
         .country-row>span:last-child{flex:0 0 auto}
         .country-empty{margin:0;padding:18px 14px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4}
@@ -366,13 +366,13 @@ const AuthPage: React.FC = () => {
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
         .auth-action{
           display:inline-flex;align-items:center;justify-content:center;min-height:52px;min-width:116px;max-width:100%;overflow-wrap:anywhere;white-space:normal;
-          padding:10px 18px;border:0;border-radius:12px;background:var(--public-lime-tint);
+          padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);
           color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);
           text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
           cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .auth-action:hover:not(:disabled){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+        .auth-action:hover:not(:disabled){background:var(--public-button-hover);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
         .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

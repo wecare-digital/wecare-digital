@@ -28,12 +28,12 @@ export default function SearchClearButton( { query, onClear, placement = 'before
         .public-search-clear{
           position:absolute;inset-inline-end:44px;top:50%;transform:translateY(-50%);z-index:2;
           display:grid;place-items:center;width:44px;height:44px;padding:0;
-          border:0;background:transparent;color:var(--public-brand-green,#1a3a2a);
+          border:0;border-radius:var(--public-hover-radius);background:transparent;color:var(--public-brand-green,#1a3a2a);
           cursor:pointer;
         }
         .public-search-clear.is-end{inset-inline-end:0}
         .public-search-clear.is-inline{position:static;transform:none;flex:0 0 44px}
-        .public-search-clear:hover{color:#2f9e44}
+        @media (hover:hover) and (pointer:fine){.public-search-clear:hover{background:var(--public-hover-surface);color:var(--public-brand-green)}}
         .public-search-clear svg{width:18px;height:18px;display:block}
         .public-search-clear:focus-visible{outline:2px solid #1a3a2a;outline-offset:-3px}
       `}</style>

@@ -330,14 +330,14 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           transition:background-color .18s,border-color .18s,transform .18s,box-shadow .18s;
         }
         .ps-action:hover{
-          border-color:var(--public-brand-green);background:var(--public-brand-lime);transform:translateY(-2px);
+          border-color:var(--public-brand-green);background:var(--public-hover-surface);transform:translateY(-2px);
           box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
         /* Keep the round rupee icon consistent with Subscribe and Share. The dropdown
            intentionally makes no price or checkout promise while fulfillment is pending. */
         .ps-contribute{background:#eef7d6;border-color:var(--public-brand-green)}
         .ps-subscribe{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
-        .ps-subscribe:hover{background:#fff}
+        .ps-subscribe:hover{background:var(--public-hover-surface)}
         .ps-action:active{transform:translateY(0)}
         .ps-action:focus-visible,.ps-menu-item:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;
@@ -389,7 +389,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           text-decoration:none;cursor:pointer;text-align:start;box-sizing:border-box;
           font:inherit;
         }
-        .ps-menu-item:hover{background:#f7fbe9}
+        .ps-menu-item:hover{background:var(--public-hover-surface);border-radius:var(--public-hover-radius)}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
         /* The Contribute Checkout action retains the approved dock layout.
            Authentication and any future payment request belong to Orders. */

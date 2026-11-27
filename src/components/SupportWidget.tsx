@@ -974,7 +974,7 @@ const SupportWidget: React.FC = () => {
            screen reader reads - the trigger should come before the thing it opens. */
          .wc-panel{order:-1;display:flex;flex-direction:column;width:min(232px,var(--wc-panel-width,calc(100vw - 32px)));min-width:0;box-sizing:border-box;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow-y:auto;overflow-x:hidden}
 
-          .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;padding:0 12px;border-bottom:2px solid var(--public-search-underline);background:var(--public-lime-tint);transition:border-color .2s,background-color .2s,box-shadow .2s}
+          .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;padding:0 12px;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;transition:border-color .2s,background-color .2s,box-shadow .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
@@ -1027,7 +1027,7 @@ const SupportWidget: React.FC = () => {
            which also makes the panel's height predictable at 5 rows plus the search field. */
         /* text-align:start, not left: a language row holds a native name, and in Arabic or
            Urdu that name has to begin at the reader's starting edge. */
-        .wc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:10px 14px;border:0;border-radius:0;background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:#1a3a2a;text-align:start;cursor:pointer;transition:background-color .12s}
+        .wc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:10px 14px;border:0;border-radius:var(--public-hover-radius);background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:#1a3a2a;text-align:start;cursor:pointer;transition:background-color .12s}
         /* is-active is the keyboard/pointer highlight; is-on is the language currently
            showing. Solid lime for the current one, tint for the highlight - the same pairing
            as the header menu, where active==hover was itself a defect that had to be fixed. */

@@ -297,7 +297,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
             transition:background-color .2s,border-color .2s,opacity .2s;
           }
-          .shop-arrow:hover:not(:disabled){background:var(--public-brand-lime)}
+          .shop-arrow:hover:not(:disabled){background:var(--public-hover-surface)}
           .shop-arrow:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .shop-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
           /* The position bar: hairline track, lime fill, no numbers - the one place lime marks
@@ -370,7 +370,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             border-radius:50px;background:#fff;color:var(--public-brand-green);font-size:16px;font-weight:600;
             text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .shop-in :global(.shop-card-action:hover){background:var(--public-brand-lime);transform:translateY(-1px)}
+          .shop-in :global(.shop-card-action:hover){background:var(--public-hover-surface);transform:translateY(-1px)}
           .shop-in :global(.shop-card-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           /* The one card-heading rung, 22px/700/1.27/-.25px on solid black, and the one body

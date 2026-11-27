@@ -299,7 +299,7 @@ const CheckoutProfile: React.FC<Props> = ( {
           transition:background-color .18s,transform .18s,box-shadow .18s;
         }
         .checkout-profile-action:hover:not(:disabled){
-          background:var(--public-brand-lime);transform:translateY(-1px);
+          background:var(--public-button-hover);transform:translateY(-1px);
           box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
         }
         .checkout-profile-action:focus-visible{

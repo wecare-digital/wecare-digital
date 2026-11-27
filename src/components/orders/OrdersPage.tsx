@@ -1091,7 +1091,7 @@ export default function OrdersPage (): React.ReactElement {
              no cursor:pointer, so there is nothing to discover and fail to activate. Row
              tracking across five columns is what the tint is for. No :active equivalent - a tap
              on a row must do nothing and look like it did nothing. */
-          .ord-tr:hover{background:var(--public-lime-tint)}
+          .ord-tr:hover{background:var(--public-hover-surface)}
 
           /* text-align:start and font-weight:400 are RESETS, and required rather than tidy:
              .ord-td is also carried by the <th scope="row"> in column 1, where the UA stylesheet
@@ -1153,7 +1153,7 @@ export default function OrdersPage (): React.ReactElement {
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
             background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-lime-tint)}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-hover-surface)}
           .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
 
@@ -1174,7 +1174,7 @@ export default function OrdersPage (): React.ReactElement {
             color:var(--public-brand-green);font:inherit;font-size:16px;font-weight:700;line-height:1.35;
             cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s;
           }
-          .ord-account-action:hover:not(:disabled){background:#fff;transform:translateY(-1px);box-shadow:var(--public-lift-shadow)}
+          .ord-account-action:hover:not(:disabled){background:var(--public-button-hover);transform:translateY(-1px);box-shadow:var(--public-lift-shadow)}
           .ord-account-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           .ord-account-action:disabled{opacity:.55;cursor:default}
           .ord-account-action[aria-busy='true']{cursor:progress}
@@ -1198,7 +1198,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-action,.ord-copy,.ord-inv{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
             min-height:44px;display:inline-flex;align-items:center;justify-content:center;
-            padding:0;margin:0;border:0;border-radius:10px;
+            padding:0;margin:0;border:0;border-radius:var(--public-hover-radius);
             background:var(--public-brand-lime);color:var(--public-brand-green);
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
@@ -1208,7 +1208,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-copy{flex:none;align-self:center;inline-size:44px;min-inline-size:44px;padding:0}
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
-            background:var(--lime-hover);color:var(--public-brand-green);
+            background:var(--public-button-hover);color:var(--public-brand-green);
             border:0;box-shadow:none;
             transform:none;opacity:1;
           }
