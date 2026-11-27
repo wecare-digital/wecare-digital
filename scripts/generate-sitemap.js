@@ -106,7 +106,7 @@ const PUBLIC_EXACT = new Set( [
 const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
 
 /**
- * Family labels that MUST NEVER be written as sitemap URLs.
+ * Historical family and Shop aliases that are not implicitly public.
  *
  * These names still exist in navigation as non-clickable grouping labels, but only their
  * concrete children are public pages. Keeping the guard here prevents a future refactor or
@@ -421,13 +421,13 @@ function robotsDisallows () {
 
 const routes = findHtmlFiles( OUT_DIR );
 
-const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) );
+const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) && !PUBLIC_EXACT.has( route ) );
 if ( retiredFamilyRoutes.length > 0 )
 {
   console.error(
     '\nSITEMAP REFUSED: retired family parent route(s) were found in the export:\n'
     + retiredFamilyRoutes.map( route => `    ${route}` ).join( '\n' )
-    + '\n  Family labels are navigation-only. Publish only their concrete child pages.\n'
+    + '\n  Unassigned historical paths must stay absent. Explicitly register a new public page before reusing one.\n'
   );
   process.exit( 1 );
 }

@@ -2,6 +2,7 @@
 // Read-only browser smoke against an approved Amplify preview or production deployment.
 // Usage: PUBLIC_QA_BASE=https://wecare.digital node scripts/verify_404_home_handoff.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const base = process.env.PUBLIC_QA_BASE;
@@ -9,14 +10,18 @@ assert.ok(base, 'Set PUBLIC_QA_BASE to an approved website URL');
 const origin = new URL(base);
 assert.ok(['http:', 'https:'].includes(origin.protocol), 'HTTP(S) base required');
 const home = new URL('/', origin).href;
+const read = name => JSON.parse(readFileSync(new URL('../config/' + name, import.meta.url), 'utf8'));
+const history = read('historical-route-paths.json');
+const active = new Set(read('public-pages.json').pages.map(page => page.path));
+const protectedPaths = new Set(history.infrastructureAdjacent);
+const unassigned = history.publicPaths.filter(path => !active.has(path) && !protectedPaths.has(path));
 const missing = [
-  '/grahak-os/', '/vayulok/', '/sehat/', '/dispatch/', '/niji-setu/', '/shop/niji-setu/',
-  '/ritual-guru/', '/aastha/', '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/',
-  '/ritual-guru/diy-puja-kit/', '/shop/ritual-guru-puja-guidance/',
-  '/shop/ritual-guru-diy-puja-kit/', '/shop/ritual-guru-ritva/',
+  ...unassigned.map(path => path + '/'),
   '/definitely-not-a-page/', '/definitely-not-a-page/nested/',
-  '/vayulok/?utm_source=chatgpt.com', '/definitely-not-a-page?utm_source=qa',
+  '/definitely-not-a-page?utm_source=qa',
+  ...unassigned.slice(0, 1).map(path => path + '/?utm_source=qa'),
 ];
+const valid = [...new Set(['/', '/terms/', '/shop/', '/atmos/nano-climate/', ...history.publicPaths.filter(path => active.has(path) && !protectedPaths.has(path)).map(path => path + '/')])];
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ serviceWorkers: 'block' });
 const results = [];
@@ -40,7 +45,7 @@ try {
       results.push({ path, status: 'fail', error: String(error) });
     } finally { await page.close(); }
   }
-  for (const path of ['/', '/terms/', '/shop/', '/atmos/nano-climate/']) {
+  for (const path of valid) {
     const page = await context.newPage();
     try {
       const url = new URL(path, origin).href;
