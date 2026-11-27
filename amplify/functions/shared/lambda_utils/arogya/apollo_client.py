@@ -6,11 +6,13 @@ own owner/idempotency gate; a general proxy must never expose agent credentials.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import urllib.error
 import urllib.request
 
 ORIGIN = 'https://aaservicesv2.apollohospitals.com/ICUser/'
+_LOG = logging.getLogger(__name__)
 
 
 class ApolloUnavailable(RuntimeError):
@@ -55,10 +57,14 @@ class ApolloClient:
                     raise ApolloUnavailable('Provider response invalid')
                 return value
         except urllib.error.HTTPError as error:
+            # Fixed server-selected resource and numeric status only. Never log
+            # request headers/bodies, upstream messages, mail or credentials.
+            _LOG.warning('Apollo transport HTTP failure: resource=%s status=%s', path, error.code)
             if error.code == 401:
                 raise ApolloSessionExpired('Provider authorization required') from None
             raise ApolloUnavailable('Provider request failed') from None
-        except (urllib.error.URLError, TimeoutError, ValueError):
+        except (urllib.error.URLError, TimeoutError, ValueError) as error:
+            _LOG.warning('Apollo transport failure: resource=%s category=%s', path, type(error).__name__)
             raise ApolloUnavailable('Provider temporarily unavailable') from None
 
     def login(self, payload):
