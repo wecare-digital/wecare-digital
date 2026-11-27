@@ -37,7 +37,8 @@ def handler(event, context):
     # health check outside HTTP and limit it to the existing public catalogue
     # reader; it cannot access customer drafts, patient records or bookings.
     if 'requestContext' not in event and event.get('internalAction') == 'checkProviderCatalogue':
-        if set(event) != {'internalAction', 'catalogue'} or not isinstance(event['catalogue'], dict):
+        if (set(event) != {'internalAction', 'catalogue'} or not isinstance(event['catalogue'], dict)
+                or event['catalogue'].get('action') != 'catalog'):
             return _response(400, {'error': 'Invalid provider check.'})
         try:
             return _response(200, catalog.read_catalog(event['catalogue'], now=int(time.time())))
