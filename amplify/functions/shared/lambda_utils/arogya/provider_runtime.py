@@ -13,6 +13,7 @@ import re
 import time
 
 import boto3
+from botocore.exceptions import ClientError
 
 from .apollo_client import ApolloClient, ApolloUnavailable
 from .apollo_session import MAILBOX
@@ -165,5 +166,5 @@ def read_catalog(body, *, now=None, session=None):
         provider, token = (session or _provider_session)(now)
         raw = provider.available_dates(category, token=token, **params) if kind == 'dates' else provider.catalog(kind, token=token, **params)
         return {'options': normalize(kind, raw, now=now), 'observedAt': now}
-    except ApolloUnavailable:
+    except (ApolloUnavailable, ClientError, KeyError, TypeError, ValueError):
         raise CatalogueUnavailable('Apollo catalogue is temporarily unavailable') from None
