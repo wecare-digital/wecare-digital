@@ -15,33 +15,12 @@ frontend:
         # Use the same .nvmrc as GitHub CI. Node 24 is the last successful Amplify
         # major; Node 26 must pass a separate preview deployment before promotion.
         # Skip nvm's large, unrelated default global package set.
-        - |
-          export BUILD_NODE_MAJOR="$(cat .nvmrc)"
-          if ! {
-            test -n "$BUILD_NODE_MAJOR" &&
-            { nvm install --skip-default-packages "$BUILD_NODE_MAJOR" || nvm use "$BUILD_NODE_MAJOR"; } &&
-            nvm use "$BUILD_NODE_MAJOR" &&
-            node -e "if (String(process.versions.node.split('.')[0]) !== process.env.BUILD_NODE_MAJOR) { console.error('Expected Node major ' + process.env.BUILD_NODE_MAJOR + ', got ' + process.version); process.exit(1); }" &&
-            node -v && npm -v && python3 --version
-          } > /tmp/wecare-node-bootstrap.log 2>&1; then
-            aws s3 cp /tmp/wecare-node-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/node-failure.log" --only-show-errors || true
-            tail -n 80 /tmp/wecare-node-bootstrap.log
-            exit 1
-          fi
-          cat /tmp/wecare-node-bootstrap.log
+        # Both bootstrap commands keep the single-line `cmd > log 2>&1 || { upload; tail; exit 1; }`
+        # form that every other command in this file already runs on Amplify; this app has never
+        # run a multi-line command. The brace groups run in the current shell, so `nvm use` persists.
+        - export BUILD_NODE_MAJOR="$(cat .nvmrc)"; { test -n "$BUILD_NODE_MAJOR" && { nvm install --skip-default-packages "$BUILD_NODE_MAJOR" || nvm use "$BUILD_NODE_MAJOR"; } && nvm use "$BUILD_NODE_MAJOR" && node -e "if (String(process.versions.node.split('.')[0]) !== process.env.BUILD_NODE_MAJOR) { console.error('Expected Node major ' + process.env.BUILD_NODE_MAJOR + ', got ' + process.version); process.exit(1); }" && node -v && npm -v && python3 --version; } > /tmp/wecare-node-bootstrap.log 2>&1 || { aws s3 cp /tmp/wecare-node-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/node-failure.log" --only-show-errors || true; tail -n 80 /tmp/wecare-node-bootstrap.log; exit 1; }; cat /tmp/wecare-node-bootstrap.log
         # Install and verify the exact npm version that generated the root lockfile.
-        - |
-          if ! {
-            PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")" &&
-            test -n "$PINNED_NPM" &&
-            npm install --global "npm@$PINNED_NPM" &&
-            test "$(npm --version)" = "$PINNED_NPM" && npm --version
-          } > /tmp/wecare-npm-bootstrap.log 2>&1; then
-            aws s3 cp /tmp/wecare-npm-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/npm-failure.log" --only-show-errors || true
-            tail -n 80 /tmp/wecare-npm-bootstrap.log
-            exit 1
-          fi
-          tail -n 20 /tmp/wecare-npm-bootstrap.log
+        - export PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"; { test -n "$PINNED_NPM" && npm install --global "npm@$PINNED_NPM" && test "$(npm --version)" = "$PINNED_NPM" && npm --version; } > /tmp/wecare-npm-bootstrap.log 2>&1 || { aws s3 cp /tmp/wecare-npm-bootstrap.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/npm-failure.log" --only-show-errors || true; tail -n 80 /tmp/wecare-npm-bootstrap.log; exit 1; }; tail -n 20 /tmp/wecare-npm-bootstrap.log
         # REPRODUCIBLE INSTALL for the production Amplify build.
         # `npm ci` installs exactly the committed lockfile and never writes to it, so the
         # tree that deploys is exactly the committed dependency graph. `npm install` was free to resolve a newer

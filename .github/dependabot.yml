@@ -56,6 +56,10 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(py-deps)"
+    ignore:
+      # botocore requires python-dateutil <3.0, so 3.x/4.x makes requirements-dev.txt unresolvable.
+      - dependency-name: "python-dateutil"
+        update-types: ["version-update:semver-major"]
     groups:
       python-dev-minor-and-patch:
         applies-to: version-updates
