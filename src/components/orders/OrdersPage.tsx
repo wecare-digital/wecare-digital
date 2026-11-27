@@ -679,7 +679,11 @@ export default function OrdersPage (): React.ReactElement {
   };
 
   useEffect( () => {
-    const onHashChange = () => setRequestSelection( orderRequestFromHash( window.location.hash ) );
+    const onHashChange = () => {
+      const selected = orderRequestFromHash( window.location.hash );
+      void takeOrderRequest();
+      setRequestSelection( selected );
+    };
     window.addEventListener( 'hashchange', onHashChange );
     return () => window.removeEventListener( 'hashchange', onHashChange );
   }, [] );

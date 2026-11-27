@@ -568,7 +568,10 @@ const Header: React.FC = () => {
       // a request is not permission to dispatch any earlier unsent invitation.
       if ( request ) {
         void takeCustomerMenuAction();
-        stashOrderRequest( request.id );
+        // A same-page fragment updates the existing Orders view immediately.
+        // Do not leave another storage handoff to reopen on a later visit.
+        if ( /^\/orders\/?$/.test( window.location.pathname ) ) void takeOrderRequest();
+        else stashOrderRequest( request.id );
       } else void takeOrderRequest();
     }
     const sendAction = menuActionForLabel( link.label );
