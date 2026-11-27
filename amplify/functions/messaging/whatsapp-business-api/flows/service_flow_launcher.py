@@ -23,7 +23,9 @@ from typing import Any, Mapping
 
 import boto3
 
-from lambda_utils.ecommerce import pickup_activation
+from lambda_utils.ecommerce import pickup_activation, website_submit_request
+
+WEBSITE_F004_COMPLETION_VERSION = website_submit_request.VERSION
 
 from lambda_utils import (
     canonical_flows,
@@ -324,6 +326,19 @@ def launch_single_order_service(
     )
     if not attempt:
         return {"outcome": "SERVICE_FLOW_PAYMENT_NOT_FINALIZED", "serviceCode": code}
+    if code == website_submit_request.SERVICE and attempt.get("websiteForm"):
+        # Web F004 already contains the note. The internal hook is invoked only
+        # after confirmed statutory invoice delivery. Async retries may repair
+        # storage; a second WhatsApp form must never be launched for this attempt.
+        if attempt.get("websiteForm") != WEBSITE_F004_COMPLETION_VERSION:
+            raise RuntimeError("WEBSITE_F004_VERSION_MISMATCH")
+        resolved = _recipient(db, str(attempt.get("customerId") or ""))
+        if not resolved:
+            raise RuntimeError("WEBSITE_F004_RECIPIENT_UNAVAILABLE")
+        contact, phone = resolved
+        return website_submit_request.complete(
+            db, attempts, attempt, contact=contact, phone=phone,
+            reference_id=str(event.get("referenceId") or ""))
     return _launch_verified_attempt(
         db=db,
         attempts=attempts,

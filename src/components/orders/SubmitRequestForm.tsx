@@ -30,13 +30,14 @@ export interface SubmitRequestFormProps {
   onPay: ( input: { orderNumber: string; note: string; expectedTotalPaise: number } ) => void;
   onCheckStatus: () => void;
   onDone: () => void;
+  onNewRequest: () => void;
 }
 
 const MAX_NOTE_LENGTH = 300;
 
 export default function SubmitRequestForm ( {
   orderNumber, quote, quoteUnavailable = false, paymentState,
-  onReview, onPay, onCheckStatus, onDone,
+  onReview, onPay, onCheckStatus, onDone, onNewRequest,
 }: SubmitRequestFormProps ): React.ReactElement {
   const [ note, setNote ] = useState( '' );
   const [ reviewing, setReviewing ] = useState( false );
@@ -146,14 +147,23 @@ export default function SubmitRequestForm ( {
       { pending && <p className="sr-copy" role="status">Check WhatsApp to complete your payment.</p> }
       { saving && <p className="sr-copy" role="status">Payment received. Saving your request.</p> }
       <div className="sr-actions">
-        { received ? <button type="button" className="sr-action" onClick={ onDone }>Done</button>
+        { received ? <>
+          <button type="button" className="sr-action" onClick={ onDone }>Done</button>
+          <button type="button" className="sr-action" onClick={ onNewRequest }>New request</button>
+        </>
           : starting ? <button type="button" className="sr-action" disabled>Preparing payment…</button>
-            : waiting ? <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
+            : waiting ? <>
+              <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
+              <button type="button" className="sr-action" onClick={ onDone }>Back to orders</button>
+            </>
               : review ? <>
                 { quoteUnavailable ? <button type="button" className="sr-action" onClick={ onReview }>Try again</button>
                   : <button type="button" className="sr-action" onClick={ pay } disabled={ !canPay }>Pay{ price ? ' ' + price : '' }</button> }
                 <button type="button" className="sr-action" onClick={ () => setReviewing( false ) }>Back</button>
-              </> : <button type="button" className="sr-action" onClick={ continueToReview }>Continue</button> }
+              </> : <>
+                <button type="button" className="sr-action" onClick={ continueToReview }>Continue</button>
+                <button type="button" className="sr-action" onClick={ onDone }>Back to orders</button>
+              </> }
       </div>
       <style jsx>{`
         .sr-form{width:min(100%,440px);max-width:100%;margin:0 auto;padding:24px 22px max(24px,env(safe-area-inset-bottom));box-sizing:border-box;background:#fff;color:var(--public-text);font:400 16px/1.5 var(--font-sans)}
