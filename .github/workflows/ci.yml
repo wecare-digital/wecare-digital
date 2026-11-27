@@ -76,3 +76,6 @@ jobs:
 
       - name: Stage and verify customer OTP artifact offline
         run: python scripts/stage_customer_auth_package.py --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/customer-auth-release"
+
+      - name: Stage and verify security runtime artifacts offline
+        run: python scripts/stage_security_runtime_packages.py --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/security-runtime-release"
