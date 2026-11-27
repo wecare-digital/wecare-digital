@@ -16,7 +16,7 @@ const EMPTY_PLAN: AppointmentPlan = {
 const STEPS = [ 'Appointment', 'Date & time', 'Patient', 'Review' ];
 
 /** Apollo-shaped local request draft. Provider submission remains disabled until server integration is verified. */
-export default function AppointmentPlanner ( { onSessionExpired }: { onSessionExpired: () => void } ): React.ReactElement {
+export default function AppointmentPlanner ( { accountKey, onAccountChanged, onSessionExpired }: { accountKey: string; onAccountChanged: () => void; onSessionExpired: () => void } ): React.ReactElement {
   const [ plan, setPlan ] = useState<AppointmentPlan>( EMPTY_PLAN );
   const [ step, setStep ] = useState( 1 );
   const [ error, setError ] = useState( '' );
@@ -161,7 +161,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
-      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setCatalogRetry( value => value + 1 ); setStep( 1 ); setError( '' ); } } />
+      <SavedAppointmentDrafts accountKey={ accountKey } onAccountChanged={ onAccountChanged } onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setCatalogRetry( value => value + 1 ); setStep( 1 ); setError( '' ); } } />
       { catalogError && <>
         <PublicNotice mode="inline" tone="error" message={ catalogError } />
         <div className={ styles.actions }><button type="button" onClick={ () => setCatalogRetry( value => value + 1 ) }>Retry live choices</button></div>
@@ -257,7 +257,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                   </> }
                 </> }
                 { plan.userType && <label htmlFor="ay-remarks">IC remarks (optional)<textarea id="ay-remarks" value={ plan.remarks } maxLength={ 500 } onChange={ event => update( 'remarks', event.target.value ) } /></label> }
-                <p className={ styles.help }>Details stay in this tab and are cleared when it closes or reloads. Do not enter Aadhaar numbers, medical records or passwords.</p>
+                <p className={ styles.help }>Unsaved details stay in this tab. Choosing Save stores the draft in your verified account for 30 days. Only enter details you are authorized to share; do not enter Aadhaar numbers, medical records or passwords.</p>
               </> }
             </div>
             { error && <PublicNotice mode="inline" tone="error" message={ error } /> }
