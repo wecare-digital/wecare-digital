@@ -165,9 +165,9 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            (ProductBlogPanel), so every search a visitor meets reads as one control. Transparent
            fill, 1px bottom hairline; on focus the hairline darkens with a lime underline. */
         .bs-form input{
-          width:100%;min-width:0;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
+          width:100%;min-width:0;height:var(--public-search-height);padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .bs-form input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
