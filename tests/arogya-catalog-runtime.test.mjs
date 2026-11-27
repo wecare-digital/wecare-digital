@@ -47,5 +47,9 @@ test('public directory handoff uses fixed official links without patient data', 
   assert.match(access, /if \( ready \) return <AppointmentPlanner/);
   assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/facilities\/hospitals" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
   assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/doctors" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
+  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/book-doctor-appointment" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
+  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/international-patient-services" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
   assert.match(planner, /Availability and appointment confirmation are handled by Apollo/);
+  assert.match(planner, /No live hospital choices were returned here/);
+  assert.doesNotMatch(planner, /href="https:\/\/www\.askapollo\.com\//);
 });
