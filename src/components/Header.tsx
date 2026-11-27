@@ -9,7 +9,7 @@ import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stash
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
 import { rankNavigation, NAV_DISCOVERY, contentSearchText } from '../lib/navigationSearch';
-import { orderRequestForLabel, stashOrderRequest, takeOrderRequest } from '../lib/orderRequestSelection';
+import { orderRequestForLabel, orderRequestMenuHref, stashOrderRequest, takeOrderRequest } from '../lib/orderRequestSelection';
 import {
   NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS,
   navIconViewBox, sectionIconViewBox, FALLBACK_NAV_ICON_PATH,
@@ -685,7 +685,7 @@ const Header: React.FC = () => {
                   { filtered.map( link => (
                     <a
                       key={ link.label + link.href }
-                      href={ link.href }
+                      href={ orderRequestMenuHref( link.label, link.href ) }
                       data-nav-search-key={ menuSearchKey( link ) }
                       className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
@@ -796,7 +796,7 @@ const Header: React.FC = () => {
                           >
                             { link.href ? (
                               <a
-                                href={ link.href }
+                                href={ orderRequestMenuHref( link.label, link.href ) }
                                 data-nav-search-key={ menuSearchKey( link ) }
                                 className={ `nav-item ${section.nestedLinks ? 'nav-child' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
@@ -851,7 +851,7 @@ const Header: React.FC = () => {
                             { link.children.map( child => child.href && (
                               <a
                                 key={ child.label + child.href }
-                                href={ child.href }
+                                href={ orderRequestMenuHref( child.label, child.href ) }
                                 data-nav-search-key={ menuSearchKey( child ) }
                                 className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( child ) ? 'page' : undefined }

@@ -66,6 +66,11 @@ def auth_state(row: dict, csrf: str, message: str = '') -> dict:
             'phase': login.get('phase', 'phone'),
             'csrf': csrf,
             'message': message,
+            'outcome': {
+                'New code sent.': 'code_sent',
+                'Account ready. Enter the new code.': 'code_sent',
+                'Number verified. Get a new code.': 'retry_code',
+            }.get(message, 'error' if message else ''),
             'website': website,
             'returnPath': str(row.get('return') or '/'),
             'clientName': '' if website else client(row['client'])['name'],

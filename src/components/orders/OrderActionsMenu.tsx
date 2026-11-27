@@ -4,7 +4,7 @@ import VoiceSearchMic from '../VoiceSearchMic';
 import SearchClearButton from '../SearchClearButton';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
-import { orderRequestForLabel, type OrderRequestId } from '../../lib/orderRequestSelection';
+import { orderRequestForLabel, orderRequestMenuHref, type OrderRequestId } from '../../lib/orderRequestSelection';
 import { rankNavigation, NAV_DISCOVERY, contentSearchText } from '../../lib/navigationSearch';
 import { NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS, navIconViewBox, sectionIconViewBox, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX } from '../../lib/publicNavigationIcons';
 
@@ -243,7 +243,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           </div>
           <div className="orm-entries">
             { requests.map( action => (
-              <a key={ action.label } href={ action.href } className="orm-item"
+              <a key={ action.label } href={ orderRequestMenuHref( action.label, action.href ) } className="orm-item"
                 onClick={ event => onNavigate( event, action ) }>
                 <svg className={ ICONS[ action.icon ].filled ? 'orm-icon orm-icon-fill' : 'orm-icon' }
                   viewBox={ ICONS[ action.icon ].viewBox } aria-hidden="true" focusable="false">
@@ -270,7 +270,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
                   </svg>
                 </div>
                 { shipments.map( action => (
-                  <a key={ action.label } href={ action.href } className="orm-item orm-child"
+                  <a key={ action.label } href={ orderRequestMenuHref( action.label, action.href ) } className="orm-item orm-child"
                     onClick={ event => onNavigate( event, action ) }>
                     <svg className="orm-icon orm-sub-icon" viewBox={ ICONS.subnav.viewBox }
                       aria-hidden="true" focusable="false">
@@ -289,7 +289,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
               </div>
             ) }
             { other.map( action => (
-              <a key={ action.label } href={ action.href } className="orm-item"
+              <a key={ action.label } href={ orderRequestMenuHref( action.label, action.href ) } className="orm-item"
                 onClick={ event => onNavigate( event, action ) }>
                 <svg className={ ICONS[ action.icon ].filled ? 'orm-icon orm-icon-fill' : 'orm-icon' } viewBox={ ICONS[ action.icon ].viewBox }
                   aria-hidden="true" focusable="false">
