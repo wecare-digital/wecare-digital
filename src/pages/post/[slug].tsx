@@ -703,7 +703,7 @@ export default function BlogPostPage ( {
           color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
-        .post-related :global(.post-related-all:hover){background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .post-related :global(.post-related-all:hover){background:var(--public-button-hover);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
         /* Its trailing mark, drawn for the same reason as the pager's - see the note there. */
         .post-related :global(.post-nav-mark){
           width:6px;height:6px;flex:0 0 auto;
