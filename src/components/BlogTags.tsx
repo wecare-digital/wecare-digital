@@ -61,8 +61,8 @@ export interface BlogTagsProps {
   className?: string;
   /** The landmark's accessible name. Defaults to a plain 'Tags'. */
   ariaLabel?: string;
-  /** Exclude tags on offscreen carousel pages, including in WebViews without inert. */
-  tabIndex?: -1;
+  /** Keep tags out of sequential focus on inactive carousel pages, including legacy WebViews. */
+  tabIndex?: number;
 }
 
 /**

@@ -6,7 +6,7 @@ import { shopHeroWords } from '../src/content/shopHeroWords.ts';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 test('shared rotating hero reserves every word and offers a manual motion stop', () => {
   const pill = read('src/components/RotatingPill.tsx');
-  for (const marker of ['grid-template-columns:minmax(0,1fr)', 'grid-area:1/1','overflow-wrap:anywhere', 'Pause headline rotation','Resume headline rotation','useSyncExternalStore( subscribeToHydration, readyInBrowser, readyInExport )', 'paused || words.length <= 1',"document.visibilityState === 'hidden'","media.addEventListener( 'change', sync )",'prefers-reduced-motion: reduce']) assert.ok(pill.includes(marker), marker);
+  for (const marker of ['grid-template-columns:minmax(0,1fr)', 'grid-area:1/1','overflow-wrap:anywhere', 'Pause headline rotation','Resume headline rotation','disabled={ !ready }', 'paused || words.length <= 1',"document.visibilityState === 'hidden'","media.addEventListener( 'change', sync )",'prefers-reduced-motion: reduce']) assert.ok(pill.includes(marker), marker);
   for (const path of ['src/components/RotatingHero.tsx','src/pages/index.tsx']) {
     const source = read(path);
     assert.ok(source.includes('paused={ rotationPaused }'), path);

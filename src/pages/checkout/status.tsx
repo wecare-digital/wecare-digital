@@ -206,9 +206,13 @@ export default function CheckoutStatus (): React.ReactElement {
           ) }
 
           { stalled && ( view === 'confirming' || view === 'finalizing' ) && (
-            <div className="co-actions">
-              <Link className="co-auth-action co-auth-primary" href="/orders/">Orders</Link>
-            </div>
+            <>
+              <p className="co-note">Payment confirmation is still pending. Check the same payment before starting another checkout.</p>
+              <div className="co-actions">
+                <button className="co-auth-action co-auth-primary" type="button" onClick={ () => window.location.reload() }>Check payment status</button>
+                <Link className="co-auth-action" href="/orders/">Orders</Link>
+              </div>
+            </>
           ) }
 
           { view === 'failed' && (
@@ -219,6 +223,7 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { view === 'unavailable' && (
             <div className="co-actions">
+              <button className="co-auth-action co-auth-primary" type="button" onClick={ () => window.location.reload() }>Check payment status</button>
               <Link className="co-auth-action" href="/orders/">Orders</Link>
             </div>
           ) }

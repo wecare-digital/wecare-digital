@@ -36,3 +36,8 @@ test('a fixed contribution can be removed but its quantity cannot be changed', (
   assert.match(cart, /\{ !isContributionItem\( item \) && \(\s*<div className="cart-qty"/);
   assert.match(cart, /className="cart-remove"[\s\S]*?onClick=\{ \(\) => drop\( item\.ref \) \}/);
 });
+
+test('opening contribution review resets the old basket quote and notice', () => {
+  const source = read('src/components/cart/CartPage.tsx');
+  assert.match(source, /if \( !ready \|\| contributionReview \|\| items\.length === 0 \) \{\s*setQuote\( null \);\s*setQuoteFor\( '' \);\s*setQuoteNotice\( '' \);/);
+});

@@ -651,6 +651,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( !ready || contributionReview || items.length === 0 ) {
       setQuote( null );
       setQuoteFor( '' );
+      setQuoteNotice( '' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
