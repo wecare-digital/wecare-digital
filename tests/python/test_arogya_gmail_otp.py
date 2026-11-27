@@ -8,7 +8,7 @@ SENDER = 'test-sender@apollohospitals.com'
 START = 1000000
 
 
-def transport(*, profile=MAILBOX, received=START + 1000, text='Your Apollo OTP is 123456', sender=SENDER):
+def transport(*, profile=MAILBOX, received=START + 1000, text='Your Apollo OTP is 123456', sender=SENDER, mime='text/plain'):
     calls = []
     def get(path, params):
         calls.append((path, params))
@@ -17,7 +17,7 @@ def transport(*, profile=MAILBOX, received=START + 1000, text='Your Apollo OTP i
         if path.endswith('/messages'):
             return {'messages': [{'id': 'synthetic-message'}]}
         return {'internalDate': str(received), 'payload': {
-            'mimeType': 'text/plain', 'headers': [
+            'mimeType': mime, 'headers': [
                 {'name': 'From', 'value': sender}, {'name': 'To', 'value': MAILBOX}],
             'body': {'data': base64.urlsafe_b64encode(text.encode()).decode()}}}
     return get, calls
@@ -56,6 +56,17 @@ def test_consumed_message_is_not_reused():
     get, calls = transport()
     assert find(get, consumed_message_ids=frozenset({'synthetic-message'})) is None
     assert len(calls) == 2
+
+
+def test_html_styles_attributes_and_comments_cannot_be_mistaken_for_codes():
+    html = '''<style>body {color:#000000;background:#123123}</style>
+        <script>var number=654321;</script><!-- 999999 -->
+        <p style="color:#111111" data-id="888888">Please use this One Time Password (OTP)
+        to sign in: <strong>123456</strong>.</p>'''
+    get, _ = transport(text=html, mime='text/html')
+    assert find(get).code == '123456'
+    get, _ = transport(text=html + '<p>Another OTP: 222222</p>', mime='text/html')
+    assert find(get) is None
 
 
 def test_transport_refuses_arbitrary_resources_before_loading_a_token():
