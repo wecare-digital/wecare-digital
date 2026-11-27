@@ -16,7 +16,7 @@
  * sessionStorage, not localStorage: the hand-off happens in this tab, and a stale marker must not
  * outlive the tab it was written in.
  */
-import { clearCart } from './cart';
+import { basketFingerprint, clearCart } from './cart';
 
 /** The idempotency key the current basket's checkout reuses on every retry. */
 export const CHECKOUT_REQUEST_KEY = 'wc_checkout_request_key';
@@ -32,11 +32,17 @@ export const CHECKOUT_REQUEST_KEY = 'wc_checkout_request_key';
 export const CHECKOUT_REQUEST_BASKET = 'wc_checkout_request_basket';
 /** The attempt /checkout/ last handed to /checkout/status/. */
 const HANDED_OFF_ATTEMPT = 'wc_checkout_handed_off_attempt';
+const HANDED_OFF_BASKET = 'wc_checkout_handed_off_basket';
 
 /** Record the attempt this cart's payment is now tracked under. Storage may be off; that is fine. */
-export function rememberCheckoutAttempt ( attemptId: string ): void {
-  if ( typeof window === 'undefined' || !attemptId ) return;
-  try { window.sessionStorage.setItem( HANDED_OFF_ATTEMPT, attemptId ); }
+export function rememberCheckoutAttempt ( attemptId: string, reviewedBasket: string ): void {
+  if ( typeof window === 'undefined' || !attemptId || !reviewedBasket ) return;
+  try {
+    // Remove any stale attempt before replacing the paired basket marker.
+    window.sessionStorage.removeItem( HANDED_OFF_ATTEMPT );
+    window.sessionStorage.setItem( HANDED_OFF_BASKET, reviewedBasket );
+    window.sessionStorage.setItem( HANDED_OFF_ATTEMPT, attemptId );
+  }
   catch { /* storage disabled: the cart simply survives, as it did before */ }
 }
 
@@ -49,10 +55,18 @@ export function settlePaidCheckout ( attemptId: string ): boolean {
   try
   {
     if ( window.sessionStorage.getItem( HANDED_OFF_ATTEMPT ) !== attemptId ) return false;
+    const reviewedBasket = window.sessionStorage.getItem( HANDED_OFF_BASKET );
+    if ( !reviewedBasket || reviewedBasket !== basketFingerprint() ) {
+      // Legacy handoffs or a newer cart in another tab are not proof of ownership.
+      window.sessionStorage.removeItem( HANDED_OFF_ATTEMPT );
+      window.sessionStorage.removeItem( HANDED_OFF_BASKET );
+      return false;
+    }
     clearCart();
     window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
     window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
     window.sessionStorage.removeItem( HANDED_OFF_ATTEMPT );
+    window.sessionStorage.removeItem( HANDED_OFF_BASKET );
     return true;
   }
   catch

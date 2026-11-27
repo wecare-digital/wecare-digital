@@ -31,13 +31,17 @@ test('contribution review protects cart and keeps payment server-priced', () => 
   for (const marker of ["query.get( 'contribute' ) === '1'", 'Replace cart and review contribution','Keep current cart','finishContributionReview( true )','setContribution( choice.variantId )','!contributionReview && !contributionQuoteMismatch',"chosenChannel === 'whatsapp' && currentItems.some( isContributionItem )",'expectedTotalPaise !== CONTRIBUTION_CHOICES[0]?.paise','{ !hasContribution && (',"void proceed( 'website' )",'VERIFY_CHECKOUT_URL','!ready || contributionReview || items.length === 0']) assert.ok(cart.includes(marker), marker);
 });
 
-test('a fixed contribution can be removed but its quantity cannot be changed', () => {
+test('a fixed contribution can be removed or repaired to one, never increased', () => {
   const cart = read('src/components/cart/CartPage.tsx');
-  assert.match(cart, /\{ !isContributionItem\( item \) && \(\s*<div className="cart-qty"/);
+  assert.match(cart, /if \( item && isContributionItem\( item \) && quantity !== 1 \) return;/);
+  const fixedBranch = /\{ isContributionItem\( item \) \? \(([\s\S]*?)\) : \(\s*<div className="cart-qty" role="group"/.exec(cart);
+  assert.ok(fixedBranch, 'contribution has separate fixed-quantity controls');
+  assert.match(fixedBranch[1], /item\.quantity !== 1[\s\S]*?changeQuantity\( item\.ref, 1 \)/);
+  assert.doesNotMatch(fixedBranch[1], /item\.quantity\s*[+-]/);
   assert.match(cart, /className="cart-remove"[\s\S]*?onClick=\{ \(\) => drop\( item\.ref \) \}/);
 });
 
 test('opening contribution review resets the old basket quote and notice', () => {
   const source = read('src/components/cart/CartPage.tsx');
-  assert.match(source, /if \( !ready \|\| contributionReview \|\| items\.length === 0 \) \{\s*setQuote\( null \);\s*setQuoteFor\( '' \);\s*setQuoteNotice\( '' \);/);
+  assert.match(source, /if \( !ready \|\| contributionReview \|\| items\.length === 0 \|\| cartUnavailable \) \{\s*setQuote\( null \);\s*setQuoteFor\( '' \);\s*setQuoteNotice\( '' \);/);
 });

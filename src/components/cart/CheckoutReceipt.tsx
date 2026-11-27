@@ -28,13 +28,14 @@ export default function CheckoutReceipt ( { quote }: { quote: CheckoutQuote } ):
       <p className="receipt-note">Full breakup shown before payment.</p>
       <style jsx>{`
         .receipt{min-width:0;color:var(--public-text);font-family:var(--font-sans)}
-        .receipt-items{list-style:none;margin:0 0 12px;padding:0;background:var(--public-lime-tint);border-radius:10px}
+        .receipt-items{list-style:none;margin:0 0 12px;padding:0;background:var(--public-lime-tint);border-radius:var(--public-card-radius)}
         .receipt-items li{display:flex;justify-content:space-between;gap:14px;padding:13px;font-size:14px;border-bottom:1px solid var(--public-hairline)}
-        .receipt-items li:last-child{border-bottom:0}.receipt-items li>div{min-width:0}.receipt-items strong{font-size:15px;overflow-wrap:anywhere}.receipt-items small{display:block;margin-top:5px;font-size:12px;color:var(--public-muted)}.receipt-items li>span{white-space:nowrap;font-variant-numeric:tabular-nums}
-        .receipt-charges{margin:0}.receipt-charges>div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 4px;border-bottom:1px dashed var(--public-hairline);font-size:15px;line-height:1.5}.receipt-charges dt{min-width:0}.receipt-charges dd{margin:0;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;color:var(--public-heading)}
-        .receipt-charges .receipt-total{align-items:center;margin-top:20px;padding:16px;border:0;border-radius:12px;background:var(--public-brand-lime);color:#111}.receipt-total dt{font-size:16px;font-weight:800}.receipt-total small{display:block;font-size:12px;font-weight:500;margin-top:3px}.receipt-total dd{font-size:clamp(24px,3vw,34px);font-weight:850;letter-spacing:-.03em;color:#111}
+        .receipt-items li:last-child{border-bottom:0}.receipt-items li>div{min-width:0}.receipt-items strong{font-size:15px;overflow-wrap:anywhere}.receipt-items small{display:block;margin-top:5px;font-size:12px;color:var(--public-muted)}.receipt-items li>span{min-width:0;overflow-wrap:anywhere;text-align:end;font-variant-numeric:tabular-nums}
+        .receipt-charges{margin:0}.receipt-charges>div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 4px;border-bottom:1px dashed var(--public-hairline);font-size:15px;line-height:1.5}.receipt-charges dt{min-width:0;overflow-wrap:anywhere}.receipt-charges dd{margin:0;min-width:0;overflow-wrap:anywhere;text-align:end;font-variant-numeric:tabular-nums;color:var(--public-heading)}
+        .receipt-charges .receipt-total{align-items:center;margin-top:20px;padding:16px;border:0;border-radius:var(--public-card-radius);background:var(--public-brand-lime);color:var(--public-brand-green)}.receipt-total dt{font-size:16px;font-weight:800}.receipt-total small{display:block;font-size:12px;font-weight:500;margin-top:3px}.receipt-total dd{font-size:clamp(24px,3vw,34px);font-weight:var(--public-card-weight);letter-spacing:-.03em;color:var(--public-brand-green)}
         .receipt-note{margin:16px 0 0;padding:12px;border-radius:10px;background:var(--public-lime-tint);font-size:13px;color:var(--public-brand-green)}
         @media(max-width:380px){.receipt-charges>div{font-size:13px;gap:10px}.receipt-charges .receipt-total{padding:12px}.receipt-total dt{font-size:14px}.receipt-total dd{font-size:24px}.receipt-items li{padding:10px;font-size:13px;gap:8px}}
+        @media(max-width:279px){.receipt-items li,.receipt-charges>div{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}.receipt-items li>span,.receipt-charges dd{text-align:start}.receipt-charges .receipt-total{padding:10px}}
       `}</style>
     </div>
   );

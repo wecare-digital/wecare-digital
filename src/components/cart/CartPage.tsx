@@ -22,7 +22,7 @@ import CheckoutReceipt from './CheckoutReceipt';
 import FIXED_ITEMS from '../../content/invoicePresets.json';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
-import { getSession, restoreSession } from '../../lib/customerAuth';
+import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
   readCart, addItem, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
@@ -127,8 +127,8 @@ function cartFromDirectTestLink (): CartItem[] {
  * cart once the server reports that attempt PAID (`lib/checkoutHandoff`). The cart stays until
  * then: the hand-off itself proves nothing about money.
  */
-function goToCheckoutStatus ( attemptId: string ): void {
-  rememberCheckoutAttempt( attemptId );
+function goToCheckoutStatus ( attemptId: string, reviewedBasket: string ): void {
+  rememberCheckoutAttempt( attemptId, reviewedBasket );
   window.location.assign( `/checkout/status/?a=${ encodeURIComponent( attemptId ) }` );
 }
 /**
@@ -455,24 +455,39 @@ function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   return generated;
 }
 
+let razorpaySdkPromise: Promise<boolean> | null = null;
 function loadRazorpaySdk (): Promise<boolean> {
   if ( typeof window === 'undefined' ) return Promise.resolve( false );
   if ( window.Razorpay ) return Promise.resolve( true );
-  const existing = document.querySelector<HTMLScriptElement>( `script[src="${ RAZORPAY_SDK }"]` );
-  if ( existing ) {
-    return new Promise( resolve => {
-      existing.addEventListener( 'load', () => resolve( Boolean( window.Razorpay ) ), { once: true } );
-      existing.addEventListener( 'error', () => resolve( false ), { once: true } );
-    } );
-  }
-  return new Promise( resolve => {
-    const script = document.createElement( 'script' );
-    script.src = RAZORPAY_SDK;
-    script.async = true;
-    script.onload = () => resolve( Boolean( window.Razorpay ) );
-    script.onerror = () => resolve( false );
-    document.head.appendChild( script );
+  if ( razorpaySdkPromise ) return razorpaySdkPromise;
+  razorpaySdkPromise = new Promise<boolean>( resolve => {
+    const existing = document.querySelector<HTMLScriptElement>( `script[src="${ RAZORPAY_SDK }"]` );
+    const script = existing || document.createElement( 'script' );
+    let done = false;
+    const finish = ( ready: boolean ) => {
+      if ( done ) return;
+      done = true;
+      window.clearTimeout( timer );
+      script.removeEventListener( 'load', loaded );
+      script.removeEventListener( 'error', failed );
+      if ( !ready ) script.remove();
+      resolve( ready );
+    };
+    const loaded = () => finish( Boolean( window.Razorpay ) );
+    const failed = () => finish( false );
+    const timer = window.setTimeout( failed, 12000 );
+    script.addEventListener( 'load', loaded, { once: true } );
+    script.addEventListener( 'error', failed, { once: true } );
+    if ( !existing ) {
+      script.src = RAZORPAY_SDK;
+      script.async = true;
+      try { document.head.appendChild( script ); } catch { failed(); }
+    }
+  } ).then( ready => {
+    razorpaySdkPromise = null;
+    return ready;
   } );
+  return razorpaySdkPromise;
 }
 
 interface CartPageProps {
@@ -483,6 +498,7 @@ interface CartPageProps {
 export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
+  const [ cartUnavailable, setCartUnavailable ] = useState( false );
   const [ contributionReview, setContributionReview ] = useState( false );
   const [ contributionReviewError, setContributionReviewError ] = useState( '' );
   const [ quote, setQuote ] = useState<CheckoutQuote | null>( null );
@@ -492,6 +508,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ quoteSignInRequired, setQuoteSignInRequired ] = useState( false );
   const [ quoteRevision, setQuoteRevision ] = useState( 0 );
   const [ busy, setBusy ] = useState<boolean>( false );
+  const [ modalOpen, setModalOpen ] = useState( false );
+  const modalOpenRef = useRef( false );
+  const [ pendingAttempt, setPendingAttempt ] = useState<{ id: string; basket: string } | null>( null );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
@@ -573,7 +592,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ basketClaim, setBasketClaim ] = useState<string | null>( null );
 
   useEffect( () => {
-    setItems( cartFromDirectTestLink() );
+    try {
+      setItems( cartFromDirectTestLink() );
+    } catch {
+      setCartUnavailable( true );
+      setReady( true );
+      return undefined;
+    }
     const query = new URLSearchParams( window.location.search );
     setContributionReview( query.get( 'contribute' ) === '1' && !query.has( 'basket' ) && !query.has( 'test' ) );
     setReady( true );
@@ -601,7 +626,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   // A deliberate review choice uses the existing single-contribution cart writer.
   // Navigation alone never replaces an existing cart or initiates payment.
   const finishContributionReview = ( select: boolean ): void => {
-    if ( proceedInFlightRef.current || busy || railTerminalRef.current ) return;
+    if ( proceedInFlightRef.current || busy || railTerminalRef.current || modalOpenRef.current ) return;
     try {
       if ( select ) {
         const choice = CONTRIBUTION_CHOICES[0];
@@ -646,19 +671,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuoteNotice( 'Checkout is temporarily unavailable. Please try again later. Nothing has been charged.' );
       return () => { live = false; };
     }
-    // The review asks whether to keep a saved basket or replace it; do not
-    // quote and open profile controls for the old basket behind that choice.
-    if ( !ready || contributionReview || items.length === 0 ) {
+    if ( !ready || contributionReview || items.length === 0 || cartUnavailable ) {
       setQuote( null );
       setQuoteFor( '' );
       setQuoteNotice( '' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
+    if ( items.some( isContributionItem ) && ( items.length !== 1 || items[0].quantity !== 1 ) ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteLoading( false );
+      setQuoteNotice( 'Review one ₹300 contribution separately. Remove other items or return to contribution review.' );
+      return () => { live = false; };
+    }
     if ( items.some( needsVariantSelection ) ) {
       setQuote( null );
       setQuoteFor( '' );
-      setQuoteNotice( publicActionText( 'blocked' ) );
+      setQuoteNotice( 'Choose a current option for each item to review the total.' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
@@ -677,6 +707,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     setQuoteFor( '' );
     setQuoteLoading( true );
     setQuoteNotice( '' );
+    const controller = new AbortController();
+    let timeout: number | undefined;
     void ( async () => {
       try {
         const session = getSession() || await restoreSession();
@@ -684,9 +716,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           if ( live ) { setQuoteSignInRequired( true ); setQuoteNotice( 'Sign in to review your full price and choose a payment method.' ); }
           return;
         }
+        if ( !live ) return;
         const serviceIntent = serviceIntentFor( lines );
+        timeout = window.setTimeout( () => controller.abort(), 15000 );
         const response = await fetch( PREPARE_CHECKOUT_URL, {
           method: 'POST',
+          signal: controller.signal,
           headers: { 'Content-Type': 'application/json',
             Authorization: `Bearer ${ session.accessToken }` },
           body: JSON.stringify( { action: 'quote', lineItems: lines,
@@ -701,11 +736,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             // The price cannot be computed for a missing identity/address.
             // The checkout editor must be usable WITHOUT a payable button.
             setCheckoutAccessToken( session.accessToken );
-            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : 'create' );
+            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : ( cartRequiresDelivery( items ) ? 'create' : 'name' ) );
             setProfileStatus( 'required' );
             setShowProfile( true );
           }
-          if ( response.status === 401 ) setQuoteSignInRequired( true );
+          if ( response.status === 401 ) {
+            setQuoteSignInRequired( true );
+            setCheckoutAccessToken( '' );
+            setShowProfile( false );
+            // This is a definitive authorization refusal, not a payment.
+            // Prevent a stale access token from repeating the same dead end.
+            try { clearSession(); } catch { /* sign-in remains available */ }
+          }
           setQuoteNotice( response.status === 401 ? 'Your session has expired. Sign in again to continue.'
             : error === 'PROFILE_REQUIRED' ? 'Complete your customer details below to see the final price.'
               : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Add a complete delivery address below to see the final price.'
@@ -720,13 +762,22 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         setQuoteFor( fingerprint );
         setQuoteNotice( '' );
       } catch {
-        if ( live ) setQuoteNotice( 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
+        // Cleanup flips live before aborting; obsolete quotes must never render a failure.
+        // A timeout on the *current* request still needs a visible retry action.
+        if ( live ) setQuoteNotice( controller.signal.aborted
+          ? 'Price review timed out. Refresh prices to try again. Nothing has been charged.'
+          : 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
       } finally {
+        if ( timeout !== undefined ) window.clearTimeout( timeout );
         if ( live ) setQuoteLoading( false );
       }
     } )();
-    return () => { live = false; };
-  }, [ items, ready, contributionReview, profile, profileStatus, quoteRevision ] );
+    return () => {
+      live = false;
+      if ( timeout !== undefined ) window.clearTimeout( timeout );
+      controller.abort();
+    };
+  }, [ items, ready, profile, profileStatus, quoteRevision, contributionReview, cartUnavailable ] );
 
   /**
    * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
@@ -810,12 +861,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [] );
 
   const drop = useCallback( ( ref: string ): void => {
-    setItems( removeItem( ref ) );
-    setQuote( null );
+    if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
+    try {
+      setItems( removeItem( ref ) );
+      setQuote( null );
+    } catch {
+      setNotice( { kind: 'error', message: 'Could not update the cart. Check browser storage and try again.' } );
+    }
   }, [] );
 
   const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
+    if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
     try {
+      const item = readCart().find( line => line.ref === ref );
+      if ( item && isContributionItem( item ) && quantity !== 1 ) return;
       setItems( setQuantity( ref, quantity ) );
       setQuote( null );
       setNotice( { kind: 'none' } );
@@ -836,7 +895,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    */
 
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
-    if ( !variantId ) return;
+    if ( !variantId || modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
     setItems( setVariant( ref, variantId ) );
     setQuote( null );
     setPaymentBlocked( false );
@@ -866,6 +925,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
   ): Promise<Outcome> => {
+    const reviewedBasket = basketFingerprint( lineItems );
     try
     {
       let serviceIntent = serviceIntentFor( lineItems );
@@ -967,7 +1027,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         const sdkReady = await loadRazorpaySdk();
         if ( !sdkReady || !window.Razorpay )
         {
-          return { kind: 'SDK_UNAVAILABLE' };
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
+          return { kind: 'NAVIGATED' };
         }
 
         const attemptId = String( data.paymentAttemptId );
@@ -1000,6 +1061,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             // body to read. Setting it after the fetch would leave the catch arm with a live CTA.
             railTerminalRef.current = true;
             setRailTerminal( true );
+            modalOpenRef.current = false;
+            setModalOpen( false );
             try {
               const verified = await fetch( VERIFY_CHECKOUT_URL, {
                 method: 'POST',
@@ -1043,11 +1106,15 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                  * reads the attempt from the server by id and never reads the cart, and the
                  * `assign` below is the last statement on this path.
                  */
-                clearCart();
-                window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
-                window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
+                // The cart can change in another tab while the provider is open.
+                // A verified capture must never discard that newer basket.
+                if ( basketFingerprint() === reviewedBasket ) {
+                  clearCart();
+                  window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
+                  window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
+                }
                 // The same hand-off as every other path: remember the attempt, then navigate.
-                goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
+                goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ), reviewedBasket );
                 return;
               }
               /*
@@ -1059,30 +1126,44 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                * a latched cart, told to "check your orders". The screen never says a charge was
                * or was not made; the cart is emptied there only if this attempt is reported PAID.
                */
-              goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
+              goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ), reviewedBasket );
             } catch {
               // The verify request itself failed. Same hand-off: the attempt is the one Razorpay
               // just returned, and the status screen asks the server about it.
-              goToCheckoutStatus( attemptId );
+              goToCheckoutStatus( attemptId, reviewedBasket );
             }
           },
           modal: {
-            ondismiss: () => setNotice( { kind: 'none' } ),
+            ondismiss: () => {
+              modalOpenRef.current = false;
+              setModalOpen( false );
+              if ( railTerminalRef.current ) return;
+              setNotice( { kind: 'quiet', message: 'Payment window closed. Check payment status before trying again.' } );
+            },
           },
         } );
         razorpay.on( 'payment.failed', () => {
           setNotice( {
             kind: 'error',
-            message: publicActionText( 'failure' ),
+            message: 'Payment was not confirmed. Check payment status before trying again.',
           } );
         } );
-        razorpay.open();
+        setPendingAttempt( { id: attemptId, basket: reviewedBasket } );
+        modalOpenRef.current = true;
+        setModalOpen( true );
+        try { razorpay.open(); }
+        catch {
+          modalOpenRef.current = false;
+          setModalOpen( false );
+          goToCheckoutStatus( attemptId, reviewedBasket );
+          return { kind: 'NAVIGATED' };
+        }
         return { kind: 'OPENED' };
       }
 
       if ( status === 'CHECKOUT_AMBIGUOUS' && data.paymentAttemptId )
       {
-        goToCheckoutStatus( String( data.paymentAttemptId ) );
+        goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
         return { kind: 'NAVIGATED' };
       }
 
@@ -1132,11 +1213,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         // invite another request. Inspect the in-flight attempt on the status screen.
         if ( data.amountPaise !== expectedTotalPaise )
         {
-          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
         // Message acceptance is NOT a charge; status waits for verified capture.
-        goToCheckoutStatus( String( data.paymentAttemptId ) );
+        goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
         return { kind: 'NAVIGATED' };
       }
 
@@ -1154,7 +1235,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         if ( data.paymentAttemptId )
         {
-          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          goToCheckoutStatus( String( data.paymentAttemptId ), reviewedBasket );
           return { kind: 'NAVIGATED' };
         }
         return { kind: 'LOST' };
@@ -1222,6 +1303,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // payment after their session expires. Keep the explicit choice out of the URL.
       const channel = selectedCheckoutChannelRef.current;
       if ( channel ) stashPendingAction( { kind: 'checkout', channel } );
+      try { clearSession(); } catch { /* continue to the explicit sign-in route */ }
       window.location.assign( SIGN_IN_PATH );
       return;
     }
@@ -1230,7 +1312,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     {
       setCheckoutAccessToken( session.accessToken );
       setProfile( null );
-      setProfileMode( 'create' );
+      setProfileMode( cartRequiresDelivery() ? 'create' : 'name' );
       setProfileStatus( 'required' );
       setShowProfile( true );
       setNotice( { kind: 'quiet', message: publicActionText( 'blocked' ) } );
@@ -1461,7 +1543,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         publicActionText( 'blocked' ) } );
       return;
     }
-    if ( contributionReview ) return;
+    if ( contributionReview || modalOpenRef.current ) return;
     const chosenChannel: CheckoutChannel = channel === 'whatsapp' ? 'whatsapp' : 'website';
     void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
@@ -1583,7 +1665,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const needsDelivery = cartRequiresDelivery();
     if ( status === 'required' && ( needsDelivery || mode === 'create' || mode === 'name' ) )
     {
-      setProfileMode( mode );
+      setProfileMode( !needsDelivery && mode === 'create' ? 'name' : mode );
       setShowProfile( true );
       setNotice( { kind: 'none' } );
       return;
@@ -1599,6 +1681,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
+    if ( currentItems.some( isContributionItem ) && ( currentItems.length !== 1 || currentItems[0].quantity !== 1 ) ) {
+      setItems( currentItems );
+      setNotice( { kind: 'quiet', message: 'Review one ₹300 contribution separately from other products.' } );
+      return;
+    }
     // Reject even stale WhatsApp clicks for contribution baskets.
     if ( chosenChannel === 'whatsapp' && currentItems.some( isContributionItem ) ) {
       setItems( currentItems );
@@ -1645,6 +1732,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     setBusy( true );
     try
     {
+      // Load the provider UI before reserving a gateway attempt.
+      if ( chosenChannel === 'website' && !await loadRazorpaySdk() ) {
+        setNotice( { kind: 'error', message: 'Could not open secure payment. Check your connection or browser settings, then try again. No new payment was started.' } );
+        return;
+      }
       // MUST STAY A `let`: the rotation below reassigns it, so "tidying" this into a `const`
       // breaks that block rather than the line it is on.
       //
@@ -1720,7 +1812,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading, contributionReview ] );
+  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading, contributionReview, applyOutcome, postPrepare ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
@@ -1751,7 +1843,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    * already see.
    */
   const proceed = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    if ( proceedInFlightRef.current )
+    if ( proceedInFlightRef.current || modalOpenRef.current || railTerminalRef.current )
     {
       resetCartRef.current = false;
       return;
@@ -1790,9 +1882,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     takePendingAction();
   }, [] );
 
-  const isEmpty = ready && !contributionReview && items.length === 0;
+  const isEmpty = ready && !cartUnavailable && !contributionReview && items.length === 0;
   const hasContribution = items.some( isContributionItem );
   const contributionOnly = items.length === 1 && hasContribution;
+  const contributionNeedsReview = hasContribution && ( !contributionOnly || items[0].quantity !== 1 );
   const contributionQuoteMismatch = Boolean( contributionOnly && quote && quote.charges.totalPaise !== CONTRIBUTION_CHOICES[0]?.paise );
   const reviewedBasketFingerprint = ( (): string => {
     try { return basketFingerprint( toLineItems( items ) ); }
@@ -1800,7 +1893,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   } )();
   const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
     && quoteFor && quoteFor === reviewedBasketFingerprint
-    && !contributionReview && !contributionQuoteMismatch && !items.some( needsVariantSelection ) );
+    && !contributionReview && !contributionQuoteMismatch && !contributionNeedsReview && !showProfile && !items.some( needsVariantSelection ) );
   // Native WhatsApp checkout is currently provider-gated to one line, quantity one.
   // Do not show an enabled button for a basket the backend will refuse.
   const whatsappEligible = !hasContribution && items.length === 1 && items[ 0 ].quantity === 1
@@ -1850,13 +1943,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       >
         <div className="cart-in">
           <nav className="cart-progress" aria-label="Checkout progress">
-            <span><b aria-hidden="true">✓</b> Cart reviewed</span>
-            <span aria-current="step"><b aria-hidden="true">2</b> Checkout</span>
-            <span><b aria-hidden="true">3</b> Payment</span>
+            <span aria-current={ !ready || contributionReview || isEmpty || cartUnavailable ? 'step' : undefined }><b aria-hidden="true">1</b> Review</span>
+            <span aria-current={ ready && !contributionReview && !isEmpty && !cartUnavailable && !quoteReady ? 'step' : undefined }><b aria-hidden="true">2</b> Details</span>
+            <span aria-current={ quoteReady ? 'step' : undefined }><b aria-hidden="true">3</b> Payment</span>
           </nav>
-          <h2 className="cart-heading">Checkout breakdown</h2>
-          <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
-          {!ready && <p className="cart-body">Loading your cart…</p>}
+          <h2 className="cart-heading">{ contributionReview || contributionOnly ? 'Your contribution' : 'Review your checkout' }</h2>
+          <p className="cart-body cart-intro">Review your details and the server-confirmed total before paying securely.</p>
+          {!ready && <p className="cart-body" role="status">Loading your cart…</p>}
+          { cartUnavailable && <PublicNotice mode="inline" tone="error" message="Your browser is blocking cart storage. Allow site storage and reload to continue." /> }
           { ready && contributionReview && (
             <section className="cart-contribution-review" aria-labelledby="contribution-review-title">
               <h3 className="cart-subheading" id="contribution-review-title">Contribute { CONTRIBUTION_AMOUNT_LABEL }</h3>
@@ -1879,6 +1973,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           {isEmpty && (
             <div className="cart-empty">
               <p className="cart-body">Your cart is empty.</p>
+              <div className="cart-actions"><Link className="cart-auth-action cart-auth-primary" href="/shop/">Explore Shop</Link></div>
               { basketClaimLine }
             </div>
           )}
@@ -1889,18 +1984,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               <div className="cart-details-panel">
                 <section className="cart-customer-summary" aria-labelledby="cart-customer-heading">
                   <h2 className="cart-panel-heading" id="cart-customer-heading">Customer summary</h2>
-                  { !profile?.name && !showProfile && <p className="cart-body">Sign in to confirm your name and verified WhatsApp number before payment.</p> }
+                  { !profile?.name && !showProfile && <p className="cart-body">Confirm your name and verified phone number before payment.</p> }
+                  { quoteSignInRequired && (
+                    <div className="cart-signin">
+                      <p className="cart-price-note">Sign in with your WhatsApp verification code. Your payment stays on the website{ hasContribution ? '.' : ' when you choose Pay on Website.' }</p>
+                      <Link className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</Link>
+                    </div>
+                  ) }
               {/* A returning customer's stored identity must remain visible when the
                   shipping address is missing. Non-shipping baskets omit the Deliver row;
                   physical baskets explicitly label an unsaved address. */}
               { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
                 <CheckoutIdentityCard compact
                   identity={ { ...profile, customerId: profile.contactId } }
-                  showAddress={ cartRequiresDelivery() }
+                  showAddress={ cartRequiresDelivery( items ) }
                   emptyAddressLabel="Not saved yet"
-                  editorOpen={ showProfile }
-                  onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
-                  onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
+                  editorOpen={ showProfile || busy || modalOpen || railTerminal }
+                  onEditProfile={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'profile' ); setShowProfile( true ); } }
+                  onEditAddress={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'address' ); setShowProfile( true ); } }
                 />
               ) }
 
@@ -1912,6 +2013,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   key={ profileMode }
                   accessToken={ checkoutAccessToken }
                   mode={ profileMode }
+                  allowIdentityBootstrap={ !cartRequiresDelivery( items ) }
                   initial={ {
                     name: profile?.name || '',
                     username: profile?.username || '',
@@ -1919,6 +2021,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     designation: profile?.designation || '',
                     address: profile?.address || null,
                   } }
+                  onSessionExpired={ () => {
+                    try { clearSession(); } catch { /* sign-in remains available */ }
+                    setCheckoutAccessToken( '' );
+                    setProfile( null );
+                    setProfileStatus( 'unknown' );
+                    setQuote( null );
+                    setQuoteFor( '' );
+                    setShowProfile( false );
+                    setQuoteSignInRequired( true );
+                    setQuoteNotice( 'Your session has expired. Sign in again to continue.' );
+                  } }
+                  onCancel={ profile?.name && ( !cartRequiresDelivery( items ) || profile.addressComplete ) ? () => setShowProfile( false ) : undefined }
                   onReady={ next => {
                     // THE STATUS DECIDES THE EDITOR, NOT THE SAVE EVENT. A save that lands
                     // without a usable address must leave the address form MOUNTED: closing it
@@ -1953,7 +2067,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
                 </section>
               <section className="cart-order-summary" aria-labelledby="cart-order-heading">
-              <h2 className="cart-panel-heading" id="cart-order-heading">Order summary</h2>
+              <h2 className="cart-panel-heading" id="cart-order-heading">{ contributionOnly ? 'Contribution summary' : 'Order summary' }</h2>
+              { contributionNeedsReview && (
+                <div className="cart-status">
+                  Review a single contribution separately. You can remove other items or explicitly replace the current cart.
+                  <div className="cart-actions"><button className="cart-auth-action" type="button" onClick={ () => { setContributionReviewError( '' ); setContributionReview( true ); } }>Review contribution</button></div>
+                </div>
+              ) }
               <ul className="cart-list">
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
@@ -1983,6 +2103,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                         <Select
                           className="cart-option"
                           label="Choose option"
+                          disabled={ busy || modalOpen || railTerminal }
                           ariaLabel={ `Choose option for ${item.name}` }
                           value=""
                           onChange={ value => chooseVariant( item.ref, value ) }
@@ -1996,19 +2117,25 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
-                      { !isContributionItem( item ) && (
+                      { isContributionItem( item ) ? (
+                        <div className="cart-qty">
+                          <span>Qty { item.quantity }</span>
+                          { item.quantity !== 1 && <button className="cart-quantity-repair" type="button" disabled={ busy || modalOpen || railTerminal } onClick={ () => changeQuantity( item.ref, 1 ) }>Set to 1</button> }
+                        </div>
+                      ) : (
                         <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
                           <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
-                            disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
+                            disabled={ busy || modalOpen || railTerminal || item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
                           <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
                           <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
-                            disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
+                            disabled={ busy || modalOpen || railTerminal || item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
                         </div>
                       ) }
                       <button
                         className="cart-remove"
                         type="button"
                         onClick={ () => drop( item.ref ) }
+                        disabled={ busy || modalOpen || railTerminal }
                         aria-label={ `Remove ${item.name}` }
                         title="Remove"
                       >
@@ -2026,28 +2153,25 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               <p className="cart-assurance">Your full price is confirmed before payment. A paid receipt follows verified capture.</p>
               </div>
 
+              <div className="cart-payment-panel">
               <section className="cart-quote" aria-labelledby="cart-price-heading">
                 <div className="cart-quote-title">
                   <h2 className="cart-subheading cart-breakdown-heading" id="cart-price-heading">Price breakup</h2>
-                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
+                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading || busy || modalOpen || railTerminal || quoteSignInRequired || showProfile }
                     onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
                     Refresh prices
                   </button>
                 </div>
                 { quoteLoading && <p className="cart-body" role="status">{ publicActionText( 'processing' ) }</p> }
                 { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
-                { quoteSignInRequired && (
-                  <Link className="cart-auth-action" href="/auth?return=/checkout/">
-                    Sign in on WhatsApp
-                  </Link>
-                ) }
+                { quoteSignInRequired && <p className="cart-price-note">Complete sign-in in Customer summary to see the verified total.</p> }
+                { showProfile && !quoteSignInRequired && <p className="cart-price-note">Save your customer details to review the total.</p> }
                 { contributionQuoteMismatch && <PublicNotice mode="inline" tone="error" message={ CONTRIBUTION_NOT_PAYABLE_MESSAGE } /> }
                 { quoteReady && quote && <CheckoutReceipt quote={ quote } /> }
                 <p className="cart-price-note">The total comes from the live server quotation.
                   { hasContribution ? ' Contributions are paid on the website.' : ' Website and WhatsApp payment both use the same server-priced basket.' }
                   No payment is completed until the provider confirms capture.</p>
               </section>
-              </div>
 
               {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
                   written inline here any more. */}
@@ -2062,13 +2186,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 <PublicNotice mode="inline" tone="error" message={ notice.message } />
               )}
 
-              {/* THE MIXED-BASKET NOTICE AND ITS "Keep only the contribution" BUTTON WERE HERE.
-                  Both are gone with the rule: a product and a contribution check out together as
-                  of 2026-10-06, so there is no basket state to explain at render time and no
-                  reason to dim the CTA for one. `CONTRIBUTION_ALONE_MESSAGE` survives for the one
-                  refusal that is left -- two contribution lines, which only a crafted request can
-                  build -- and is shown by `applyOutcome` when the server answers it, which is a
-                  press away rather than at render, because nothing local can predict it. */}
+              {/* The contribution-only rule is checked before quoting and preparing. */}
 
 
 
@@ -2094,17 +2212,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary cart-pay-website"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || !quoteReady }
+                      disabled={ busy || modalOpen || !quoteReady }
                       aria-busy={ busy ? 'true' : undefined }
                     >
-                      { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
+                      { modalOpen ? 'Payment window open' : busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
                     </button>
                     { !hasContribution && (
                       <button
                         className="cart-auth-action cart-pay-whatsapp"
                         type="button"
                         onClick={ () => { void proceed( 'whatsapp' ); } }
-                        disabled={ busy || !quoteReady || !whatsappEligible }
+                        disabled={ busy || modalOpen || !quoteReady || !whatsappEligible }
                         aria-busy={ busy ? 'true' : undefined }
                       >
                         Pay on WhatsApp
@@ -2112,6 +2230,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     ) }
                   </> }
               </div>
+              { pendingAttempt && !modalOpen && !railTerminal && (
+                <div className="cart-actions"><button className="cart-auth-action" type="button" disabled={ busy } onClick={ () => goToCheckoutStatus( pendingAttempt.id, pendingAttempt.basket ) }>Check payment status</button></div>
+              ) }
               { !railTerminal && !hasContribution && !whatsappEligible && (
                 <p className="cart-price-note" role="status">
                   WhatsApp Review and Pay currently supports one item, quantity one.
@@ -2124,6 +2245,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   Pay only inside WhatsApp; receiving the message does not mean you have paid.
                 </p>
               ) }
+              </div>
+              </div>
             </>
           )}
 
@@ -2137,26 +2260,26 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
-          .cart-progress{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 24px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:13px;color:var(--public-muted)}
-          .cart-progress span{display:flex;align-items:center;gap:8px}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
-          .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel{min-width:0;display:grid;gap:20px}.cart-customer-summary,.cart-order-summary{min-width:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}.cart-panel-heading{margin:0 0 12px;padding:10px 12px;background:var(--public-lime-tint);border-radius:8px;font-size:17px;font-weight:750;color:var(--public-heading)}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
+          .cart-progress{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:0 0 20px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:var(--public-supporting-size);color:var(--public-brand-green)}
+          .cart-progress span{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}.cart-progress b{display:grid;place-items:center;flex:0 0 28px;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
+          .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel,.cart-payment-panel{min-width:0;display:grid;gap:16px;align-content:start}.cart-customer-summary,.cart-order-summary{min-width:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}.cart-panel-heading{margin:0 0 16px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);color:var(--public-heading);text-wrap:balance}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
           @media(max-width:800px){.cart-review-grid{grid-template-columns:minmax(0,1fr)}.cart-progress{font-size:12px;gap:8px}.cart-progress span{gap:5px}}
           .cart-contribution-review{min-width:0;overflow-wrap:anywhere;padding:clamp(12px,4vw,24px);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}
           .cart-contribution-review .cart-actions{display:flex;flex-wrap:wrap;gap:10px}
           .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
           .cart-intro{margin-bottom:24px}
           .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
-          .cart-qty{display:flex;align-items:center;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--public-heading)}
-          .cart-qty button{width:36px;height:40px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
+          .cart-qty{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;font-variant-numeric:tabular-nums;color:var(--public-heading)}
+          .cart-qty button{min-width:44px;min-height:44px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
           .cart-qty button:disabled{opacity:.4;cursor:default}
           .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
-          .cart-qty span{min-width:26px;text-align:center}
-          .cart-quote{min-width:0;margin:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}
-          .cart-breakdown-heading{padding:10px 12px;border-radius:8px;background:var(--public-lime-tint);color:var(--public-heading);font-size:17px;font-weight:750}
+          .cart-qty span{min-width:0;text-align:center}.cart-qty .cart-quantity-repair{width:auto;padding:6px;font-size:14px;white-space:normal}
+          .cart-quote{min-width:0;margin:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}
+          .cart-breakdown-heading{color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);text-wrap:balance}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
-          .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
+          .cart-quiet-refresh{min-height:44px;max-width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer;overflow-wrap:anywhere}.cart-quiet-refresh:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .cart-quiet-refresh:disabled{opacity:.5}
-          .cart-in{width:min(100%,1060px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
+          .cart-in{width:100%;max-width:100%;min-width:0;margin:0;padding:0;background:var(--public-bg);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
@@ -2226,7 +2349,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-row-main :global(.cart-option .ui-field-label){
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
           }
-          .cart-row-controls{display:flex;align-items:center;gap:12px}
+          .cart-row-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
           /* Icon-only remove (trash), 44px target. Was an underlined "Remove" text link; now a
              quiet icon button that darkens on hover. The SVG inherits currentColor. */
           .cart-remove{
@@ -2258,48 +2381,41 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
           .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px;text-decoration:none}
-          .cart-actions .cart-pay-website{background:#111;color:#fff}
-          .cart-pay-website:hover{background:var(--public-brand-green);color:#fff}
-          .cart-actions .cart-pay-whatsapp{border:2px solid var(--public-brand-green);background:#fff}
-          .cart-pay-whatsapp:hover{background:var(--public-lime-tint)}
+          .cart-signin{margin-top:16px}
+          .cart-payment-panel .cart-actions{margin-top:0}
+          .cart-in :global(.cart-auth-action:hover:not(:disabled)){background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:var(--public-lift-shadow)}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
-          .cart-auth-action{
-            min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
-            background:var(--public-lime-tint);color:var(--public-brand-green);
-            font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
-            text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+          .cart-in :global(.cart-auth-action){
+            min-height:var(--public-cta-height);min-width:0;max-width:100%;padding:8px clamp(12px,3vw,28px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            background:var(--public-bg);color:var(--public-brand-green);
+            font:var(--public-cta-font-weight) var(--public-responsive-cta-size)/1.35 var(--font-sans);
+            text-align:center;white-space:normal;overflow-wrap:anywhere;text-decoration:none;
             touch-action:manipulation;cursor:pointer;
             transition:background-color .18s,transform .18s,box-shadow .18s;
             display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
           }
-          .cart-auth-primary{font-weight:700}
-          .cart-auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
-          .cart-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-          .cart-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+          .cart-in :global(.cart-auth-primary){font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime)}
+          .cart-in :global(.cart-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .cart-in :global(.cart-auth-action:disabled){opacity:.6;cursor:default;transform:none;box-shadow:none}
           @media(max-width:767px){
-            .cart-in{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}
-            .cart-row{gap:12px;padding-block:12px;align-items:center}
-            .cart-row-main{flex:1 1 auto;min-width:0}
-            .cart-name,.cart-price{font-size:18px}
-            .cart-row-controls{width:auto;flex:0 0 auto;justify-content:flex-end}
-            .cart-remove{width:42px;height:42px;min-height:42px}
-            .cart-actions{display:grid;grid-template-columns:1fr;width:100%;margin-top:22px}
-            .cart-auth-action{width:100%}
+            .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-mobile)}
+            .cart-row{gap:12px;padding-block:12px;align-items:flex-start;flex-wrap:wrap}
+            .cart-row-main{flex:1 1 100%;min-width:0}
+            .cart-name,.cart-price{font-size:var(--public-supporting-size);overflow-wrap:anywhere}
+            .cart-row-controls{width:100%;justify-content:flex-start}
+            .cart-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%;margin-top:22px}
+            .cart-in :global(.cart-auth-action){width:100%}
           }
-          /* Keep step labels and basket controls readable when zoom reduces the available width. */
           @media(max-width:279px){
-            .cart-in,.cart-customer-summary,.cart-order-summary,.cart-quote{padding-inline:10px}
-            .cart-progress{display:grid;grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere}
-            .cart-progress b{flex:0 0 28px}
-            .cart-row,.cart-row-controls,.cart-qty{flex-wrap:wrap;overflow-wrap:anywhere}
+            .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-reflow)}
+            .cart-progress{display:grid;grid-template-columns:minmax(0,1fr)}
             .cart-row-main,.cart-order-summary,.cart-quote,.cart-customer-summary{overflow-wrap:anywhere}
-            .cart-row-controls,.cart-qty{min-width:0;max-width:100%;justify-content:flex-start;gap:4px}
-            .cart-actions{grid-template-columns:minmax(0,1fr)}
-            .cart-auth-action{overflow-wrap:anywhere}
+            .cart-row-controls,.cart-qty{max-width:100%;justify-content:flex-start;gap:4px}
+            .cart-qty{gap:4px}
           }
           @media(prefers-reduced-motion:reduce){
-            .cart-auth-action{transition:none}
-            .cart-auth-action:hover{transform:none;box-shadow:none}
+            .cart-in :global(.cart-auth-action){transition:none}
+            .cart-in :global(.cart-auth-action:hover){transform:none;box-shadow:none}
           }
         `}</style>
       </RotatingHero>

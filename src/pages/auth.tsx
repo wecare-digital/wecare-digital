@@ -166,6 +166,10 @@ const AuthPage: React.FC = () => {
             <img className="auth-eyebrow-icon" src={ AUTH_LOGO_URL } alt="" width={ 1080 } height={ 1080 } decoding="async" />
           </div>
 
+          <h2 className="auth-label">Secure sign-in</h2>
+          { step?.website && step.returnPath === '/checkout/' && (
+            <p className="auth-checkout-note">Verify your phone using the WhatsApp code to return to checkout. Your website payment is a separate step.</p>
+          ) }
           <form noValidate onSubmit={ onSubmit } aria-busy={ busy }>
                         { step?.phase === 'phone' && (
               <>
@@ -204,6 +208,11 @@ const AuthPage: React.FC = () => {
                             onChange={ event => setCountryQuery( event.target.value ) }
                             onKeyDown={ event => {
                               if ( event.nativeEvent.isComposing ) return;
+                              if ( event.key === 'Enter' ) {
+                                // The search is inside the sign-in form. Do not submit an OTP request.
+                                event.preventDefault();
+                                return;
+                              }
                               if ( event.key === 'Escape' ) {
                                 event.preventDefault();
                                 if ( countryQuery ) setCountryQuery( '' );
@@ -313,10 +322,11 @@ const AuthPage: React.FC = () => {
       </RotatingHero>
 
       <style jsx>{`
-        .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
+        .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:var(--public-card-radius);background:var(--public-bg);color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
         /* Match the header navigation chip: soft neutral rounded square, not a circle. */
         .auth-eyebrow{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 0 24px;border:0;border-radius:12px;background:var(--public-brand-lime);overflow:hidden;flex:0 0 auto;box-sizing:border-box}
         .auth-eyebrow-icon{width:34px;height:34px;display:block;object-fit:contain}
+        .auth-checkout-note{margin:0 0 18px;color:var(--public-brand-green);font-size:var(--public-supporting-size);line-height:1.5;overflow-wrap:anywhere}
         .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         /* Exact public-menu search treatment: no box, no side border, no fill; one bottom hairline. */
         .phone-control{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
@@ -345,12 +355,13 @@ const AuthPage: React.FC = () => {
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
         .auth-action{
           display:inline-flex;align-items:center;justify-content:center;min-height:52px;min-width:116px;max-width:100%;overflow-wrap:anywhere;white-space:normal;
-          padding:10px 18px;border:0;border-radius:12px;background:var(--public-lime-tint);
+          padding:10px 18px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-lime-tint);
           color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);
           text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
           cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
+        .auth-primary{background:var(--public-brand-lime)}
         .auth-action:hover:not(:disabled){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
         .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}

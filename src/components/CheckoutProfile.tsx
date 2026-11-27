@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import PublicNotice from './public/PublicNotice';
 import { publicActionText } from '../lib/publicActionNotices';
 
@@ -30,6 +30,8 @@ export interface CheckoutProfileValue {
 interface Props {
   accessToken: string;
   mode?: CheckoutProfileMode;
+  /** Non-shipping checkout may use the existing verified-phone bootstrap. */
+  allowIdentityBootstrap?: boolean;
   initial?: {
     name?: string;
     username?: string;
@@ -41,6 +43,8 @@ interface Props {
     address: StoredAddress | null;
   };
   onReady: ( profile: CheckoutProfileValue ) => void;
+  onSessionExpired?: () => void;
+  onCancel?: () => void;
 }
 
 /**
@@ -49,7 +53,7 @@ interface Props {
  * here. Email is deliberately not part of this checkout profile surface.
  */
 const CheckoutProfile: React.FC<Props> = ( {
-  accessToken, mode = 'create', initial, onReady,
+  accessToken, mode = 'create', allowIdentityBootstrap = false, initial, onReady, onSessionExpired, onCancel,
 } ) => {
   const [ fullName, setFullName ] = useState(
     initial?.name || [ initial?.firstName, initial?.lastName ].filter( Boolean ).join( ' ' )
@@ -62,6 +66,7 @@ const CheckoutProfile: React.FC<Props> = ( {
     () => initial?.address ? draftFromStored( initial.address ) : { ...EMPTY_ADDRESS_DRAFT }
   );
   const [ saving, setSaving ] = useState( false );
+  const saveInFlight = useRef( false );
   const [ message, setMessage ] = useState( '' );
   const [ addressField, setAddressField ] = useState( '' );
   const noticeId = useId();
@@ -74,7 +79,8 @@ const CheckoutProfile: React.FC<Props> = ( {
   const canSave = profileValid && emailValid && ( !showAddress || addressDraftValid( address ) );
 
   const saveProfile = async (): Promise<void> => {
-    if ( !canSave || saving ) return;
+    if ( !canSave || saveInFlight.current ) return;
+    saveInFlight.current = true;
     setSaving( true );
     setMessage( '' );
     setAddressField( '' );
@@ -91,19 +97,38 @@ const CheckoutProfile: React.FC<Props> = ( {
     };
 
     try {
-      const response = await fetch( PROFILE_URL, {
+      const save = ( payload: object ) => fetch( PROFILE_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           Authorization: `Bearer ${ accessToken }`,
         },
-        body: JSON.stringify( body ),
+        body: JSON.stringify( payload ),
       } );
-      const reply = await response.json().catch( () => ( {} ) );
+      let response = await save( body );
+      let reply = await response.json().catch( () => ( {} ) );
+      // The server's existing authenticated phone-only bootstrap can establish
+      // a first contact without inventing a shipping address. Retry only after
+      // a definitive missing-address refusal, never an ambiguous save.
+      if ( allowIdentityBootstrap && mode === 'name' && !showAddress
+        && response.status === 400 && reply.error === 'INVALID_ADDRESS' && reply.code === 'ADDRESS_REQUIRED' ) {
+        const bootstrap = await save( {} );
+        const result = await bootstrap.json().catch( () => ( {} ) );
+        if ( bootstrap.status === 401 ) {
+          response = bootstrap;
+          reply = result;
+        } else if ( bootstrap.ok && result.status === 'PROFILE_READY' ) {
+          response = await save( body );
+          reply = await response.json().catch( () => ( {} ) );
+        }
+      }
       if ( !response.ok || reply.status !== 'PROFILE_READY' ) {
         if ( reply.error === 'CONTACT_IDENTITY_CONFLICT' ) {
           setMessage( publicActionText( 'blocked' ) );
+        } else if ( response.status === 401 ) {
+          if ( onSessionExpired ) onSessionExpired();
+          else setMessage( 'Your sign-in has expired. Return to checkout and sign in again.' );
         } else if ( reply.error === 'INVALID_ADDRESS' ) {
           setAddressField( String( reply.field || '' ) );
           setMessage( publicActionText( 'failure' ) );
@@ -135,6 +160,7 @@ const CheckoutProfile: React.FC<Props> = ( {
     } catch {
       setMessage( publicActionText( 'failure' ) );
     } finally {
+      saveInFlight.current = false;
       setSaving( false );
     }
   };
@@ -230,8 +256,9 @@ const CheckoutProfile: React.FC<Props> = ( {
           disabled={ saving || !canSave }
           aria-busy={ saving ? 'true' : undefined }
         >
-          { saving ? 'Saving…' : mode === 'create' ? 'Save & continue' : 'Save changes' }
+          { saving ? 'Saving…' : mode === 'create' || mode === 'name' ? 'Save & continue' : 'Save changes' }
         </button>
+        { onCancel && <button className="checkout-profile-action" type="button" disabled={ saving } onClick={ onCancel }>Cancel</button> }
       </div>
 
       <style>{`
@@ -264,7 +291,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         .checkout-profile-grid input:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .checkout-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
         .checkout-profile-action{
-          min-height:48px;min-width:48px;max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:8px 14px;border:0;border-radius:10px;
+          min-height:var(--public-cta-height);min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:8px 18px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
           background:var(--public-lime-tint);color:var(--public-brand-green);
           font:600 var(--public-responsive-cta-size)/1.35 var(--font-sans);
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
@@ -279,7 +306,7 @@ const CheckoutProfile: React.FC<Props> = ( {
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
         .checkout-profile-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
-        .checkout-profile-primary{font-weight:700}
+        .checkout-profile-primary{font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime);text-decoration:none}
         @media(max-width:767px){
           .checkout-profile-grid{grid-template-columns:1fr;gap:18px}
           .checkout-profile-grid .span-2{grid-column:auto}

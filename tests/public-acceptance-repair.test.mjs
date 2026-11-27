@@ -47,7 +47,7 @@ test('payment status recovery never authorizes another attempt while unresolved'
   const cart = read('src/components/cart/CartPage.tsx');
   assert.ok(cart.includes("String( verdict.status || '' ).toUpperCase() === 'VERIFIED_PAID'"));
   assert.ok(cart.includes('options.amountPaise !== expectedTotalPaise'));
-  assert.ok(cart.includes('goToCheckoutStatus( attemptId );'));
+  assert.ok(cart.includes('goToCheckoutStatus( attemptId, reviewedBasket );'));
 });
 test('anonymous acceptance retains axe selectors and verifies pause', () => {
   const audit = read('scripts/audit_public_acceptance.mjs');
