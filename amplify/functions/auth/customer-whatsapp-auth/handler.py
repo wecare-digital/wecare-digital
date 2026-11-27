@@ -242,50 +242,67 @@ def _probe_budget_exhausted(phone_digits: str) -> bool:
 
 
 def _consume_send_budget(phone_digits: str) -> None:
-    """Count one OTP send for this number, or raise `OtpSendThrottled` when over budget.
+    """Enforce the per-number send budget using only conditional UpdateItem.
 
-    Fails CLOSED: any storage error raises `OtpSendThrottled` too, because this guards a
-    path that messages a real handset and an unreadable counter must refuse rather than
-    send. That is the deliberate opposite of `_probe_budget_exhausted`, which fails open.
-
-    A window that has rolled over resets, so a legitimate customer is not locked out for
-    the rest of the hour — the counter bounds bursts, it does not permanently cap a number.
+    The deployed role intentionally cannot PutItem in the grants table.
+    An expired window must reset atomically without replacing the grant.
+    Concurrent callers either reset once or increment the new window.
+    Storage failures continue to fail closed.
     """
+    from botocore.exceptions import ClientError
+
     now = int(time.time())
+    cutoff = now - SEND_WINDOW_SECONDS
+    key = {"grantId": f"otpsend#{phone_digits}"}
+
     try:
-        result = _probe_table().update_item(  # same DownloadGrantsTable, distinct key
-            Key={"grantId": f"otpsend#{phone_digits}"},
-            UpdateExpression=(
-                "ADD sends :one "
-                "SET windowStartedAt = if_not_exists(windowStartedAt, :now), "
-                "expiresAt = if_not_exists(expiresAt, :exp)"
-            ),
-            ExpressionAttributeValues={
-                ":one": 1, ":now": now, ":exp": now + SEND_WINDOW_SECONDS},
-            ReturnValues="ALL_NEW",
-        )
-        attrs = result.get("Attributes", {})
-        count = int(attrs.get("sends") or 0)
-        started = int(attrs.get("windowStartedAt") or now)
+        table = _probe_table()
+        for _ in range(3):
+            try:
+                result = table.update_item(
+                    Key=key,
+                    UpdateExpression="ADD sends :one",
+                    ConditionExpression="windowStartedAt > :cutoff",
+                    ExpressionAttributeValues={":one": 1, ":cutoff": cutoff},
+                    ReturnValues="ALL_NEW",
+                )
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+            else:
+                count = int(result["Attributes"]["sends"])
+                if count > SEND_MAX_PER_WINDOW:
+                    print(json.dumps({"event": "otp_send_budget_exhausted", "sends": count}))
+                    raise OtpSendThrottled("send budget exhausted")
+                return
+
+            try:
+                table.update_item(
+                    Key=key,
+                    UpdateExpression=(
+                        "SET sends = :one, windowStartedAt = :now, expiresAt = :exp"
+                    ),
+                    ConditionExpression=(
+                        "attribute_not_exists(windowStartedAt) OR windowStartedAt <= :cutoff"
+                    ),
+                    ExpressionAttributeValues={
+                        ":one": 1, ":now": now, ":exp": now + SEND_WINDOW_SECONDS,
+                        ":cutoff": cutoff,
+                    },
+                )
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+                # Another request reset the window. Count this request against it.
+                continue
+            return
+        raise RuntimeError("send budget contention")
+    except OtpSendThrottled:
+        raise
     except Exception as exc:  # noqa: BLE001
-        # Fail CLOSED — see the docstring. Refuse the send rather than risk flooding a handset.
         print(json.dumps({"event": "otp_send_budget_check_failed",
                           "error": type(exc).__name__}))
         raise OtpSendThrottled("send budget could not be verified") from exc
-
-    if now - started >= SEND_WINDOW_SECONDS:
-        # Window rolled over: reset to a fresh count of 1 rather than staying locked.
-        try:
-            _probe_table().put_item(Item={
-                "grantId": f"otpsend#{phone_digits}", "sends": 1,
-                "windowStartedAt": now, "expiresAt": now + SEND_WINDOW_SECONDS})
-        except Exception as exc:  # noqa: BLE001
-            raise OtpSendThrottled("send budget could not be rolled") from exc
-        return
-
-    if count > SEND_MAX_PER_WINDOW:
-        print(json.dumps({"event": "otp_send_budget_exhausted", "sends": count}))
-        raise OtpSendThrottled(f"{count} sends already in the current window")
 
 
 def _normalise_phone(phone: str) -> str:
