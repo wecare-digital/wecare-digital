@@ -66,9 +66,10 @@
 }
 
 /* Canonical public labelled action, matching the customer Auth page. Explicit
- * opt-ins avoid changing native inputs, menu rows, icon controls or staff UI. */
+ * opt-ins avoid changing native inputs, menu rows, icon controls or staff UI.
+ * The shared Home closing CTA and page-tail dock keep their original styles. */
 :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary) {
   display: inline-flex; align-items: center; justify-content: center;
   box-sizing: border-box; min-height: 52px; min-width: min(116px, 100%); max-width: 100%;
@@ -82,32 +83,32 @@
   transition: background-color .18s, transform .18s, box-shadow .18s, text-decoration-color .18s;
 }
 :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary):hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--public-button-hover); transform: translateY(-1px);
   box-shadow: var(--public-lift-shadow); text-decoration-color: transparent;
 }
 :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary):focus-visible { outline: 3px solid var(--public-brand-green); outline-offset: 3px; }
 :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary):is(:disabled,[aria-disabled="true"]) { opacity: .6; cursor: wait; transform: none; box-shadow: none; }
 @media (max-width: 767px) {
   :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary) { font-size: var(--public-mobile-cta-font-size); }
 }
 @media (max-width: 480px) {
   :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary) { min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary) { transition: none; }
   :is(.auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .cb-cta, .sf-file-action-button,
+    .checkout-action, .public-auth-action, .sf-file-action-button,
     .sf-back-link, .ord-quiet, .cart-quiet-refresh, .wc-policy summary):hover:not(:disabled):not([aria-disabled="true"]) { transform: none; box-shadow: none; }
 }

@@ -2291,7 +2291,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-quote{min-width:0;margin:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}
           .cart-breakdown-heading{color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);text-wrap:balance}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
-          .cart-quiet-refresh{min-height:44px;min-width:0;padding:8px 12px}
+          .cart-quiet-refresh{min-height:44px;min-width:0;padding:8px 12px;background:var(--public-bg);color:var(--public-brand-green)}
           /* Keep disabled text opaque: WebKit captured a contrast failure during quote updates. */
           .cart-quiet-refresh:disabled{color:var(--text-muted);opacity:1;cursor:default;text-decoration:none}
           .cart-in{width:100%;max-width:100%;min-width:0;margin:0;padding:0;background:var(--public-bg);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
