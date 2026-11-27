@@ -542,7 +542,7 @@ export default function OrdersPage (): React.ReactElement {
       const params = new URLSearchParams( window.location.search );
       if ( params.has( 'o' ) || params.has( 'service' ) ) {
         // Legacy links go to the history, not an individual order.
-        window.history.replaceState( window.history.state, '', preserveOrderRequest( '/orders/', window.location.hash ) );
+        window.history.replaceState( window.history.state, '', '/orders/' );
       }
       try { window.sessionStorage.removeItem( 'wecare.pendingOrderView' ); } catch { /* storage disabled */ }
       let session = getSession();
@@ -925,7 +925,10 @@ export default function OrdersPage (): React.ReactElement {
                                     </button>
                                   </>
                                 ) }
-                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ setRequestSelection } />
+                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
+                                setRequestSelection( id );
+                                window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
+                              } } />
                               </span>
                             </td>
                           </tr>
