@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
+import { publicMenuGeometry } from '../lib/publicMenuGeometry';
 import VoiceSearchMic from './VoiceSearchMic';
 import SearchClearButton from './SearchClearButton';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction, takeCustomerMenuAction } from '../lib/customerMenuActions';
@@ -302,7 +303,7 @@ const Header: React.FC = () => {
   const quickSend = useCustomerMenuQuickSend();
   const rootRef = useRef<HTMLDivElement | null>( null );
   const triggerRef = useRef<HTMLButtonElement | null>( null );
-  const hasOpened = useRef( false );
+  const menuRef = useRef<HTMLElement | null>( null );
 
   const term = query.trim().toLocaleLowerCase();
   const searching = term.length > 0;
@@ -355,7 +356,8 @@ const Header: React.FC = () => {
     setQuery( value.slice( 0, 120 ) );
   }, [ syncLocalizedSearchText ] );
 
-  const close = useCallback( () => {
+  const close = useCallback( ( restoreFocus = false ) => {
+    if ( restoreFocus ) triggerRef.current?.focus( { preventScroll: true } );
     setOpen( false );
     setQuery( '' );
     setFamilyOverrides( {} );
@@ -364,38 +366,59 @@ const Header: React.FC = () => {
     setProductsOverflowing( false );
   }, [] );
 
-  // Derive the desktop panel width from its actual viewport position instead of a hard-coded
-  // allowance for the brand lockup. This keeps the menu safe if the logo, type size, locale or
-  // header spacing changes later. Mobile uses its fixed safe-area insets and ignores this value.
-  const syncMenuAvailableWidth = useCallback( () => {
+  // Measure the visible viewport, not just window.innerWidth/innerHeight. Mobile
+  // browser chrome, WebView keyboards, pinch zoom and orientation can all change
+  // visualViewport without changing the layout viewport. No user-agent sniffing.
+  const syncMenuGeometry = useCallback( () => {
     if ( typeof window === 'undefined' ) return;
     const root = rootRef.current;
-    if ( !root ) return;
-    const box = root.getBoundingClientRect();
-    const direction = window.getComputedStyle( root ).direction;
-    const edgeGap = 24;
-    const available = direction === 'rtl'
-      ? box.right - edgeGap
-      : window.innerWidth - box.left - edgeGap;
-    root.style.setProperty( '--nav-menu-available-width', `${Math.max( 0, Math.floor( available ) )}px` );
+    const inner = root?.closest<HTMLElement>( '.hdr-in' );
+    const header = inner?.closest<HTMLElement>( '.hdr' );
+    const trigger = triggerRef.current;
+    if ( !root || !inner || !header || !trigger ) return;
+    const visual = window.visualViewport;
+    const viewport = visual
+      ? { left: visual.offsetLeft, top: visual.offsetTop, width: visual.width, height: visual.height }
+      : { left: 0, top: 0, width: document.documentElement.clientWidth, height: window.innerHeight };
+    if ( viewport.width <= 0 || viewport.height <= 0 ) return;
+    const innerStyle = window.getComputedStyle( inner );
+    const number = ( value: string ) => Number.parseFloat( value ) || 0;
+    const geometry = publicMenuGeometry( {
+      viewport, anchor: trigger.getBoundingClientRect(), headerBottom: header.getBoundingClientRect().bottom,
+      direction: innerStyle.direction,
+      safeLeft: number( innerStyle.paddingLeft ), safeRight: number( innerStyle.paddingRight ),
+      safeBottom: number( innerStyle.getPropertyValue( '--safe-bottom' ) ),
+    } );
+    root.style.setProperty( '--nav-panel-left', `${geometry.left}px` );
+    root.style.setProperty( '--nav-panel-top', `${geometry.top}px` );
+    root.style.setProperty( '--nav-panel-width', `${geometry.width}px` );
+    root.style.setProperty( '--nav-panel-max-height', `${geometry.maxHeight}px` );
+    root.style.setProperty( '--nav-columns', String( geometry.columns ) );
+    root.dataset.navTight = String( geometry.tight );
   }, [] );
 
   useEffect( () => {
     if ( !open || typeof window === 'undefined' ) return undefined;
-    syncMenuAvailableWidth();
-    window.addEventListener( 'resize', syncMenuAvailableWidth );
-
+    syncMenuGeometry();
+    const visual = window.visualViewport;
+    window.addEventListener( 'resize', syncMenuGeometry );
+    visual?.addEventListener( 'resize', syncMenuGeometry );
+    visual?.addEventListener( 'scroll', syncMenuGeometry );
     const observed = rootRef.current?.closest<HTMLElement>( '.hdr-in' ) || rootRef.current;
     const observer = typeof ResizeObserver !== 'undefined' && observed
-      ? new ResizeObserver( syncMenuAvailableWidth )
-      : null;
+      ? new ResizeObserver( syncMenuGeometry ) : null;
     if ( observer && observed ) observer.observe( observed );
-
+    const directionObserver = typeof MutationObserver !== 'undefined'
+      ? new MutationObserver( syncMenuGeometry ) : null;
+    directionObserver?.observe( document.documentElement, { attributes: true, attributeFilter: [ 'dir', 'lang' ] } );
     return () => {
-      window.removeEventListener( 'resize', syncMenuAvailableWidth );
+      window.removeEventListener( 'resize', syncMenuGeometry );
+      visual?.removeEventListener( 'resize', syncMenuGeometry );
+      visual?.removeEventListener( 'scroll', syncMenuGeometry );
       observer?.disconnect();
+      directionObserver?.disconnect();
     };
-  }, [ open, syncMenuAvailableWidth ] );
+  }, [ open, syncMenuGeometry ] );
 
   // Escape closes from anywhere, an outside pointerdown dismisses, AND the menu closes
   // when the mouse LEAVES it (hover-out), on owner request. None of these existed
@@ -403,7 +426,7 @@ const Header: React.FC = () => {
   // a link. Matches the language widget, so both menus answer to the same keys.
   useEffect( () => {
     if ( !open ) return undefined;
-    const onKeyDown = ( event: KeyboardEvent ) => { if ( event.key === 'Escape' ) close(); };
+    const onKeyDown = ( event: KeyboardEvent ) => { if ( event.key === 'Escape' ) close( true ); };
     const onPointerDown = ( event: PointerEvent ) => {
       if ( rootRef.current && !rootRef.current.contains( event.target as Node ) ) close();
     };
@@ -423,33 +446,37 @@ const Header: React.FC = () => {
     const canHover = () =>
       typeof window.matchMedia === 'function'
       && window.matchMedia( '(hover: hover) and (pointer: fine)' ).matches;
+    const hasMenuFocus = () => Boolean( menuRef.current?.contains( document.activeElement ) || triggerRef.current?.matches( ':focus-visible' ) );
     const onMouseLeave = () => {
-      if ( !canHover() ) return;
+      if ( !canHover() || hasMenuFocus() ) return;
       window.clearTimeout( hoverCloseTimer );
-      hoverCloseTimer = window.setTimeout( close, 180 );
+      hoverCloseTimer = window.setTimeout( () => { if ( !hasMenuFocus() ) close(); }, 180 );
     };
     const onMouseEnter = () => window.clearTimeout( hoverCloseTimer );
     const root = rootRef.current;
+    // Tab can leave this non-modal navigation disclosure. Do not steal focus
+    // from a deliberate outside click or from the next control in tab order.
+    const onFocusOut = ( event: FocusEvent ) => {
+      if ( event.relatedTarget instanceof Node && !root?.contains( event.relatedTarget ) ) close();
+    };
 
     document.addEventListener( 'keydown', onKeyDown );
     document.addEventListener( 'pointerdown', onPointerDown );
     root?.addEventListener( 'mouseleave', onMouseLeave );
     root?.addEventListener( 'mouseenter', onMouseEnter );
+    root?.addEventListener( 'focusout', onFocusOut );
     return () => {
       window.clearTimeout( hoverCloseTimer );
       document.removeEventListener( 'keydown', onKeyDown );
       document.removeEventListener( 'pointerdown', onPointerDown );
       root?.removeEventListener( 'mouseleave', onMouseLeave );
       root?.removeEventListener( 'mouseenter', onMouseEnter );
+      root?.removeEventListener( 'focusout', onFocusOut );
     };
   }, [ close, open ] );
 
-  // Focus returns to the trigger on close, so a keyboard user is not dropped onto
-  // <body> and made to tab from the top of the document again.
-  useEffect( () => {
-    if ( open ) { hasOpened.current = true; return; }
-    if ( hasOpened.current ) triggerRef.current?.focus();
-  }, [ open ] );
+  // Escape and the trigger explicitly restore focus; outside pointer and Tab
+  // dismissal preserve the destination's own focus. Route navigation stays native.
 
   // Exact selection uses the concrete browser URL when Next.js exposes it. Dynamic
   // /shop/[slug] pages share one router.pathname, so pathname alone can select more than
@@ -588,7 +615,7 @@ const Header: React.FC = () => {
   // Firefox and WebKit so this cannot recur silently.
 
   return (
-    <header className={ router.pathname === '/' ? 'hdr is-home' : 'hdr' }>
+    <header className={ `hdr${open ? ' is-nav-open' : ''}` }>
       <div className="hdr-in">
         <div className="logo-nav">
           {/* Plain <a>, not next/link, for the same styled-jsx reason as Footer's lockup:
@@ -613,9 +640,9 @@ const Header: React.FC = () => {
               aria-controls={ PUBLIC_NAV_ID }
               aria-keyshortcuts="Enter Space Escape"
               onClick={ () => {
-                if ( open ) close();
+                if ( open ) close( true );
                 else {
-                  syncMenuAvailableWidth();
+                  syncMenuGeometry();
                   setOpen( true );
                   setQuery( '' );
                 }
@@ -625,7 +652,7 @@ const Header: React.FC = () => {
                 <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
               </svg>
             </button>
-            <nav id={ PUBLIC_NAV_ID } className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
+            <nav ref={ menuRef } id={ PUBLIC_NAV_ID } className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
               {/* Not autofocused. The language panel autofocuses its search because
                   searching is the only way to use it, but this menu is readable at a
                   glance - popping the on-screen keyboard over the whole catalogue on a
@@ -706,7 +733,7 @@ const Header: React.FC = () => {
                               data-nav-search-key={ menuSearchKey( { label: section.heading, href: section.headingHref } ) }
                               className={ `nav-group-label nav-group-link ${headingActive ? 'active' : ''}`.trim() }
                               aria-current={ headingActive ? 'page' : undefined }
-                              onClick={ close }
+                              onClick={ () => close() }
                             >
                               { sectionIconPath ? (
                                 <svg
@@ -927,8 +954,11 @@ const Header: React.FC = () => {
            than this change. */
         /* inset-inline:0 for the symmetric left/right pair - identical in ltr, and it stops
            the bar being anchored to physical sides in a mirrored document. */
-        .hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff;
+        .hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff;padding-top:var(--safe-top,0px);
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* A popup may cover the floating support dock while open; the dock is
+           available again on dismissal. No support functionality is changed. */
+        .hdr.is-nav-open{z-index:1400}
         /* Fail closed on an uncertain WhatsApp send: persistent and dismissible,
            not a transient success toast or an automatic retry. */
         .hdr-send-error{
@@ -945,8 +975,12 @@ const Header: React.FC = () => {
           border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;
         }
         .hdr-send-error button:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:2px}
+        /* A backdrop-filter on an ancestor establishes a containing block for
+           position:fixed descendants. Put the visual layer on a pseudo-element
+           so the menu is genuinely viewport-relative, including in WebKit. */
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
-          .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+          .hdr{background:transparent;isolation:isolate}
+          .hdr::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }
         /* overflow-x:clip is ZOOM CONTAINMENT (unified-mobile Phase 1). The header is position:
            fixed, so its content is NOT clipped by html's overflow-x guard - at a 200%-zoom reflow
@@ -1080,73 +1114,12 @@ const Header: React.FC = () => {
         .nav-trigger-icon{margin:0;fill:#1a3a2a;transform:rotate(0deg);transition:transform .2s}
         .nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}
 
-        /* MEGA PANEL.
-           WIDTH IS 760px, NOT THE PAGE MEASURE. It was first built at the site's
-           1252px measure, which measured 1252x393 with its three columns only
-           158/308/148px tall - a panel more than half empty, and it looked it. Twelve
-           rows do not need the full page width. 760px is what the content asks for:
-           the widest label, "Request Amendment" at 17px/600, needs ~210px of row, so
-           three of those plus the 20px gutters and 14px padding comes to ~700px.
-           Anchored left of the trigger rather than centred, because a narrow panel
-           centred in the viewport under a left-aligned trigger reads as unrelated to
-           it. min() against calc(100vw - 256px) is what stops the absolute
-           positioning overflowing on a narrow window before the mobile rule takes
-           over.
-
-           DESKTOP WIDTH IS MEASURED FROM THE ACTUAL TRIGGER POSITION. Older versions
-           subtracted a hard-coded 256px from 100vw to approximate the brand lockup plus
-           trigger offset. That value broke whenever the lockup size changed. The component
-           now writes --nav-menu-available-width from getBoundingClientRect(), keeps a 24px
-           viewport gutter, and refreshes it while open on resize/header ResizeObserver.
-           RTL measures from the opposite edge. The browser sweep still verifies that the
-           resulting panel never leaves the viewport.
-
-           max-height CLEARS THE WHATSAPP BUTTON GEOMETRICALLY, which is the only way
-           to clear it. #wecarewa-widget is injected by an external script at
-           z-index 2147483647, the maximum 32-bit integer, so nothing can ever be
-           stacked above it - measured here, the full-height mobile panel ran straight
-           through it and the green circle painted over the Customer service rows. The
-           design contract records this for .wc-langbar; it applies to any floating
-           panel. The measured footprint (60x60, 80px from the bottom) does not match
-           the documented one (64x64, 120px), so the reserve clears the LARGER of the
-           two plus a gap. overflow-y:auto is what keeps the rows reachable once the
-           panel is capped.
-
-           z-index is declared rather than left at auto. It cannot win against the
-           widget above, but leaving it implicit meant the panel's stacking depended
-           entirely on .hdr's context, which is fragile to reorder.
-
-           Opening is driven ONLY by React state now. It used to also open on
-           :hover and :focus-within, which meant the panel could be visible while
-           aria-expanded was false - the arrow unrotated and a screen reader announcing
-           it as collapsed. A mega panel appearing on an accidental mouse-over is also
-           far more disruptive than a small dropdown was. */
-        /* MAX-HEIGHT IS ANCHORED TO THE HEADER, and dvh rather than vh.
-           It was calc(100vh - 320px). 320 corresponded to no element in this layout, and the
-           failure needs a viewport that is WIDE and SHORT - rare on a phone or a laptop, and
-           the normal shape of a folded-landscape device. Measured with the menu open:
-             844x390  ->  70px of menu holding 700px of content
-             880x360  ->  40px   (Z Flip 5, landscape)
-             882x344  ->  24px   (Z Fold 5 cover, landscape)
-             653x280  ->   0px   (Galaxy Fold folded, landscape) - the 32px box was padding
-           Twenty links in a strip of chrome. 140 = the 108px header plus 32px of air, both
-           nameable; dvh accounts for mobile browser chrome, the same unit fix index.tsx
-           already made for .home-shell. Now: 280 -> 140px, 344 -> 204px, 360 -> 220px,
-           390 -> 250px. See also the mobile override further down - BOTH carried a magic
-           subtrahend and fixing only this one left the worst case untouched. */
-        /* ANCHORED WITH A VARIABLE, for the specificity reason documented at length on
-           .wc-langbar in SupportWidget.tsx. Short version: Lightning CSS rewrites any
-           direction-conditional rule into a matched pair of :lang() rules, which adds a
-           specificity class, so a logical inset here out-specified the mobile override below
-           and pinned the panel to left:0 on phones where the media query asks for 16px.
-           --nav-menu-inset is set once, overridden by the media query, and consumed by the
-           two direction rules underneath.
-           NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
-           single backtick closes it - turning the rest of the stylesheet into JSX and failing
-           the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        /* Match the public checkout/auth card's rounded lime top accent without changing
-           the menu's existing fill, shadow, positioning or scroll behavior. */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        /* MEGA PANEL. The shared geometry function anchors a maximum 760px
+           panel to the trigger when space allows, mirrors RTL, and clamps it
+           within the visible viewport on all routes. Use physical coordinates
+           deliberately: the geometry already accounts for RTL and safe areas.
+           The popup owns vertical scrolling and never widens the document. */
+        .nav-menu{position:fixed;top:var(--nav-panel-top,100px);left:var(--nav-panel-left,16px);right:auto;z-index:1002;width:var(--nav-panel-width,min(760px,calc(100vw - 32px)));max-height:var(--nav-panel-max-height,calc(100vh - 120px));box-sizing:border-box;min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scroll-padding-block:8px;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of
@@ -1158,15 +1131,15 @@ const Header: React.FC = () => {
         .nav-search:not(:placeholder-shown){padding-inline-end:90px}
         .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .nav-search::-ms-clear{display:none}
-        .nav-search::placeholder{color:rgba(0,0,0,.42)}
+        .nav-search::placeholder{color:var(--public-muted)}
         .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
 
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
            wider than a third and push the others narrow. */
-        .nav-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 20px;align-items:start}
+        .nav-cols{display:grid;grid-template-columns:repeat(var(--nav-columns,3),minmax(0,1fr));gap:8px 20px;align-items:start}
         .nav-col{display:flex;flex-direction:column;gap:10px;min-width:0}
-        .nav-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 20px}
+        .nav-results{display:grid;grid-template-columns:repeat(var(--nav-columns,3),minmax(0,1fr));gap:2px 20px}
 
         /* 12px/500 muted, matching the language panel's group label. A heading over
            menu items must read as a category and not as a disabled item, which is why
@@ -1301,7 +1274,7 @@ const Header: React.FC = () => {
         :global([dir='rtl']) .nav-item::before{transform-origin:right center}
         /* The desktop panel hangs off its trigger, so under rtl it has to hang off the other
            edge. Paired with the --nav-menu-inset base rule above. */
-        :global([dir='rtl']) .nav-menu{left:auto;right:var(--nav-menu-inset)}
+        /* The geometry function already mirrors the anchor in RTL. */
         .nav-item:not(.active):hover::before,.nav-item:not(.active):focus-visible::before{opacity:1;transform:scaleX(1)}
         /* The last row in a group has nothing after it, so no divider. */
         .nav-group > .nav-item:last-child::after,.nav-tree-item:last-child > .nav-item:last-child::after{display:none}
@@ -1326,7 +1299,7 @@ const Header: React.FC = () => {
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
            the widest label needs ~210px of row, so three columns stop fitting inside
            the 1252px measure once the viewport is under ~820px. */
-        @media(max-width:1024px){.nav-cols,.nav-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:1024px){.nav-cols,.nav-results{grid-template-columns:repeat(var(--nav-columns,2),minmax(0,1fr))}}
         /* NOTE: .hdr-in must stay the first rule inside this media query - Header.test
            asserts the literal string "@media(max-width:767px){.hdr-in{height:96px".
            Below 768px the panel is a single scrolling column pinned to the viewport
@@ -1337,7 +1310,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:var(--public-nav-row-mobile)}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.nav-cols,.nav-results{grid-template-columns:repeat(var(--nav-columns,1),minmax(0,1fr))}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:var(--public-nav-row-mobile)}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
@@ -1363,29 +1336,35 @@ const Header: React.FC = () => {
           .nav-child{padding-inline-start:18px}
         }
 
-        /* Home's edge-to-edge WebView trial: body already contributes the top
-           safe inset to document content, but a fixed header sits outside that
-           flow. Reserve it in the header itself and adjust its popup. Keep the
-           existing desktop/phone heights and other route chrome unchanged. */
-        .hdr.is-home{padding-top:var(--safe-top,0px)}
-        .hdr.is-home .hdr-in{
+        /* Promote Home's safe-area treatment to the common header. Body already
+           reserves its safe top inset; the fixed header needs its own inset. */
+        .hdr .hdr-in{
           padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
           padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
         }
-        .hdr.is-home .nav-menu{
-          max-height:calc(100vh - 140px - var(--safe-top,0px) - var(--safe-bottom,0px));
-          max-height:calc(100dvh - 140px - var(--safe-top,0px) - var(--safe-bottom,0px));
-        }
         @media(max-width:767px){
-          .hdr.is-home .hdr-in{
+          .hdr .hdr-in{
             padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
             padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
           }
-          .hdr.is-home .hdr-in .nav-menu{top:calc(100px + var(--safe-top,0px))}
         }
         @media(max-width:340px){
-          .hdr.is-home .hdr-in{padding-left:max(10px,var(--safe-left,0px));padding-right:max(10px,var(--safe-right,0px))}
+          .hdr .hdr-in{padding-left:max(10px,var(--safe-left,0px));padding-right:max(10px,var(--safe-right,0px))}
         }
+        /* Extreme zoom/reflow: the search field takes a full row rather than
+           sharing 90px of inline padding with its two 44px controls. */
+        .nav-dropdown[data-nav-tight='true'] .nav-menu{padding:8px;border-radius:14px}
+        .nav-dropdown[data-nav-tight='true'] .nav-search-field{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px}
+        .nav-dropdown[data-nav-tight='true'] .nav-search-field .nav-search{flex:0 0 100%;min-width:0;padding-inline:2px}
+        .nav-dropdown[data-nav-tight='true'] .nav-search-field :global(.public-search-clear),
+        .nav-dropdown[data-nav-tight='true'] .nav-search-field :global(.voice-search-mic){position:static;transform:none;flex:0 0 44px}
+        .nav-dropdown[data-nav-tight='true'] .nav-item,
+        .nav-dropdown[data-nav-tight='true'] .nav-group-label{padding-inline:4px;gap:4px}
+        .nav-dropdown[data-nav-tight='true'] .nav-child{padding-inline-start:8px}
+        .nav-dropdown[data-nav-tight='true'] .nav-products-scroll{padding-inline-end:2px}
+        .nav-dropdown[data-nav-tight='true'] .nav-empty{padding-inline:4px}
+        .nav-suggestions button{max-width:100%;overflow-wrap:anywhere}
+        .nav-item:focus-visible,.nav-group-link:focus-visible,.nav-section-toggle:focus-visible{scroll-margin-block:8px}
 
         @media(prefers-reduced-motion:reduce){
           .nav-menu{transition:none}

@@ -15,11 +15,12 @@ test('Home retains its design tokens and allows narrow content to reflow', () =>
   assert.ok(home.includes('padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px))'));
   assert.ok(home.includes('padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px))'));
 });
-test('Home fixed header safe areas do not alter other routes', () => {
+test('Home fixed header safe areas are now shared with all public routes', () => {
   const header = read('src/components/Header.tsx');
-  assert.ok(header.includes("router.pathname === '/' ? 'hdr is-home' : 'hdr'"));
-  assert.ok(header.includes('.hdr.is-home{padding-top:var(--safe-top,0px)}'));
-  assert.ok(header.includes('.hdr.is-home .hdr-in .nav-menu{top:calc(100px + var(--safe-top,0px))}'));
+  assert.ok(header.includes('background:#fff;padding-top:var(--safe-top,0px)'));
+  assert.ok(header.includes('padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px))'));
+  assert.ok(header.includes('padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px))'));
+  assert.ok(header.includes('visual?.addEventListener( \'resize\', syncMenuGeometry )'));
 });
 test('the page-specific browser runner selects an explicit route and browser engines', () => {
   const qa = read('scripts/verify_public_browser.mjs');
