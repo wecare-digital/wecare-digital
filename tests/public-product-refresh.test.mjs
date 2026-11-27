@@ -306,6 +306,6 @@ test('menu disclosure arrows use the selected outlined double chevron and preser
   assert.ok(header.includes('.nav-row-chevron{margin-inline-start:auto;fill:var(--public-nav-arrow);stroke:none}'));
   assert.ok(header.includes('SUBNAV_DOT_PATH'));
   assert.ok(orders.includes('const CHEVRON_PATH = ROW_CHEVRON_PATH'));
-  assert.ok(orders.includes('flex:none;fill:currentColor;\n          stroke:none;opacity:.65;'));
+  assert.ok(orders.includes('flex:none;fill:var(--public-nav-arrow);\n          stroke:none;'));
   assert.ok(Math.abs(560 * 24 / 610.9 - 22) < 0.03);
 });
