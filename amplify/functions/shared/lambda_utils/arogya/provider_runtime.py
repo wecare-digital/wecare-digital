@@ -177,12 +177,14 @@ def _secret(arn):
     return config
 
 
-def _provider_config():
-    config = _secret(os.environ['APOLLO_CREDENTIAL_SECRET_ARN'])
+def _provider_config(table, kms):
+    config = EncryptedSessionStore(table, kms, key_arn=os.environ['APOLLO_TOKEN_KEY_ARN'],
+        record_key='arogya:provider:credentials').read()
     sender = config.get('approvedSender', '')
     header = config.get('applicationHeader')
     password = config.get('password')
     if (config.get('providerAutomationApproved') is not True
+            or config.get('grantOwner') != os.environ.get('APOLLO_GMAIL_GRANT_OWNER')
             or config.get('username') != MAILBOX
             or not isinstance(sender, str) or not re.fullmatch(r'[^\s@]+@(?:[a-z0-9-]+\.)*apollohospitals\.com', sender)
             or not isinstance(header, str) or not header or len(header) > 2048
@@ -210,7 +212,7 @@ def _provider_session(now):
     # The administrator's verified binding must exist on every catalogue read.
     # Verify metadata before reading credentials or contacting Apollo.
     grant.verified_row()
-    config = _provider_config()
+    config = _provider_config(table, kms)
     client = ApolloClient(config['applicationHeader'])
     gmail = None
 
