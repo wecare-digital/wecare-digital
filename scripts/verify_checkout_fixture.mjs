@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
@@ -17,6 +18,20 @@ const engine = process.env.PUBLIC_QA_ENGINE || 'chromium';
 assert.ok(['chromium','firefox','webkit'].includes(engine));
 const out = process.env.PUBLIC_QA_OUTPUT || '/tmp/wecare-checkout-fixture';
 await mkdir(out,{recursive:true});
+// Refuse mixed deployment evidence, just as the public-page audit does.
+// The fingerprint is an observed asset identity, not proof of a Git SHA.
+async function deploymentFingerprint() {
+  const res = await fetch(origin, {redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000)});
+  if (!res.ok) throw new Error('Home fingerprint HTTP ' + res.status);
+  const html = await res.text();
+  const data = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  const buildId = data ? JSON.parse(data[1]).buildId : null;
+  const assets = [...new Set([...html.matchAll(/(?:src|href)="([^"\s]*\/_next\/static\/[^"\s]+)"/g)].map(m => m[1]))].sort();
+  if (!buildId || !assets.length) throw new Error('No Next build ID/assets in Home');
+  return {buildId, hash: createHash('sha256').update(JSON.stringify(assets)).digest('hex')};
+}
+const startFingerprint = await deploymentFingerprint();
+let endFingerprint = null;
 const browser = await playwright[engine].launch({headless:true});
 const failures=[], evidence=[];
 const profile = {status:'PROFILE_READY', contactId:'qa-contact', name:'Synthetic Customer', firstName:'Synthetic', lastName:'Customer', profileComplete:true, addressComplete:false, address:null, phone:'', email:''};
@@ -173,7 +188,11 @@ try {
   }
 } finally {
   await browser.close();
-  await writeFile(join(out,'checkout-fixture.json'),JSON.stringify({engine,revision:process.env.PUBLIC_QA_REVISION,syntheticOnly:true,failures,evidence},null,2));
+  try {
+    endFingerprint = await deploymentFingerprint();
+    if (JSON.stringify(startFingerprint) !== JSON.stringify(endFingerprint)) failures.push('Deployment changed during checkout fixture; do not accept mixed revisions');
+  } catch (error) { failures.push('Final deployment fingerprint unavailable: ' + error.message); }
+  await writeFile(join(out,'checkout-fixture.json'),JSON.stringify({engine,revision:process.env.PUBLIC_QA_REVISION,startFingerprint,endFingerprint,syntheticOnly:true,failures,evidence},null,2));
 }
 console.log('Checkout fixture summary: '+JSON.stringify({engine,failures,scenes:evidence.length,syntheticOnly:true}));
 assert.equal(failures.length,0,failures.join('\n'));
