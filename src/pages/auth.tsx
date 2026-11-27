@@ -167,9 +167,6 @@ const AuthPage: React.FC = () => {
           </div>
 
           <h2 className="auth-label">Secure sign-in</h2>
-          { step?.website && step.returnPath === '/checkout/' && (
-            <p className="auth-checkout-note">Verify your phone using the WhatsApp code to return to checkout. Your website payment is a separate step.</p>
-          ) }
           <form noValidate onSubmit={ onSubmit } aria-busy={ busy }>
                         { step?.phase === 'phone' && (
               <>
@@ -276,7 +273,7 @@ const AuthPage: React.FC = () => {
 
             { step && step.phase !== 'phone' && (
               <>
-                <label className="auth-label" htmlFor="auth-code">Verification code</label>
+                <label className="sr-only" htmlFor="auth-code">WhatsApp code</label>
                 <input
                   id="auth-code"
                   className="code-control"
@@ -284,7 +281,6 @@ const AuthPage: React.FC = () => {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   enterKeyHint="done"
-                  placeholder="6-digit code"
                   maxLength={ 6 }
                   value={ code }
                   onChange={ event => {
@@ -322,23 +318,23 @@ const AuthPage: React.FC = () => {
       </RotatingHero>
 
       <style jsx>{`
-        .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:var(--public-card-radius);background:var(--public-bg);color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
+        .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
         /* Match the header navigation chip: soft neutral rounded square, not a circle. */
         .auth-eyebrow{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 0 24px;border:0;border-radius:12px;background:var(--public-brand-lime);overflow:hidden;flex:0 0 auto;box-sizing:border-box}
         .auth-eyebrow-icon{width:34px;height:34px;display:block;object-fit:contain}
-        .auth-checkout-note{margin:0 0 18px;color:var(--public-brand-green);font-size:var(--public-supporting-size);line-height:1.5;overflow-wrap:anywhere}
         .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         /* Exact public-menu search treatment: no box, no side border, no fill; one bottom hairline. */
         .phone-control{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
-        .phone-control:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .phone-control:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
         .country-picker{position:relative;display:flex;flex:0 0 auto;min-width:0}
         .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:0;display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);white-space:nowrap;touch-action:manipulation;cursor:pointer}
         .country-trigger:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px;z-index:2}
         .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);text-overflow:ellipsis;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
         .phone-control>input::placeholder,.code-control::placeholder{color:var(--public-muted)}
-        .phone-control>input:focus-visible,.code-control:focus-visible,.country-search input:focus-visible,.country-row:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
+        .phone-control>input:focus-visible,.code-control:focus-visible{outline:0}
+        .country-search input:focus-visible,.country-row:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .code-control{border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;box-shadow:none;transition:border-color .2s,box-shadow .2s}
-        .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 0 var(--public-brand-green)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
         .country-search{display:flex;align-items:center;gap:4px;min-width:0;padding:0 14px;border-bottom:0}
         .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
@@ -355,13 +351,12 @@ const AuthPage: React.FC = () => {
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
         .auth-action{
           display:inline-flex;align-items:center;justify-content:center;min-height:52px;min-width:116px;max-width:100%;overflow-wrap:anywhere;white-space:normal;
-          padding:10px 18px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-lime-tint);
+          padding:10px 18px;border:0;border-radius:12px;background:var(--public-lime-tint);
           color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);
           text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
           cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .auth-primary{background:var(--public-brand-lime)}
         .auth-action:hover:not(:disabled){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
         .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
@@ -370,7 +365,7 @@ const AuthPage: React.FC = () => {
           .auth-card{width:min(100%,540px)}
         }
         @media(max-width:767px){
-          .auth-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+          .auth-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom))}
           .auth-eyebrow{width:46px;height:46px;margin-bottom:22px;border-radius:11px}
           .auth-eyebrow-icon{width:32px;height:32px}
           .auth-label{font-size:var(--public-mobile-card-size)}
