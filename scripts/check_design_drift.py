@@ -283,7 +283,7 @@ def scan_retired_red_paint():
         code = strip_comments(path.read_text(encoding="utf-8", errors="ignore"), path.suffix)
         for match in pattern.finditer(code):
             violations.append({"rule": "retired_red_paint", "file": path.relative_to(ROOT).as_posix(),
-                               "line": code[:match.start()].count("\\n") + 1,
+                               "line": code[:match.start()].count("\n") + 1,
                                "match": match.group(0), "why": "Use the shared non-red interface palette."})
     return violations
 
