@@ -225,17 +225,17 @@ export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children })
             }}
           >
             {/* Accent bar */}
-            <div style={{ height: '6px', background: dialog.danger ? '#dc2626' : '#d1f470' }} />
+            <div style={{ height: '6px', background: dialog.danger ? '#374151' : '#d1f470' }} />
 
             <div style={{ padding: '20px 20px 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <div style={{
                   width: '32px', height: '32px', borderRadius: '50%',
-                  background: dialog.danger ? '#fef2f2' : '#f9fafb',
+                  background: dialog.danger ? '#f5f5f5' : '#f9fafb',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   {dialog.danger ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
                   ) : (
@@ -324,7 +324,7 @@ export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children })
                       borderRadius: '13px', fontSize: '13px', outline: 'none',
                       boxSizing: 'border-box',
                     }}
-                    onFocus={e => { e.target.style.borderColor = dialog.danger ? '#dc2626' : '#1a3a2a'; e.target.style.boxShadow = '0 0 0 3px rgba(209,244,112,0.3)'; }}
+                    onFocus={e => { e.target.style.borderColor = dialog.danger ? '#374151' : '#1a3a2a'; e.target.style.boxShadow = '0 0 0 3px rgba(209,244,112,0.3)'; }}
                     onBlur={e => { e.target.style.borderColor = '#d1f470'; e.target.style.boxShadow = 'none'; }}
                   />
                 </div>
@@ -351,7 +351,7 @@ export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children })
                 disabled={!canConfirm}
                 style={{
                   padding: '7px 16px', border: 'none', borderRadius: '13px',
-                  background: !canConfirm ? '#d1d5db' : (dialog.danger ? '#dc2626' : '#d1f470'),
+                  background: !canConfirm ? '#d1d5db' : (dialog.danger ? '#374151' : '#d1f470'),
                   color: dialog.danger ? '#fff' : '#1a3a2a', fontSize: '13px', fontWeight: 500,
                   cursor: canConfirm ? 'pointer' : 'not-allowed',
                   opacity: canConfirm ? 1 : 0.6,

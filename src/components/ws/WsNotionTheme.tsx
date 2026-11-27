@@ -407,11 +407,11 @@ const WsNotionTheme: React.FC = () => (
     background:var(--ws-login-field);
   }
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select)[aria-invalid='true'] {
-    outline:2px solid #b91c1c!important;
+    outline:2px solid #1f2937!important;
     outline-offset:2px!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-field__error-message {
-    color:#b91c1c;
+    color:#1f2937;
     font-size:13px;
   }
 

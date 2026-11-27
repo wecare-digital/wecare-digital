@@ -251,7 +251,7 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
                     {a.details.map(d => (
                       <div key={d.field} style={{ marginBottom: 2 }}>
                         <span style={{ color: 'var(--text-muted)' }}>{d.field}:</span>{' '}
-                        <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{d.old}</span>{' → '}
+                        <span style={{ color: '#374151', textDecoration: 'line-through' }}>{d.old}</span>{' → '}
                         <span style={{ color: '#059669', fontWeight: 500 }}>{d.new}</span>
                       </div>
                     ))}
@@ -1505,7 +1505,7 @@ const Customers: React.FC<PageProps> = () => {
                   reads as a dead end. Say what happened, say nothing was lost, and
                   give the one action that is actually in reach.
                 */}
-                <p style={{ fontSize: 'var(--text-md)', color: '#dc2626', marginBottom: 4 }}>Couldn’t load contacts</p>
+                <p style={{ fontSize: 'var(--text-md)', color: '#374151', marginBottom: 4 }}>Couldn’t load contacts</p>
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 12 }}>The server returned an error, so nothing is shown here. No contact was changed or deleted. Try again — if it keeps happening, note the time and report it.</p>
                 <button onClick={() => loadContacts()} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Retry</button>
               </div>

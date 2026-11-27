@@ -64,9 +64,10 @@
   --success-light: #f9fafb;
   --success-bg: #f9fafb;
 
-  --danger: #dc2626;
-  --danger-light: #fef2f2;
-  --danger-bg: #fef2f2;
+  /* No-red UI standard: distinct charcoal failure, forest-green success. */
+  --danger: #374151;
+  --danger-light: #f5f5f5;
+  --danger-bg: var(--danger-light);
 
   /* Was #1a3a2a — identical to --success — so a warning was indistinguishable
      from a success at all 3 call sites. These are the amber values already in
@@ -132,8 +133,8 @@
   --public-accent-purple-tint: #ede9fe;
   --public-accent-green: #3da35a;
   --public-accent-green-tint: #e0f7c8;
-  --public-accent-red: #dc2626;
-  --public-accent-red-tint: #fee2e2;
+  --public-accent-red: var(--danger); /* Legacy token name; charcoal paint. */
+  --public-accent-red-tint: var(--danger-light);
 
   /* PUBLIC FLUID SCALE. These remain the desktop/tablet/default public roles.
    * The explicit mobile deltas below are opt-in page-by-page; adding them must not silently
@@ -325,8 +326,8 @@
   --notion-accent-light: #f9fafb;
   --notion-green: #1a3a2a;
   --notion-green-light: #f9fafb;
-  --notion-red: #dc2626;
-  --notion-red-light: #fef2f2;
+  --notion-red: var(--danger); /* Legacy token name; charcoal paint. */
+  --notion-red-light: var(--danger-light);
   --notion-orange: #1a3a2a;
   --notion-orange-light: #f9fafb;
   --notion-purple: #1a3a2a;
@@ -341,7 +342,7 @@
   --color-bg-secondary: #f9fafb;
   --color-success: #1a3a2a;
   --color-warning: #1a3a2a;
-  --color-danger: #dc2626;
+  --color-danger: #374151;
 
   /* ========================================
    * FOCUS RING (accessibility)
@@ -371,9 +372,9 @@
   --status-queued-fg: #6b7280;
   --status-queued-bg: #f9fafb;
   --status-queued: #9ca3af;
-  --status-failed-fg: #b91c1c;
-  --status-failed-bg: #fef2f2;
-  --status-failed: #ef4444;
+  --status-failed-fg: #1f2937;
+  --status-failed-bg: #f5f5f5;
+  --status-failed: #52635a;
 
   /* ========================================
    * MOTION EASING

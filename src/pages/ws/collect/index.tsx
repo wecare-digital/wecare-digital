@@ -145,7 +145,7 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
           .wsc-preview-title{ margin:0 0 2px; font-size:15px; font-weight:700; letter-spacing:-0.2px; color:var(--text,#1a1a1a); }
           .wsc-preview-label{ margin:0; font-size:12px; line-height:1.6; color:var(--text-muted,#6b7280); overflow-wrap:anywhere; }
           .wsc-preview-img{ display:block; max-width:100%; height:auto; border:1px solid var(--border-light,#f0f0f0); border-radius:var(--radius-md,8px); }
-          .wsc-preview-err{ margin:0; font-size:12px; line-height:1.6; color:var(--danger,#dc2626); }
+          .wsc-preview-err{ margin:0; font-size:12px; line-height:1.6; color:var(--danger,#374151); }
           .wsc-preview-note{ margin:0; font-size:11px; line-height:1.6; color:var(--text-muted,#6b7280); }
           .wsc-preview-empty{ margin:0; font-size:12px; line-height:1.6; color:var(--text-muted,#6b7280); }
 

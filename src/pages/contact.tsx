@@ -40,7 +40,7 @@ const CYCLE_WORDS: CycleWord[] = [
   { word: 'amend a request', tint: '#fef3c7', dot: '#f0a818' },
   { word: 'track a request', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'drop documents', tint: '#ede9fe', dot: '#9849e8' },
-  { word: 'leave a review', tint: '#fee2e2', dot: '#dc2626' },
+  { word: 'leave a review', tint: '#e5e7eb', dot: '#374151' },
 ];
 
 const ContactPage: React.FC = () => (

@@ -16,9 +16,9 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     pending: { fg: '#b45309', bg: '#fffbeb' },
     dispatching: { fg: '#b45309', bg: '#fffbeb' },
-    dispatch_unknown: { fg: '#b91c1c', bg: '#fef2f2' },
+    dispatch_unknown: { fg: '#1f2937', bg: '#f5f5f5' },
     sent: { fg: '#1d4ed8', bg: '#eff6ff' },
-    failed: { fg: '#b91c1c', bg: '#fef2f2' },
+    failed: { fg: '#1f2937', bg: '#f5f5f5' },
     cancelled: { fg: 'var(--text-muted)', bg: 'var(--bg-secondary)' },
 };
 

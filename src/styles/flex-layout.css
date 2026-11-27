@@ -50,9 +50,9 @@
 .layout .main-content .table-action-btn.danger:hover,
 .layout .main-content .link-act-btn.danger:hover,
 .layout .main-content .row-action-btn.danger:hover {
-  border-color: #fca5a5;
-  color: #dc2626;
-  background: #fef2f2;
+  border-color: #9ca3af;
+  color: #374151;
+  background: #f5f5f5;
 }
 
 /* ========================================
@@ -161,8 +161,8 @@
 
 .layout .main-content .st-badge.failed,
 .layout .main-content .st-badge.undelivered {
-  background: #fef2f2;
-  color: #dc2626;
+  background: #f5f5f5;
+  color: #374151;
 }
 
 .layout .main-content .st-badge.initiated,
@@ -204,7 +204,7 @@
 }
 
 .layout .main-content .failed-cell {
-  color: #dc2626;
+  color: #374151;
   font-weight: 600;
 }
 

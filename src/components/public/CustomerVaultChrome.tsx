@@ -24,7 +24,7 @@ export default function CustomerVaultChrome ( { children }: { children: React.Re
       <Header />
       { children }
       <PublicPolicyDetails />
-      <div className="vault-public-action-tail">
+      <div className="vault-public-action-tail" data-public-auth-button-theme="active">
         <PublicShare
           url={ SAFE_VAULT_SHARE_URL }
           title="WECARE.DIGITAL Orders"

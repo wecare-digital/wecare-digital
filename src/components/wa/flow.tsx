@@ -42,10 +42,10 @@ export const FlowJsonEditor: React.FC<{ value: string; onChange: ( v: string ) =
                 value={ value }
                 onChange={ e => handle( e.target.value ) }
                 spellCheck={ false }
-                style={ { width: '100%', minHeight: 240, fontFamily: 'monospace', fontSize: 12, padding: 10, borderRadius: 8, border: '1px solid ' + ( error ? '#f3c2c2' : '#d0d0d0' ) } }
+                style={ { width: '100%', minHeight: 240, fontFamily: 'monospace', fontSize: 12, padding: 10, borderRadius: 8, border: '1px solid ' + ( error ? '#d1d5db' : '#d0d0d0' ) } }
                 placeholder='{"version":"7.0","screens":[...]}'
             />
-            <div style={ { fontSize: 12, color: error ? '#a11' : '#1a7a3a', marginTop: 4 } }>
+            <div style={ { fontSize: 12, color: error ? '#374151' : '#1a7a3a', marginTop: 4 } }>
                 { error ? `Invalid JSON: ${error}` : '✓ Valid JSON' }
             </div>
         </div>
@@ -78,7 +78,7 @@ export const FlowSubmissionTimeline: React.FC<{ logs?: FlowLogEntry[] }> = ( { l
         <div style={ { borderLeft: '2px solid #e5e5e5', paddingLeft: 12 } }>
             { logs.map( ( l, i ) => (
                 <div key={ i } style={ { marginBottom: 10, position: 'relative' } }>
-                    <div style={ { position: 'absolute', left: -17, top: 4, width: 8, height: 8, borderRadius: 4, background: l.isError ? '#a11' : '#1a7a3a' } } />
+                    <div style={ { position: 'absolute', left: -17, top: 4, width: 8, height: 8, borderRadius: 4, background: l.isError ? '#374151' : '#1a7a3a' } } />
                     <div style={ { fontSize: 13, fontWeight: 600 } }>{ l.action }{ l.screen ? ` · ${l.screen}` : '' }</div>
                     <div style={ { fontSize: 11, color: '#888' } }>
                         { l.createdAt ? new Date( l.createdAt * 1000 ).toLocaleString() : '' } { l.phone ? <>· <MaskedPhone value={ l.phone } /></> : null }

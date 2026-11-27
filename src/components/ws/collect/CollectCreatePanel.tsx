@@ -311,7 +311,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
         .cc-remove{
           min-height:var(--tap-min,44px); min-width:var(--tap-min,44px);
           border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-md,8px);
-          background:var(--surface,#fff); color:var(--danger,#dc2626); font-size:20px; line-height:1; cursor:pointer;
+          background:var(--surface,#fff); color:var(--danger,#374151); font-size:20px; line-height:1; cursor:pointer;
         }
         .cc-remove:disabled{ opacity:.4; cursor:default; color:var(--text-muted,#6b7280); }
         .cc-add{ justify-self:start; margin-top:14px; }
@@ -320,7 +320,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
         }
         .cc-express .cc-field{ max-width:220px; }
         .cc-help{ font-size:12px; line-height:1.6; color:var(--text-muted,#6b7280); margin:0; }
-        .cc-alert{ font-size:12px; line-height:1.6; color:var(--danger,#dc2626); margin:10px 0 0; }
+        .cc-alert{ font-size:12px; line-height:1.6; color:var(--danger,#374151); margin:10px 0 0; }
         .cc-breakdown{ margin:14px 0; display:grid; gap:0; }
         .cc-breakdown > div{
           display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:8px 0;

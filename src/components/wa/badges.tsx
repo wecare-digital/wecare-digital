@@ -20,7 +20,7 @@ export const StatusBadge: React.FC<{ status?: string }> = ( { status } ) => {
     const map: Record<string, [ string, string ]> = {
         APPROVED: [ '#e6f4ea', '#1a7a3a' ], PUBLISHED: [ '#e6f4ea', '#1a7a3a' ], ACTIVE: [ '#e6f4ea', '#1a7a3a' ],
         PENDING: [ '#fff4e0', '#9a6300' ], IN_REVIEW: [ '#fff4e0', '#9a6300' ], DRAFT: [ '#eef0f2', '#555' ],
-        REJECTED: [ '#fde8e8', '#a11' ], DISABLED: [ '#fde8e8', '#a11' ], BLOCKED: [ '#fde8e8', '#a11' ],
+        REJECTED: [ '#f5f5f5', '#374151' ], DISABLED: [ '#f5f5f5', '#374151' ], BLOCKED: [ '#f5f5f5', '#374151' ],
         DEPRECATED: [ '#f0e6f4', '#6b3a8a' ], PAUSED: [ '#fff4e0', '#9a6300' ],
     };
     const [ bg, fg ] = map[ s ] || [ '#eef0f2', '#555' ];
@@ -33,7 +33,7 @@ export const QualityBadge: React.FC<{ score?: string }> = ( { score } ) => {
     const map: Record<string, [ string, string ]> = {
         GREEN: [ '#e6f4ea', '#1a7a3a' ], HIGH: [ '#e6f4ea', '#1a7a3a' ],
         YELLOW: [ '#fff4e0', '#9a6300' ], MEDIUM: [ '#fff4e0', '#9a6300' ],
-        RED: [ '#fde8e8', '#a11' ], LOW: [ '#fde8e8', '#a11' ],
+        RED: [ '#f5f5f5', '#374151' ], LOW: [ '#f5f5f5', '#374151' ],
     };
     const [ bg, fg ] = map[ s ] || [ '#eef0f2', '#555' ];
     return pill( bg, fg, `Quality: ${s}` );
@@ -43,7 +43,7 @@ export const QualityBadge: React.FC<{ score?: string }> = ( { score } ) => {
 export const HealthStatusBadge: React.FC<{ health?: string }> = ( { health } ) => {
     const s = ( health || 'UNKNOWN' ).toUpperCase();
     const map: Record<string, [ string, string ]> = {
-        AVAILABLE: [ '#e6f4ea', '#1a7a3a' ], LIMITED: [ '#fff4e0', '#9a6300' ], BLOCKED: [ '#fde8e8', '#a11' ],
+        AVAILABLE: [ '#e6f4ea', '#1a7a3a' ], LIMITED: [ '#fff4e0', '#9a6300' ], BLOCKED: [ '#f5f5f5', '#374151' ],
     };
     const [ bg, fg ] = map[ s ] || [ '#eef0f2', '#555' ];
     return pill( bg, fg, `Health: ${s}` );
@@ -54,7 +54,7 @@ export const RiskBadge: React.FC<{ level?: string }> = ( { level } ) => {
     const s = ( level || 'low' ).toLowerCase();
     const map: Record<string, [ string, string ]> = {
         low: [ '#e6f4ea', '#1a7a3a' ], medium: [ '#fff4e0', '#9a6300' ],
-        high: [ '#fde8e8', '#a11' ], critical: [ '#a11', '#fff' ],
+        high: [ '#f5f5f5', '#374151' ], critical: [ '#374151', '#fff' ],
     };
     const [ bg, fg ] = map[ s ] || [ '#eef0f2', '#555' ];
     return pill( bg, fg, `${s.toUpperCase()} risk` );

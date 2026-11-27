@@ -206,7 +206,7 @@ export default function VaultLogs () {
         .vl-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
         .ok,.bad,.legacy,.current{display:inline-flex;padding:4px 8px;border-radius:999px;font-weight:800;font-size:11px}
         .ok,.current{background:#dcfce7;color:#166534}
-        .bad,.legacy{background:#fee2e2;color:#991b1b}
+        .bad,.legacy{background:#e5e7eb;color:#374151}
         @media(max-width:800px){
           .vl-head{align-items:stretch;flex-direction:column}
           .vl-filter{min-width:0}

@@ -184,7 +184,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                   <div style={ { display: 'flex', gap: 6 } }>
                     <button onClick={ () => viewDetail( g ) } style={ pill( sel?.id === g.id ) }>Details</button>
                     <button onClick={ async () => { if ( await confirmDanger( 'delete', `Delete group "${g.subject || g.id}"? This cannot be undone.` ) ) { const ok = await api.deleteGroup( g.id ); if ( ok ) { toast.success( 'Deleted' ); setSel( null ); load( waba ); } } } }
-                      style={ { ...pill( false ), background: '#fee2e2', color: '#991b1b', border: 'none' } }>Delete</button>
+                      style={ { ...pill( false ), background: '#e5e7eb', color: '#374151', border: 'none' } }>Delete</button>
                   </div>
                 </div>
                 <div style={ { fontSize: 'var(--text-xs)', color: '#999', marginTop: 4 } }>{ g.id }</div>
@@ -211,7 +211,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                 <div><span style={ { color: '#666' } }>Messaging:</span> { detail.messaging_permission === 'admins' ? '🔒 Admin-only' : '💬 Everyone can post' }</div>
                 <div><span style={ { color: '#666' } }>Member visibility:</span> { detail.member_visibility === 'admins' ? '🔒 Hidden (admins only)' : '👥 Visible to all' }</div>
                 <div><span style={ { color: '#666' } }>Participants:</span> <strong>{ pCount }/{ MAX_P }</strong> <span style={ { color: '#16a34a' } }>({ remaining } slots)</span></div>
-                { detail.suspended && <div style={ { color: '#dc2626' } }>⚠ Suspended</div> }
+                { detail.suspended && <div style={ { color: '#374151' } }>⚠ Suspended</div> }
               </div>
             ) }
 
@@ -258,7 +258,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                   <code style={ { fontSize: 'var(--text-xs)', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, wordBreak: 'break-all' } }>{ inviteLink }</code>
                   <button type="button" onClick={ () => { void copy( inviteLink ); } } style={ pill( false ) }>Copy</button>
                   <button onClick={ async () => { if ( await confirm( 'Reset link?' ) ) { const l = await api.resetGroupInviteLink( sel.id ); if ( l ) { setInviteLink( l ); toast.success( 'Reset' ); } } } }
-                    style={ { ...pill( false ), color: '#991b1b', borderColor: '#fca5a5' } }>Reset</button>
+                    style={ { ...pill( false ), color: '#374151', borderColor: '#9ca3af' } }>Reset</button>
                 </div>
               ) : (
                 <button onClick={ async () => { const l = await api.getGroupInviteLink( sel.id ); if ( l ) { setInviteLink( l ); toast.success( 'Fetched' ); } } } style={ btn() }>Get Invite Link</button>
@@ -289,7 +289,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                       <span style={ { fontSize: 'var(--text-sm)' } }><MaskedWaId value={ r.wa_id } allowReveal /></span>
                       <div style={ { display: 'flex', gap: 4 } }>
                         <button onClick={ async () => { await api.approveGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Approved' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); viewDetail( sel ); } } style={ btn() }>Approve</button>
-                        <button onClick={ async () => { await api.rejectGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Rejected' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); } } style={ { ...btn( '#fee2e2', '#991b1b' ) } }>Reject</button>
+                        <button onClick={ async () => { await api.rejectGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Rejected' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); } } style={ { ...btn( '#e5e7eb', '#374151' ) } }>Reject</button>
                       </div>
                     </div>
                   ) ) }

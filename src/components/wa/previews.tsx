@@ -79,7 +79,7 @@ export const FlowPreviewCard: React.FC<{ flow?: { id?: string; name?: string; st
             { flow.previewUrl ? (
                 <div>
                     <a href={ flow.previewUrl } target="_blank" rel="noreferrer" style={ { color: '#1a73e8', fontSize: 13 } }>Open preview ↗</a>
-                    <span style={ { fontSize: 12, color: expired ? '#a11' : '#888', marginLeft: 8 } }>{ expired ? 'Preview expired — regenerate' : 'Preview valid' }</span>
+                    <span style={ { fontSize: 12, color: expired ? '#374151' : '#888', marginLeft: 8 } }>{ expired ? 'Preview expired — regenerate' : 'Preview valid' }</span>
                 </div>
             ) : <div style={ { fontSize: 12, color: '#999' } }>No preview generated</div> }
         </div>

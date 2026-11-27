@@ -404,7 +404,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
           { loading ? (
             <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>Loading links...</div>
           ) : loadError ? (
-            <div style={ { padding: 40, textAlign: 'center' } }><p style={ { color: '#991b1b', fontSize: 'var(--text-sm)', marginBottom: 8 } }>Failed to load links</p><button onClick={ () => loadLinks() } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>Retry</button></div>
+            <div style={ { padding: 40, textAlign: 'center' } }><p style={ { color: '#374151', fontSize: 'var(--text-sm)', marginBottom: 8 } }>Failed to load links</p><button onClick={ () => loadLinks() } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>Retry</button></div>
           ) : links.length === 0 ? (
             <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>No links yet. Create your first short link.</div>
           ) : (
@@ -488,7 +488,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               </div>
               <div className="link-modal-body">
                 <label className="link-label">
-                  Destination URL <span style={ { color: '#dc2626' } }>*</span>
+                  Destination URL <span style={ { color: '#374151' } }>*</span>
                   <input className="link-input" type="url" placeholder="https://example.com/page" value={ formUrl } onChange={ e => setFormUrl( e.target.value ) } autoFocus />
                 </label>
                 <label className="link-label">

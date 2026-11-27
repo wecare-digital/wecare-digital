@@ -94,6 +94,7 @@ import '../styles/workspace-shell.css';
    that ties it on specificity would win on source order. Nothing goes below this line. */
 import '../styles/form-controls.css';
 import '../styles/public-interactions.css';
+import '../styles/public-button-theme.css';
 // Was LanguageBar. Renamed because it no longer only chooses a language: it is the single
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.
@@ -1039,7 +1040,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <Header />
         <Component { ...pageProps } />
         <PublicPolicyDetails />
-        <div className="public-action-tail">
+        <div className="public-action-tail" data-public-auth-button-theme={ router.pathname === '/' ? undefined : 'active' }>
           <PublicShare />
         </div>
         <Footer />
