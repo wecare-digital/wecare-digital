@@ -113,13 +113,6 @@
                 {
                   "Effect": "Allow",
                   "Action": [
-                    "cognito-idp:GetUser"
-                  ],
-                  "Resource": "*"
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": [
                     "logs:CreateLogStream",
                     "logs:PutLogEvents"
                   ],

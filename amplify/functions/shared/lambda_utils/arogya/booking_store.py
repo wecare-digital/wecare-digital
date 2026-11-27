@@ -61,9 +61,9 @@ def validate_plan(value, *, now):
     required += ['healthCheck'] if plan['appointmentType'] == 'Health Checks' else ['speciality', 'professional']
     if plan['userType'] == 'New User':
         required += ['salutation', 'patientName', 'age', 'gender', 'area', 'mobile', 'pickup']
-        if not re.fullmatch(r'\d{1,3}', plan['age']) or int(plan['age']) > 120:
+        if plan['age'] and (not re.fullmatch(r'\d{1,3}', plan['age']) or int(plan['age']) > 120):
             raise InvalidPlan('Enter an age between 0 and 120.')
-        if not re.fullmatch(r'\+?[1-9]\d{9,14}', plan['mobile']):
+        if plan['mobile'] and not re.fullmatch(r'\+?[1-9]\d{9,14}', plan['mobile']):
             raise InvalidPlan('Enter a valid patient mobile number.')
         if plan['pickup'] == 'Yes':
             required += ['pickupFrom', 'vehicleNo', 'arrivalDate', 'arrivalTime', 'attendants', 'journeyRemarks']

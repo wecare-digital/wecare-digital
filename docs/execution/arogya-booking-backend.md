@@ -41,3 +41,11 @@ cfn-lint amplify/infra/arogya-booking.json
 The manifest records the immutable ZIP key and SHA256. Upload the ZIP to the existing deployment artifact bucket, validate the template, then review a CREATE change set for `wecare-arogya-booking`. It should contain only Bookings, Logs, Role, Function, Url and the two narrowly conditioned Function URL permissions. Verify current free capacity before execution. No existing table, role, key, customer pool or API is modified.
 
 After deployment, verify the native stack outputs, function configuration and code SHA, table mode/capacity/TTL, unauthenticated 401 and unsupported-method 405. A real customer must sign in through the existing WhatsApp flow for a live owned-draft test; never forge a Cognito identity or use patient data for a synthetic test. Configure the exact Function URL on the page before enabling saved drafts. The current public planner remains a local draft until that frontend connection is deployed.
+
+## Review decisions
+
+Cognito GetUser is authorized by the customer's access token and does not evaluate IAM permissions; its unnecessary IAM statement was removed rather than replaced by a pool ARN. See [GetUser authorization](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_GetUser.html).
+
+Both Function URL permissions are required under the current AWS model. `InvokePermission` has `InvokedViaFunctionUrl: true`, which prevents that permission from authorizing direct SDK invocation. CORS does not authenticate any request; the handler always checks Cognito. See [Function URL access](https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html).
+
+Saves intentionally require an existing row to remain DRAFT. A future provider-submission state must not be editable through the draft API; sharing the DRAFT literal in the condition preserves that guard.
