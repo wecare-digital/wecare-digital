@@ -657,6 +657,8 @@ def schema(properties, required):
 
 TEXT = {"type": "string"}
 TOOLS = [
+    ('arogya_provider_status', 'Read Apollo service setup flags without credentials.', schema({}, [])),
+    ('arogya_provider_configure', 'Authorize this Admin mailbox grant for the Apollo booking service and encrypt the Apollo account password.', schema({'password': {'type': 'string', 'minLength': 1, 'maxLength': 256, 'writeOnly': True}, 'authorizeService': {'type': 'boolean'}}, ['password', 'authorizeService'])),
     ("connections_list", "List cloud connection status without credentials.", schema({}, [])),
     ("connection_authorize", "Start a separate cloud OAuth consent with PKCE. Register the returned redirect URI first.", schema({"provider": {"type": "string", "enum": ["meta-social", "whatsapp", "meta-ads", "google-cloud", "google-ads", "google-gmail-apollo"]}}, ["provider"])),
     ("connection_verify", "Verify an allowed live account read without sending messages or changing provider resources.", schema({"provider": {"type": "string", "enum": list(POLICY['connections'])}}, ["provider"])),
@@ -676,6 +678,12 @@ def run_tool(owner, name, args):
     spec = next((entry[2] for entry in TOOLS if entry[0] == name), None)
     if not spec or not isinstance(args, dict) or set(args) - set(spec["properties"]) or set(spec["required"]) - set(args):
         raise Refusal("Unknown tool or invalid arguments")
+    if name == 'arogya_provider_status':
+        from arogya_setup import status
+        return status(owner, table())
+    if name == 'arogya_provider_configure':
+        from arogya_setup import configure
+        return configure(owner, args, table=table(), encrypt=encrypt, token=token, http=http, refuse=Refusal)
     if name == "connections_list": return registry(owner)
     if name == "connection_authorize": return oauth_begin(owner, args["provider"])
     if name == "aws_status": return aws_status()

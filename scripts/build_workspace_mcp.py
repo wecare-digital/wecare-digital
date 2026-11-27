@@ -31,7 +31,7 @@ def build(dependencies, output, chat_redirect_uri=None, chat_discovery=False,
     expected = dict(line.split("==") for line in (SOURCE / "requirements.txt").read_text().splitlines() if line)
     if installed != expected:
         raise ValueError("Dependency directory does not match the pinned adapter requirements")
-    sources = {"handler.py": SOURCE / "handler.py", "provider_adapters.py": SOURCE / "provider_adapters.py",
+    sources = {"handler.py": SOURCE / "handler.py", "provider_adapters.py": SOURCE / "provider_adapters.py", "arogya_setup.py": SOURCE / "arogya_setup.py",
         "chat_oauth.py": SOURCE / "chat_oauth.py",
         "workspace-mcp.json": ROOT / "config/workspace-mcp.json"}
     for file in dependencies.rglob("*"):

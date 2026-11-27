@@ -119,6 +119,57 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/wecare-arogya-booking:*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:UpdateItem"
+                  ],
+                  "Resource": "arn:aws:dynamodb:us-east-1:775261844268:table/wecare-workspace-mcp",
+                  "Condition": {
+                    "ForAllValues:StringLike": {
+                      "dynamodb:LeadingKeys": [
+                        "arogya:provider:*",
+                        "connection:*:google-gmail-apollo"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Encrypt",
+                    "kms:Decrypt"
+                  ],
+                  "Resource": "arn:aws:kms:us-east-1:775261844268:key/95369e23-07c6-44ea-a7d6-636ffc971036",
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:EncryptionContext:purpose": "workspace-mcp",
+                      "kms:EncryptionContext:provider": "google-gmail-apollo"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Encrypt",
+                    "kms:Decrypt"
+                  ],
+                  "Resource": "arn:aws:kms:us-east-1:775261844268:key/95369e23-07c6-44ea-a7d6-636ffc971036",
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:EncryptionContext:purpose": "arogya-provider",
+                      "kms:EncryptionContext:record": "arogya:provider:apollo"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue"
+                  ],
+                  "Resource": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-XnSVlc"
                 }
               ]
             }
@@ -137,7 +188,7 @@
         ],
         "Handler": "handler.handler",
         "MemorySize": 128,
-        "Timeout": 15,
+        "Timeout": 60,
         "ReservedConcurrentExecutions": 2,
         "Role": {
           "Fn::GetAtt": [
@@ -158,7 +209,9 @@
             "AROGYA_BOOKINGS_TABLE": {
               "Ref": "Bookings"
             },
-            "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt"
+            "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt",
+            "REGISTRY_TABLE": "wecare-workspace-mcp",
+            "TOKEN_KEY": "arn:aws:kms:us-east-1:775261844268:key/95369e23-07c6-44ea-a7d6-636ffc971036"
           }
         },
         "TracingConfig": {

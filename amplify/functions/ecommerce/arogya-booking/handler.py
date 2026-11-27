@@ -51,6 +51,16 @@ def handler(event, context):
     now = int(time.time())
     action = body.get('action')
     try:
+        if action == 'catalog':
+            if body.get('kind') not in {'bootstrap', 'specialities', 'healthChecks', 'doctors', 'dates'}:
+                return _response(400, {'error': 'Invalid appointment catalogue request.'})
+            required_ids = [] if body['kind'] == 'bootstrap' else ['hospitalId']
+            if body['kind'] == 'doctors': required_ids.append('specialityId')
+            if body['kind'] == 'dates': required_ids.append('itemId')
+            if any(type(body.get(key)) is not int or not 0 < body[key] < 1000000 for key in required_ids):
+                return _response(400, {'error': 'Invalid appointment identifiers.'})
+            from lambda_utils.arogya.provider_runtime import ProviderRuntime
+            return _response(200, ProviderRuntime().read(body))
         if action == 'quote':
             return _response(200, {'pricing': price_components(55000), 'currency': 'INR',
                 'providerFeesIncluded': False, 'appointmentConfirmed': False})

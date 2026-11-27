@@ -4,6 +4,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import MCPPlayground from '../../../components/workspace/MCPPlayground';
+import ApolloServiceSetup from './ApolloServiceSetup';
 import { useUserRole } from '../../../hooks/useUserRole';
 import { MCPConnection, metaAuthorizationURL, workspaceMCP } from '../../../lib/workspace-mcp';
 import styles from '../../../styles/MCPConnections.module.css';
@@ -141,6 +142,7 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
           })}
         </div>
         {!connections.length && !busy && <p>No connections loaded. Use Refresh to retry.</p>}
+        <ApolloServiceSetup />
         <MCPPlayground key={readProvider} connections={connections} names={names} selectedProvider={readProvider} onProviderChange={setReadProvider} onVerified={(provider, status) => {
           setConnections(old => old.map(item => item.provider === provider ? { ...item, status, lastVerifiedAt: Math.floor(Date.now() / 1000) } : item));
           setChecks(old => ({ ...old, [provider]: statusNames[status] || status }));

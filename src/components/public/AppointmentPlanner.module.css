@@ -1,19 +1,19 @@
-.planner{margin:0 0 40px;min-width:0;color:var(--public-body)}
+.planner{margin:0 0 40px;max-width:560px;min-width:0;color:var(--public-text);font-family:var(--font-sans)}
 .planner h2{font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:8px 0 12px}
 .planner>p{font-size:var(--public-body-size);line-height:var(--public-body-leading);margin:0 0 14px}
 .planner .eyebrow{font-size:var(--public-supporting-size);font-weight:700;color:var(--public-brand-green)}
 .progress{display:flex;flex-wrap:wrap;gap:12px 22px;list-style:none;padding:0;margin:26px 0 18px}
 .progress li{display:flex;align-items:center;gap:8px;font-size:var(--public-supporting-size);line-height:1.4}
-.progress span{display:grid;place-items:center;width:28px;height:28px;flex:none;border:1px solid var(--public-brand-green);border-radius:50%;font-weight:700}
+.progress span{display:grid;place-items:center;min-width:18px;flex:none;border:0;border-radius:0;font-weight:700}
 .progress [aria-current=step]{font-weight:700;color:var(--public-brand-green)}
-.progress [aria-current=step] span{background:var(--public-brand-lime)}
-.panel{padding:24px;border:1px solid var(--control-border);border-radius:18px;min-width:0;background:#fcfdfb}
+.progress [aria-current=step] span{background:var(--public-lime-tint)}
+.panel{padding:0;margin:24px 0;min-width:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 .panel h3{scroll-margin-block-start:calc(var(--wc-toast-header-height,108px) + 16px);font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);margin:0 0 24px;color:var(--public-heading)}
 .fields{display:grid;gap:20px;min-width:0}
 .fields label{display:flex;flex-direction:column;gap:8px;font-size:var(--public-supporting-size);font-weight:600;min-width:0;color:var(--public-body)}
-.fields input:not([type=radio]),.fields select,.fields textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:52px;font-family:inherit;font-size:17px;color:var(--public-body);background:#fff;border:2px solid var(--control-border);border-radius:13px;padding:12px 14px;margin:0}
+.fields input:not([type=radio]),.fields select,.fields textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:52px;font-family:inherit;font-size:var(--public-body-size);color:var(--public-text);background:transparent;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;padding:12px 2px;margin:0;box-shadow:none}
 .fields textarea{min-height:100px;resize:vertical}
-.fields input:focus-visible,.fields select:focus-visible,.fields textarea:focus-visible,.actions button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+.fields input:focus-visible,.fields select:focus-visible,.fields textarea:focus-visible,.actions button:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:3px}
 .planner .help{font-size:var(--public-supporting-size);font-weight:400;line-height:1.5;margin:0;overflow-wrap:anywhere}
 .fields fieldset{border:0;padding:0;margin:0;min-width:0}
 .fields legend{font-size:var(--public-supporting-size);font-weight:600;margin-bottom:10px}
@@ -22,11 +22,16 @@
 .radios label{flex-direction:row;align-items:center;min-height:44px;cursor:pointer}
 .radios input{width:20px;height:20px;flex:none}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
-.actions button{font-family:inherit;min-height:48px;max-width:100%;padding:12px 18px;border:2px solid var(--public-brand-green);border-radius:var(--public-cta-radius);font-size:var(--public-responsive-cta-size);font-weight:600;line-height:1.4;cursor:pointer;overflow-wrap:anywhere;white-space:normal;color:var(--public-brand-green);background:#fff}
-.actions .primary{background:var(--public-brand-lime)}
+.actions button{font-family:inherit;min-height:52px;max-width:100%;padding:12px 18px;border:0;border-radius:12px;font-size:var(--public-responsive-cta-size);font-weight:700;line-height:1.35;cursor:pointer;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;overflow-wrap:anywhere;white-space:normal;color:var(--public-brand-green);background:var(--public-lime-tint)}
+.actions .primary{background:var(--public-lime-tint)}
 .summary{background:transparent;color:var(--public-body);padding:0;border:0;box-sizing:border-box;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:var(--public-supporting-size);line-height:1.7;margin:0}
 .patientReview{font-size:var(--public-supporting-size);line-height:1.5;overflow-wrap:anywhere}
 .patientReview dt{font-weight:700;margin-top:10px}
 .patientReview dd{margin:0}
-@media(max-width:767px){.planner h2{font-size:var(--public-mobile-section-size)}.panel{padding:18px}.panel h3{scroll-margin-block-start:calc(var(--wc-toast-header-height,108px) + 16px);font-size:var(--public-mobile-card-size)}.progress{gap:10px 14px}}
-@media(max-width:360px){.panel{padding:14px}.actions{flex-direction:column}.actions button{width:100%}}
+@media(max-width:767px){.planner h2{font-size:var(--public-mobile-section-size)}.panel{padding:0}.panel h3{scroll-margin-block-start:calc(var(--wc-toast-header-height,108px) + 16px);font-size:var(--public-mobile-card-size)}.progress{gap:10px 14px}}
+@media(max-width:360px){.panel{padding:0}.actions{flex-direction:column}.actions button{width:100%}}
+
+.actions button:hover:not(:disabled){background:var(--public-brand-lime);text-decoration-color:transparent}
+.actions button:disabled{opacity:.6;cursor:wait}
+.fields input:focus,.fields select:focus,.fields textarea:focus{border-bottom-color:var(--public-brand-green)}
+@media(max-width:767px){.fields input:not([type=radio]),.fields select,.fields textarea{font-size:16px}.actions button{font-size:var(--public-mobile-cta-font-size)}}

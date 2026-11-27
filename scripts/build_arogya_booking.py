@@ -12,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build(output):
     output.mkdir(parents=True, exist_ok=True)
-    sources = {'handler.py': ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py'}
+    sources = {'handler.py': ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py',
+        'workspace_tokens.py': ROOT / 'amplify/functions/ai/workspace-mcp/handler.py',
+        'workspace-mcp.json': ROOT / 'config/workspace-mcp.json'}
     shared = ROOT / 'amplify/functions/shared'
     for path in (shared / 'lambda_utils').rglob('*.py'):
         if '__pycache__' not in path.parts:

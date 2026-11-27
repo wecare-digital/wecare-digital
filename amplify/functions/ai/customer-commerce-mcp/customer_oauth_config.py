@@ -26,6 +26,7 @@ WEBSITE_RETURNS = {
     '/orders/',
     '/blog/',
     '/vault/',
+    '/elsewhere/arogya-yatra/',
 }
 _CLIENTS: dict[str, object] = {}
 
