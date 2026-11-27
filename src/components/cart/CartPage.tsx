@@ -481,7 +481,7 @@ function loadRazorpaySdk (): Promise<boolean> {
     if ( !existing ) {
       script.src = RAZORPAY_SDK;
       script.async = true;
-      document.head.appendChild( script );
+      try { document.head.appendChild( script ); } catch { failed(); }
     }
   } ).then( ready => {
     razorpaySdkPromise = null;
@@ -1934,13 +1934,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       >
         <div className="cart-in">
           <nav className="cart-progress" aria-label="Checkout progress">
-            <span><b aria-hidden="true">✓</b> Cart reviewed</span>
-            <span aria-current="step"><b aria-hidden="true">2</b> Checkout</span>
-            <span><b aria-hidden="true">3</b> Payment</span>
+            <span aria-current={ !ready || contributionReview || isEmpty || cartUnavailable ? 'step' : undefined }><b aria-hidden="true">1</b> Review</span>
+            <span aria-current={ ready && !contributionReview && !isEmpty && !cartUnavailable && !quoteReady ? 'step' : undefined }><b aria-hidden="true">2</b> Details</span>
+            <span aria-current={ quoteReady ? 'step' : undefined }><b aria-hidden="true">3</b> Payment</span>
           </nav>
-          <h2 className="cart-heading">Checkout breakdown</h2>
-          <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
-          {!ready && <p className="cart-body">Loading your cart…</p>}
+          <h2 className="cart-heading">{ contributionReview || contributionOnly ? 'Your contribution' : 'Review your checkout' }</h2>
+          <p className="cart-body cart-intro">Review your details and the server-confirmed total before paying securely.</p>
+          {!ready && <p className="cart-body" role="status">Loading your cart…</p>}
+          { cartUnavailable && <PublicNotice mode="inline" tone="error" message="Your browser is blocking cart storage. Allow site storage and reload to continue." /> }
           { ready && contributionReview && (
             <section className="cart-contribution-review" aria-labelledby="contribution-review-title">
               <h3 className="cart-subheading" id="contribution-review-title">Contribute { CONTRIBUTION_AMOUNT_LABEL }</h3>
@@ -1963,6 +1964,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           {isEmpty && (
             <div className="cart-empty">
               <p className="cart-body">Your cart is empty.</p>
+              <div className="cart-actions"><Link className="cart-auth-action cart-auth-primary" href="/shop/">Explore Shop</Link></div>
               { basketClaimLine }
             </div>
           )}
@@ -1973,18 +1975,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               <div className="cart-details-panel">
                 <section className="cart-customer-summary" aria-labelledby="cart-customer-heading">
                   <h2 className="cart-panel-heading" id="cart-customer-heading">Customer summary</h2>
-                  { !profile?.name && !showProfile && <p className="cart-body">Sign in to confirm your name and verified WhatsApp number before payment.</p> }
+                  { !profile?.name && !showProfile && <p className="cart-body">Confirm your name and verified phone number before payment.</p> }
+                  { quoteSignInRequired && (
+                    <div className="cart-signin">
+                      <p className="cart-price-note">Sign in with your WhatsApp verification code. Your payment stays on the website{ hasContribution ? '.' : ' when you choose Pay on Website.' }</p>
+                      <Link className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</Link>
+                    </div>
+                  ) }
               {/* A returning customer's stored identity must remain visible when the
                   shipping address is missing. Non-shipping baskets omit the Deliver row;
                   physical baskets explicitly label an unsaved address. */}
               { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
                 <CheckoutIdentityCard compact
                   identity={ { ...profile, customerId: profile.contactId } }
-                  showAddress={ cartRequiresDelivery() }
+                  showAddress={ cartRequiresDelivery( items ) }
                   emptyAddressLabel="Not saved yet"
                   editorOpen={ showProfile }
-                  onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
-                  onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
+                  onEditProfile={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'profile' ); setShowProfile( true ); } }
+                  onEditAddress={ () => { if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return; setProfileMode( 'address' ); setShowProfile( true ); } }
                 />
               ) }
 
@@ -1996,6 +2004,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   key={ profileMode }
                   accessToken={ checkoutAccessToken }
                   mode={ profileMode }
+                  allowIdentityBootstrap={ !cartRequiresDelivery( items ) }
                   initial={ {
                     name: profile?.name || '',
                     username: profile?.username || '',
@@ -2037,7 +2046,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
                 </section>
               <section className="cart-order-summary" aria-labelledby="cart-order-heading">
-              <h2 className="cart-panel-heading" id="cart-order-heading">Order summary</h2>
+              <h2 className="cart-panel-heading" id="cart-order-heading">{ contributionOnly ? 'Contribution summary' : 'Order summary' }</h2>
+              { contributionNeedsReview && (
+                <div className="cart-status">
+                  Review a single contribution separately. You can remove other items or explicitly replace the current cart.
+                  <div className="cart-actions"><a className="cart-auth-action" href="/checkout/?contribute=1">Review contribution</a></div>
+                </div>
+              ) }
               <ul className="cart-list">
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
@@ -2080,17 +2095,25 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
-                      <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
-                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
-                          disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
-                        <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
-                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
-                          disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
-                      </div>
+                      { isContributionItem( item ) ? (
+                        <div className="cart-qty">
+                          <span>Qty { item.quantity }</span>
+                          { item.quantity !== 1 && <button className="cart-quantity-repair" type="button" disabled={ busy || modalOpen || railTerminal } onClick={ () => changeQuantity( item.ref, 1 ) }>Set to 1</button> }
+                        </div>
+                      ) : (
+                        <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
+                          <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
+                            disabled={ busy || modalOpen || railTerminal || item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
+                          <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
+                          <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
+                            disabled={ busy || modalOpen || railTerminal || item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
+                        </div>
+                      ) }
                       <button
                         className="cart-remove"
                         type="button"
                         onClick={ () => drop( item.ref ) }
+                        disabled={ busy || modalOpen || railTerminal }
                         aria-label={ `Remove ${item.name}` }
                         title="Remove"
                       >
@@ -2108,28 +2131,25 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               <p className="cart-assurance">Your full price is confirmed before payment. A paid receipt follows verified capture.</p>
               </div>
 
+              <div className="cart-payment-panel">
               <section className="cart-quote" aria-labelledby="cart-price-heading">
                 <div className="cart-quote-title">
                   <h2 className="cart-subheading cart-breakdown-heading" id="cart-price-heading">Price breakup</h2>
-                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
+                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading || busy || modalOpen || railTerminal || quoteSignInRequired || showProfile }
                     onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
                     Refresh prices
                   </button>
                 </div>
                 { quoteLoading && <p className="cart-body" role="status">{ publicActionText( 'processing' ) }</p> }
                 { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
-                { quoteSignInRequired && (
-                  <Link className="cart-auth-action" href="/auth?return=/checkout/">
-                    Sign in on WhatsApp
-                  </Link>
-                ) }
+                { quoteSignInRequired && <p className="cart-price-note">Complete sign-in in Customer summary to see the verified total.</p> }
+                { showProfile && !quoteSignInRequired && <p className="cart-price-note">Save your customer details to review the total.</p> }
                 { contributionQuoteMismatch && <PublicNotice mode="inline" tone="error" message={ CONTRIBUTION_NOT_PAYABLE_MESSAGE } /> }
                 { quoteReady && quote && <CheckoutReceipt quote={ quote } /> }
                 <p className="cart-price-note">The total comes from the live server quotation.
                   { hasContribution ? ' Contributions are paid on the website.' : ' Website and WhatsApp payment both use the same server-priced basket.' }
                   No payment is completed until the provider confirms capture.</p>
               </section>
-              </div>
 
               {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
                   written inline here any more. */}
@@ -2176,17 +2196,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary cart-pay-website"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || !quoteReady }
+                      disabled={ busy || modalOpen || !quoteReady }
                       aria-busy={ busy ? 'true' : undefined }
                     >
-                      { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
+                      { modalOpen ? 'Payment window open' : busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
                     </button>
                     { !hasContribution && (
                       <button
                         className="cart-auth-action cart-pay-whatsapp"
                         type="button"
                         onClick={ () => { void proceed( 'whatsapp' ); } }
-                        disabled={ busy || !quoteReady || !whatsappEligible }
+                        disabled={ busy || modalOpen || !quoteReady || !whatsappEligible }
                         aria-busy={ busy ? 'true' : undefined }
                       >
                         Pay on WhatsApp
@@ -2194,6 +2214,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     ) }
                   </> }
               </div>
+              { pendingAttempt && !modalOpen && !railTerminal && (
+                <div className="cart-actions"><Link className="cart-auth-action" href={ `/checkout/status/?a=${encodeURIComponent( pendingAttempt )}` }>Check payment status</Link></div>
+              ) }
               { !railTerminal && !hasContribution && !whatsappEligible && (
                 <p className="cart-price-note" role="status">
                   WhatsApp Review and Pay currently supports one item, quantity one.
@@ -2206,6 +2229,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   Pay only inside WhatsApp; receiving the message does not mean you have paid.
                 </p>
               ) }
+              </div>
+              </div>
             </>
           )}
 
@@ -2219,26 +2244,26 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
-          .cart-progress{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 24px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:13px;color:var(--public-muted)}
-          .cart-progress span{display:flex;align-items:center;gap:8px}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
-          .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel{min-width:0;display:grid;gap:20px}.cart-customer-summary,.cart-order-summary{min-width:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}.cart-panel-heading{margin:0 0 12px;padding:10px 12px;background:var(--public-lime-tint);border-radius:8px;font-size:17px;font-weight:750;color:var(--public-heading)}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
+          .cart-progress{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:0 0 20px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:var(--public-supporting-size);color:var(--public-brand-green)}
+          .cart-progress span{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
+          .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel,.cart-payment-panel{min-width:0;display:grid;gap:16px;align-content:start}.cart-customer-summary,.cart-order-summary{min-width:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}.cart-panel-heading{margin:0 0 16px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);color:var(--public-heading);text-wrap:balance}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
           @media(max-width:800px){.cart-review-grid{grid-template-columns:minmax(0,1fr)}.cart-progress{font-size:12px;gap:8px}.cart-progress span{gap:5px}}
           .cart-contribution-review{min-width:0;overflow-wrap:anywhere;padding:clamp(12px,4vw,24px);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}
           .cart-contribution-review .cart-actions{display:flex;flex-wrap:wrap;gap:10px}
           .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
           .cart-intro{margin-bottom:24px}
           .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
-          .cart-qty{display:flex;align-items:center;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--public-heading)}
-          .cart-qty button{width:36px;height:40px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
+          .cart-qty{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;font-variant-numeric:tabular-nums;color:var(--public-heading)}
+          .cart-qty button{min-width:44px;min-height:44px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
           .cart-qty button:disabled{opacity:.4;cursor:default}
           .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
-          .cart-qty span{min-width:26px;text-align:center}
-          .cart-quote{min-width:0;margin:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}
-          .cart-breakdown-heading{padding:10px 12px;border-radius:8px;background:var(--public-lime-tint);color:var(--public-heading);font-size:17px;font-weight:750}
+          .cart-qty span{min-width:0;text-align:center}.cart-qty .cart-quantity-repair{width:auto;padding:6px;font-size:14px;white-space:normal}
+          .cart-quote{min-width:0;margin:0;padding:var(--public-card-padding);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:var(--public-bg)}
+          .cart-breakdown-heading{color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);text-wrap:balance}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
-          .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
+          .cart-quiet-refresh{min-height:44px;max-width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer;overflow-wrap:anywhere}.cart-quiet-refresh:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .cart-quiet-refresh:disabled{opacity:.5}
-          .cart-in{width:min(100%,1060px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
+          .cart-in{width:100%;max-width:100%;min-width:0;margin:0;padding:0;background:var(--public-bg);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
@@ -2308,7 +2333,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-row-main :global(.cart-option .ui-field-label){
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
           }
-          .cart-row-controls{display:flex;align-items:center;gap:12px}
+          .cart-row-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
           /* Icon-only remove (trash), 44px target. Was an underlined "Remove" text link; now a
              quiet icon button that darkens on hover. The SVG inherits currentColor. */
           .cart-remove{
@@ -2340,37 +2365,39 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
           .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px;text-decoration:none}
-          .cart-actions .cart-pay-website{background:#111;color:#fff}
-          .cart-pay-website:hover{background:var(--public-brand-green);color:#fff}
-          .cart-actions .cart-pay-whatsapp{border:2px solid var(--public-brand-green);background:#fff}
-          .cart-pay-whatsapp:hover{background:var(--public-lime-tint)}
+          .cart-signin{margin-top:16px}
+          .cart-payment-panel .cart-actions{margin-top:0}
+          .cart-in :global(.cart-auth-action:hover:not(:disabled)){background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:var(--public-lift-shadow)}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
-          .cart-auth-action{
-            min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
-            background:var(--public-lime-tint);color:var(--public-brand-green);
-            font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
-            text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+          .cart-in :global(.cart-auth-action){
+            min-height:var(--public-cta-height);min-width:0;max-width:100%;padding:8px clamp(12px,3vw,28px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            background:var(--public-bg);color:var(--public-brand-green);
+            font:var(--public-cta-font-weight) var(--public-responsive-cta-size)/1.35 var(--font-sans);
+            text-align:center;white-space:normal;overflow-wrap:anywhere;text-decoration:none;
             touch-action:manipulation;cursor:pointer;
             transition:background-color .18s,transform .18s,box-shadow .18s;
             display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
           }
-          .cart-auth-primary{font-weight:700}
-          .cart-auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
-          .cart-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-          .cart-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+          .cart-in :global(.cart-auth-primary){font-weight:var(--public-cta-font-weight);background:var(--public-brand-lime)}
+          .cart-in :global(.cart-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .cart-in :global(.cart-auth-action:disabled){opacity:.6;cursor:default;transform:none;box-shadow:none}
           @media(max-width:767px){
-            .cart-in{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}
-            .cart-row{gap:12px;padding-block:12px;align-items:center}
-            .cart-row-main{flex:1 1 auto;min-width:0}
-            .cart-name,.cart-price{font-size:18px}
-            .cart-row-controls{width:auto;flex:0 0 auto;justify-content:flex-end}
-            .cart-remove{width:42px;height:42px;min-height:42px}
-            .cart-actions{display:grid;grid-template-columns:1fr;width:100%;margin-top:22px}
-            .cart-auth-action{width:100%}
+            .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-mobile)}
+            .cart-row{gap:12px;padding-block:12px;align-items:flex-start;flex-wrap:wrap}
+            .cart-row-main{flex:1 1 100%;min-width:0}
+            .cart-name,.cart-price{font-size:var(--public-supporting-size);overflow-wrap:anywhere}
+            .cart-row-controls{width:100%;justify-content:flex-start}
+            .cart-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%;margin-top:22px}
+            .cart-in :global(.cart-auth-action){width:100%}
+          }
+          @media(max-width:279px){
+            .cart-customer-summary,.cart-order-summary,.cart-quote{padding:var(--public-card-padding-reflow)}
+            .cart-progress{display:grid;grid-template-columns:minmax(0,1fr)}
+            .cart-qty{gap:4px}
           }
           @media(prefers-reduced-motion:reduce){
-            .cart-auth-action{transition:none}
-            .cart-auth-action:hover{transform:none;box-shadow:none}
+            .cart-in :global(.cart-auth-action){transition:none}
+            .cart-in :global(.cart-auth-action:hover){transform:none;box-shadow:none}
           }
         `}</style>
       </RotatingHero>
