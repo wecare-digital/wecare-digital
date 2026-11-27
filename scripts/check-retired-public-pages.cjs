@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Do not resurrect retired public marketing/transaction landing pages.
+ * Do not accidentally resurrect unassigned public marketing/transaction landing pages.
+ * Previously retired names may be deliberately registered for new public pages.
  *
  * Customer functions (Orders, WhatsApp, paid service records, and the exact-file
  * /vault/?file= link) remain supported. This guards only obsolete public pages
@@ -64,14 +65,39 @@ const deadDesignDir = 'docs/whatsapp/catalog-design';
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 const failures = [];
 
+const catalogue = JSON.parse(fs.readFileSync(path.join(root, 'config/public-pages.json'), 'utf8'));
+const catalogueRoutes = new Set((catalogue.pages || []).map(page => page.path.replace(/\/$/, '') || '/'));
+const approvedPublicRoutes = new Set();
+const sitemapSource = fs.readFileSync(path.join(root, 'scripts/generate-sitemap.js'), 'utf8');
+const block = sitemapSource.match(/const PUBLIC_EXACT\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+if (!block) {
+  failures.push('Cannot verify the sitemap PUBLIC_EXACT allowlist');
+} else {
+  const withoutComments = block[1].split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
+  for (const match of withoutComments.matchAll(/['"]((?:\/)[a-z0-9/-]*)['"]/g)) {
+    approvedPublicRoutes.add(match[1]);
+  }
+}
+
+// Historical names are not permanently reserved. Intentional reuse must pass
+// the same explicit catalogue + crawl registration as every other public page.
+// Until then a stale source file, or a one-sided registration, still fails.
 for (const route of retired) {
   const base = 'src/pages/' + route.slice(1);
-  for (const candidate of [
+  const candidates = [
     base + '.tsx', base + '.ts', base + '.jsx', base + '.js',
-    base + '/index.tsx', base + '/index.ts',
-    base + '/index.jsx', base + '/index.js',
-  ]) {
-    if (exists(candidate)) failures.push('Retired public page reappeared: ' + candidate);
+    base + '/index.tsx', base + '/index.ts', base + '/index.jsx', base + '/index.js',
+  ];
+  const registered = approvedPublicRoutes.has(route) && catalogueRoutes.has(route);
+  if (registered && route !== '/get') {
+    if (!candidates.some(exists)) failures.push('Reassigned public page has no source: ' + route);
+    continue;
+  }
+  if (approvedPublicRoutes.has(route) || catalogueRoutes.has(route)) {
+    failures.push('Historical or infrastructure-adjacent path registered without approved public source: ' + route);
+  }
+  for (const candidate of candidates) {
+    if (exists(candidate)) failures.push('Unassigned historical public page reappeared: ' + candidate);
   }
 }
 for (const route of retiredWorkspaceRoutes) {
@@ -88,28 +114,6 @@ for (const relative of deadModules) {
 }
 if (exists(deadDesignDir)) {
   failures.push('Retired page design assets reappeared: ' + deadDesignDir);
-}
-
-const catalogue = JSON.parse(fs.readFileSync(path.join(root, 'config/public-pages.json'), 'utf8'));
-const denied = new Set(retired);
-for (const page of catalogue.pages || []) {
-  if (denied.has(page.path) || denied.has(page.path.replace(/\/$/, ''))) {
-    failures.push('Retired public page advertised in catalogue: ' + page.path);
-  }
-}
-
-const approvedPublicRoutes = new Set();
-const sitemapSource = fs.readFileSync(path.join(root, 'scripts/generate-sitemap.js'), 'utf8');
-const block = sitemapSource.match(/const PUBLIC_EXACT\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
-if (!block) {
-  failures.push('Cannot verify the sitemap PUBLIC_EXACT allowlist');
-} else {
-  const withoutComments = block[1].split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
-  const routes = [...withoutComments.matchAll(/['"]((?:\/)[a-z0-9/-]*)['"]/g)].map(x => x[1]);
-  for (const route of routes) {
-    approvedPublicRoutes.add(route);
-    if (denied.has(route)) failures.push('Retired route in sitemap allowlist: ' + route);
-  }
 }
 
 // Every standalone public page must either appear on the approved crawl list or
