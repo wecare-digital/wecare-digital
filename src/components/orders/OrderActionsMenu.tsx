@@ -329,7 +329,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         }
         .orm-more svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}
         .orm-more:hover,.orm-more[aria-expanded='true']{
-          background:var(--lime-hover);border:0;box-shadow:none;outline:none;
+          background:var(--public-button-hover);border:0;box-shadow:none;outline:none;
         }
         .orm-more:focus-visible{
           outline:2px solid var(--public-brand-green);outline-offset:2px;
@@ -349,7 +349,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-search-field{position:relative;margin:12px 16px 12px}
         .orm-search{
           width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;
-          border:0;border-block-end:1px solid var(--public-hairline);
+          border:0;border-block-end:2px solid var(--public-search-underline);
           border-radius:0;background:transparent;
           padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:16px;font-weight:400;line-height:1.3;
@@ -361,8 +361,8 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-search::-ms-clear{display:none}
         .orm-search::placeholder{color:var(--public-muted)}
         .orm-search:focus-visible{
-          border-block-end-color:var(--public-brand-green);
-          box-shadow:inset 0 -2px 0 var(--public-brand-green);
+          border-block-end-color:var(--public-search-underline);
+          box-shadow:var(--public-search-focus-shadow);
         }
         .orm-section{display:flex;align-items:center;gap:9px;padding:6px 22px;min-height:var(--tap-min);box-sizing:border-box;
           font-family:inherit;font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading);letter-spacing:.025em;color:var(--public-brand-green);text-transform:uppercase}
@@ -377,9 +377,9 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           min-block-size:50px;padding:7px 12px;border-radius:var(--public-nav-radius);
           color:var(--public-brand-green);text-decoration:none;
         }
-        .orm-item:hover{background:var(--public-lime-tint)}
+        @media (hover:hover) and (pointer:fine){.orm-item:hover{background:var(--public-nav-hover)}}
         .orm-item:focus-visible{
-          background:var(--public-lime-tint);outline:var(--public-focus-ring) solid var(--public-brand-green);
+          background:var(--public-nav-hover);outline:var(--public-focus-ring) solid var(--public-brand-green);
           outline-offset:0;
         }
         .orm-item::after,.orm-family-title::after{
