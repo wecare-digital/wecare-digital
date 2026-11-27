@@ -164,3 +164,15 @@ Do not cache or republish its results outside the approved scope. Test coverage
 uses synthetic HTML, not copied profiles. No authorized live automated scrape
 or slot reservation has been verified. IC integration and checkout remain
 separately gated.
+
+## Verified booking destination and release recovery (27 November 2026)
+
+The Apollo public appointment finder is https://www.apollohospitals.com/book-doctor-appointment (specialty/city filters and doctor search). The older AskApollo hostname redirects to the Apollo 24/7 AI assistant and should not be the primary booking destination. The Apollo hospital directory, doctor directory and international patient services pages were separately checked. Public directory URLs and the first-page profile-path format are supported by the observed public pages; the IC service's slot and booking response contract is still not established by those pages. A filtered directory request returned HTTP 403, so do not attempt to bypass it or use an undocumented search endpoint.
+
+Offer the primary direct Apollo booking link within the phone-verified planner regardless of IC catalogue availability. International patient services are a separate optional handoff. Do not pass customer identity or patient details in outbound links. Provider availability, confirmation and charges are controlled by Apollo, and the WECARE checkout remains disabled. A lack of local choices is not evidence that Apollo has no hospitals. The earlier deployment was blocked by an unescaped JSX apostrophe; the escaped copy and regression tests preserve the release gate.
+
+No commercial directory dataset has been retained or published. Public robots rules are not a license; the published disclaimer restricts commercial reuse and retention. An approved partner interface and a genuine authorized transaction test are still required for an integrated booking release.
+
+## Customer experience correction
+
+The owner has explicitly requested an entirely on-site booking experience. The external Apollo handoff links and their styles have been removed from the public planner. Previous handoff instructions above are historical, not the current UI contract. WhatsApp authentication and owned drafts remain intact. When the live provider catalogue is unavailable, the planner reports that limitation and offers an in-site retry; it does not invent availability or send the customer to another booking website. The standalone permission-gated discovery tool is unchanged. Native provider confirmation and payment remain disabled until the authorized integration can be verified.

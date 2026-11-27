@@ -157,15 +157,7 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
       <p className={ styles.eyebrow }>Your next appointment</p>
       <h2 id="ay-title">Request an appointment</h2>
       <p>Choose your hospital, appointment and patient details. Review everything before continuing.</p>
-      <p className={ styles.help }>Current hospital, doctor and date options are requested from Apollo. If the provider is unavailable, no saved snapshot will be shown. * Indicates mandatory fields.</p>
-      <aside className={ styles.directoryHandoff } aria-label="Official Apollo directory">
-        <h3>Explore Apollo directly</h3>
-        <p>Browse hospitals and doctors on Apollo&apos;s official website. If live choices here are unavailable, you can continue on Apollo. Availability and appointment confirmation are handled by Apollo; no patient details from this form are sent to these links.</p>
-        <div className={ styles.directoryLinks }>
-          <a href="https://www.apollohospitals.com/facilities/hospitals" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Find hospitals (opens Apollo)</a>
-          <a href="https://www.apollohospitals.com/doctors" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Find doctors (opens Apollo)</a>
-        </div>
-      </aside>
+      <p className={ styles.help }>Choose live hospital, doctor and date options here when the provider is available. If live choices cannot be retrieved, retry here. * Indicates mandatory fields.</p>
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
@@ -175,7 +167,7 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
         <div className={ styles.actions }><button type="button" onClick={ () => setCatalogRetry( value => value + 1 ) }>Retry live choices</button></div>
       </> }
       { hospitals.loading && <p role="status">Loading live Apollo hospitals…</p> }
-      { !hospitals.loading && !hospitals.error && !hospitals.options.length && <p role="status">No hospitals are currently available.</p> }
+      { !hospitals.loading && !hospitals.error && !hospitals.options.length && <p role="status">No live hospital choices were returned. Please retry when the catalogue is available.</p> }
       { hospitals.options.length > 0 && <div className={ styles.panel }>
         <h3 ref={ heading } tabIndex={ -1 }>{ STEPS[step - 1] }</h3>
         { step < 4 ? (
