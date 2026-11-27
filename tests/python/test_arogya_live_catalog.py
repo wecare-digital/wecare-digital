@@ -41,6 +41,23 @@ def test_available_dates_are_from_provider_and_past_dates_are_excluded():
         hospital_id=10, item_id=24)
 
 
+@pytest.mark.parametrize('row', [
+    {'appointmentId': 1, 'appointmentName': 'Consultation'},
+    {'AppointmentId': 1, 'AppointmentName': 'Consultation'},
+])
+def test_appointment_type_fields_match_the_official_ic_portal(row):
+    assert runtime.normalize('appointmentTypes', [row], now=NOW) == [{'id': '1', 'label': 'Consultation'}]
+
+
+def test_schedule_name_rows_match_the_portal_and_preserve_live_dates_only():
+    rows = [{'Id': 0, 'Name': '2026-11-30,2026-12-01,2026-11-30,2026-01-01'},
+            {'id': 1, 'name': '2026-11-29'}, {'id': 2, 'name': ''}]
+    assert runtime.normalize('dates', rows, now=NOW) == [
+        {'id': date, 'label': date} for date in ('2026-11-29', '2026-11-30', '2026-12-01')]
+    with pytest.raises(runtime.CatalogueUnavailable):
+        runtime.normalize('dates', [{'Name': '2026-11-30,not-a-date'}], now=NOW)
+
+
 def test_unauthorized_or_unknown_provider_schema_fails_closed(monkeypatch):
     monkeypatch.delenv('APOLLO_REGISTRY_TABLE', raising=False)
     with pytest.raises(runtime.CatalogueUnavailable):

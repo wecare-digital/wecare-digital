@@ -29,7 +29,8 @@ FIELDS = {
                      ('multispecialityname', 'specialityname', 'specialtyname', 'name')),
     'doctors': (('doctorid', 'id'), ('doctorname', 'doctorfullname', 'name')),
     'healthChecks': (('healthcheckid', 'id'), ('healthcheckname', 'name')),
-    'appointmentTypes': (('appointmenttypeid', 'id'), ('appointmenttypename', 'appointmenttype', 'name')),
+    'appointmentTypes': (('appointmentid', 'appointmenttypeid', 'id'),
+                         ('appointmentname', 'appointmenttypename', 'appointmenttype', 'name')),
     'salutations': (('salutationid', 'id'), ('salutationname', 'salutation', 'name')),
 }
 WRAPPERS = ('data', 'result', 'items', 'hospitals', 'specialities', 'doctors',
@@ -104,10 +105,24 @@ def normalize(kind, raw, *, now):
     result = {}
     for value in _rows(raw):
         if kind == 'dates':
-            date = _date(value)
             today = dt.datetime.fromtimestamp(now, dt.timezone(dt.timedelta(hours=5, minutes=30))).date().isoformat()
-            if date >= today:
-                result[date] = {'id': date, 'label': date}
+            # The IC portal reads schedule rows as {id, name}, where name can
+            # contain comma-separated ISO dates. Preserve the other accepted
+            # date schemas and refuse malformed tokens rather than invent dates.
+            candidate = value
+            if isinstance(value, dict):
+                row = {key.lower(): item for key, item in value.items()}
+                if not any(key in row for key in ('appointmentdate', 'availabledate', 'date')) and 'name' in row:
+                    candidate = row['name']
+                    if candidate in ('', None):
+                        continue
+            dates = candidate.split(',') if isinstance(candidate, str) else [candidate]
+            if len(dates) > 1000:
+                raise CatalogueUnavailable('Apollo schedule exceeded limit')
+            for item in dates:
+                date = _date(item.strip() if isinstance(item, str) else item)
+                if date >= today:
+                    result[date] = {'id': date, 'label': date}
             continue
         if not isinstance(value, dict):
             raise CatalogueUnavailable('Invalid Apollo catalogue row')
