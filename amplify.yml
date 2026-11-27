@@ -19,14 +19,14 @@ frontend:
         # uses a global package; npm, npx tsc and next all resolve from this repo, and `aws` is a
         # system binary.
         # nvm requires its install options directly after `install`, before the version.
-        - nvm install --skip-default-packages 26 || true
-        - nvm use 26 || true
+        - nvm install --skip-default-packages 24 || true
+        - nvm use 24 || true
         # The two nvm lines tolerate failure, so assert the result rather than trust it: a silent
         # fall-back to the image's default Node must stop the build, not ship under another engine.
-        - node -e "const m=+process.versions.node.split('.')[0]; if (m < 26) { console.error('Node >= 26 required, got ' + process.version); process.exit(1); }"
+        - node -e "const m=+process.versions.node.split('.')[0]; if (m < 24) { console.error('Node >= 24 required, got ' + process.version); process.exit(1); }"
         - node -v
         - npm -v
-        # Node 26 floats to newer bundled npm releases, while this root lockfile is
+        # Node 24 floats to newer bundled npm releases, while this root lockfile is
         # generated and verified with the exact npm version declared by packageManager.
         # Install that version before npm ci so Amplify consumes the committed lock deterministically.
         - export PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"; npm install --global "npm@$PINNED_NPM"; test "$(npm --version)" = "$PINNED_NPM"; npm --version
@@ -56,7 +56,7 @@ frontend:
         # NO --legacy-peer-deps: the committed lockfile is generated
         # with plain `npm install`, so the flag has nothing to resolve. The exact npm version
         # is declared by packageManager and installed above before this command. Do not let
-        # `nvm install 26` silently move npm underneath the lockfile again: npm 11.19.0
+        # `nvm install 24` silently move npm underneath the lockfile again: npm 11.19.0
         # currently rejects this lock with missing @emnapi entries while the pinned npm 11.6.2
         # is the version the lock was generated and verified with.
         #
