@@ -43,7 +43,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', name:'Arogya Yatra', slug:'sehat',
-    formattedPrice:'₹850.00', price:'850.00', currency:'INR',
+    formattedPrice:'₹550.00', price:'550.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/elsewhere/arogya-yatra/',
     descriptionHtml:'<p>Appointments with qualified professionals.</p>',
     variants:[{ id:'BRX5N8Q3', label:'Standard', inStock:true }],
