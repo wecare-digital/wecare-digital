@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { URL } from 'node:url';
+import { cleanSummary, decodeRows, parseNumber } from './weather-data.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
@@ -99,11 +100,6 @@ function rateAllowed(req) {
   }
   current.count += 1;
   return current.count <= RATE_LIMIT_PER_MINUTE;
-}
-
-function parseNumber(value, min, max) {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 
 function startDate(range) {
@@ -246,43 +242,6 @@ function param(name, type, value) {
   };
 }
 
-function decodeValue(field, cell) {
-  if (!cell || cell.v === null || cell.v === undefined) return null;
-  if (field.type === 'RECORD' || field.type === 'STRUCT') {
-    const nested = {};
-    const values = cell.v?.f || [];
-    (field.fields || []).forEach((child, index) => {
-      nested[child.name] = decodeValue(child, values[index]);
-    });
-    return nested;
-  }
-  if (field.mode === 'REPEATED') {
-    return (cell.v || []).map((item) => decodeValue({ ...field, mode: 'NULLABLE' }, item));
-  }
-  const value = cell.v;
-  if (['INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC'].includes(field.type)) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  if (field.type === 'BOOLEAN' || field.type === 'BOOL') return value === true || value === 'true';
-  if (field.type === 'TIMESTAMP') {
-    const seconds = Number(value);
-    if (Number.isFinite(seconds)) return new Date(seconds * 1000).toISOString();
-  }
-  return value;
-}
-
-function decodeRows(result) {
-  const fields = result.schema?.fields || [];
-  return (result.rows || []).map((row) => {
-    const out = {};
-    fields.forEach((field, index) => {
-      out[field.name] = decodeValue(field, row.f?.[index]);
-    });
-    return out;
-  });
-}
-
 async function runQuery(query, parameters, maximumBytesBilled) {
   const request = {
     query,
@@ -423,34 +382,6 @@ function weatherSql(source) {
     '  ) AS monthly',
     'FROM base',
   ].join('\n');
-}
-
-function cleanSummary(row, range) {
-  if (!row || !Number(row.sample_hours)) return null;
-  const round = (value, digits = 1) => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return null;
-    const scale = 10 ** digits;
-    return Math.round(n * scale) / scale;
-  };
-  return {
-    range,
-    coverageStart: row.coverage_start || null,
-    coverageEnd: row.coverage_end || null,
-    gridDistanceKm: round(row.grid_distance_km, 2),
-    sampleHours: Number(row.sample_hours),
-    meanTemperatureC: round(row.mean_temperature_c),
-    minTemperatureC: round(row.min_temperature_c),
-    maxTemperatureC: round(row.max_temperature_c),
-    precipitationMm: round(row.precipitation_mm),
-    meanHumidityPct: round(row.mean_humidity_pct),
-    monthly: Array.isArray(row.monthly) ? row.monthly.map((item) => ({
-      month: Number(item.month),
-      meanTemperatureC: round(item.mean_temperature_c),
-      precipitationMm: round(item.precipitation_mm),
-      meanHumidityPct: round(item.mean_humidity_pct),
-    })) : [],
-  };
 }
 
 async function statusPayload() {

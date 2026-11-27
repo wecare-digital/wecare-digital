@@ -225,7 +225,8 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
   const monthly = useMemo( () => {
     const rows = Array.isArray( data?.monthly ) ? data?.monthly : [];
     return rows
-      .filter( row => Number.isInteger( row.month ) && row.month >= 1 && row.month <= 12 )
+      .filter( row => Number.isInteger( row.month ) && row.month >= 1 && row.month <= 12
+        && Number.isFinite( row.meanTemperatureC ) )
       .slice()
       .sort( ( a, b ) => a.month - b.month );
   }, [ data ] );
