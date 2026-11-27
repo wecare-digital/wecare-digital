@@ -19,6 +19,7 @@ if (!['chromium', 'firefox', 'webkit'].includes(engine)) throw new Error('Unsupp
 const profiles = {
   desktop: { width: 1440, height: 900, hasTouch: false },
   phone: { width: 390, height: 844, hasTouch: true },
+  tablet: { width: 768, height: 1024, hasTouch: true },
   fold: { width: 280, height: 653, hasTouch: true },
   landscape: { width: 844, height: 390, hasTouch: true },
   stress: { width: 160, height: 640, hasTouch: true, reducedMotion: 'reduce' },
@@ -166,6 +167,20 @@ try {
       if (!result.frame || !result.words.length || result.words.some(word => !word) || new Set(result.words).size !== result.words.length) {
         result.failures.push('Missing or duplicated hero copy');
       }
+      const frameFits = await hero.evaluate(el => {
+        const bounds = el.getBoundingClientRect();
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent.trim() || node.parentElement?.closest('.rp-mark')) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          if ([...range.getClientRects()].some(r => r.width > 0
+            && (r.left < Math.max(bounds.left, 0) - 2
+              || r.right > Math.min(bounds.right, document.documentElement.clientWidth) + 2))) return false;
+        }
+        return true;
+      });
+      if (!frameFits) result.failures.push('Clipped fixed hero headline');
       const active = hero.locator('.rp-cyc-word.on');
       await active.waitFor({ state: 'visible', timeout: 5000 });
       const reduced = profile.reducedMotion === 'reduce';
@@ -204,7 +219,7 @@ try {
         await page.waitForTimeout(2600);
         if ((await active.textContent()).trim() !== result.samples[0].word) result.failures.push('Rotation ignores reduced motion');
       }
-      if (result.words.length > 1) result.notes.push('Manually verify an accessible pause/stop affordance for continuously changing copy.');
+      if (result.words.length > 1) result.notes.push('Manually verify an accessible pause/stop affordance for continuously changing copy and contextual, visually balanced wording.');
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       result.axe = {
         violations: axe.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
@@ -229,6 +244,15 @@ try {
     }
   }
 } finally { await browser.close(); }
+const signatures = new Map();
+for (const result of report.results.filter(r => r.kind === 'indexable' && !r.sample && r.frame && r.words.length)) {
+  const key = JSON.stringify([result.frame, result.words]);
+  const previous = signatures.get(key);
+  if (previous) {
+    result.notes.push('Identical hero copy to ' + previous + '; editorial review needed');
+  } else signatures.set(key, result.path);
+}
+await save();
 const counts = report.results.reduce((all, result) => ({ ...all, [result.status]: (all[result.status] || 0) + 1 }), {});
 console.log('Acceptance summary: ' + JSON.stringify({ counts, inventoryIssues }));
 if (inventoryIssues.length || report.results.some(result => result.status === 'fail')) process.exitCode = 1;

@@ -19,11 +19,11 @@ and supported navigation/LCP/CLS timings. Save per-route JSON/screenshots.
 
 GitHub Actions supplies a network-enabled audit environment. Isolated
 Playwright 1.65.1 and @axe-core/playwright 4.14.1 do not enter production
-dependencies. The optional workflow uses 3 engines at desktop, phone and
+dependencies. The optional workflow uses 3 engines at desktop, phone, tablet and
 fold cover widths, plus Chromium at landscape, 160px stress and 2560px.
 These are approximations, not native device certification. The revision
-label is the initial observed baseline, not proof the live site did not
-change mid-run. Before accepting evidence, compare the latest Amplify
+label is the PR base or the manually supplied observed deployed commit,
+not proof the live site did not change mid-run. Before accepting evidence, compare the latest Amplify
 job and commit before and after the run. Rerun if the revision changed.
 
 ## Known source findings before the browser run

@@ -9,6 +9,11 @@ on:
       - 'scripts/audit_public_acceptance.mjs'
       - '.github/workflows/public-acceptance.yml'
   workflow_dispatch:
+    inputs:
+      production_revision:
+        description: 'Observed deployed commit (verify separately before and after)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -23,7 +28,7 @@ jobs:
       max-parallel: 3
       matrix:
         engine: [chromium, firefox, webkit]
-        profile: [desktop, phone, fold]
+        profile: [desktop, phone, tablet, fold]
         include:
           - engine: chromium
             profile: landscape
@@ -36,7 +41,7 @@ jobs:
       PUBLIC_QA_ENGINE: ${{ matrix.engine }}
       PUBLIC_QA_PROFILE: ${{ matrix.profile }}
       PUBLIC_QA_OUTPUT: ${{ runner.temp }}/public-acceptance
-      PUBLIC_QA_REVISION: dcaf7fcaf8242a53b8bce781356218eff6769e51
+      PUBLIC_QA_REVISION: ${{ github.event.pull_request.base.sha || inputs.production_revision }}
     steps:
       - uses: actions/checkout@v4
         with:
