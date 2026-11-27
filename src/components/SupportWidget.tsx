@@ -974,13 +974,14 @@ const SupportWidget: React.FC = () => {
            screen reader reads - the trigger should come before the thing it opens. */
          .wc-panel{order:-1;display:flex;flex-direction:column;width:min(232px,var(--wc-panel-width,calc(100vw - 32px)));min-width:0;box-sizing:border-box;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow-y:auto;overflow-x:hidden}
 
-          .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;padding:0 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
+          .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;padding:0 12px;border-bottom:2px solid var(--public-search-underline);background:var(--public-lime-tint);transition:border-color .2s,background-color .2s,box-shadow .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
            defect this palette has already been burned by once. One strong underline under the
            field says where the typing goes, and nothing shouts. */
-        .wc-search:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}
+        .wc-search:focus-within{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}
+        @media (hover:hover) and (pointer:fine){.wc-search:hover{background:var(--public-nav-hover)}}
         @media (forced-colors: active){.wc-search:focus-within{outline:2px solid Highlight;outline-offset:-2px}}
         .wc-search>svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
 
@@ -1030,8 +1031,8 @@ const SupportWidget: React.FC = () => {
         /* is-active is the keyboard/pointer highlight; is-on is the language currently
            showing. Solid lime for the current one, tint for the highlight - the same pairing
            as the header menu, where active==hover was itself a defect that had to be fixed. */
-        .wc-row.is-active{background:rgba(209,244,112,.38)}
-        .wc-row.is-on{background:#d1f470}
+        .wc-row.is-active{background:var(--public-nav-hover)}
+        .wc-row.is-on{background:var(--public-brand-lime)}
         .wc-row:focus-visible{outline:3px solid #1a3a2a;outline-offset:-3px}
         .wc-row-name{min-width:0;overflow-wrap:anywhere;white-space:normal}
         .wc-row-code{flex:0 0 auto;font-size:var(--public-meta-size);font-weight:700;letter-spacing:.03em;color:var(--public-brand-green);opacity:.8}
