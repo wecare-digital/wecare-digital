@@ -82,6 +82,19 @@ assert(backend.includes('inFlight.get(cacheKey)'), 'in-flight query coalescing m
 assert(backend.includes("param('lat', 'FLOAT64', gridLat)"),
   'BigQuery query parameters must align with the 0.1-degree cache grid');
 
+// Multi-year ranges read only the pre-aggregated table; the raw table stays 30d only.
+assert(backend.includes("if (range !== '30d')") && backend.includes('aggregateSql(AGGREGATE_TABLE)'),
+  '1y and 5y must be served from the aggregate table');
+assert(backend.includes('aggregateComplete(rows[0]') && backend.includes('WEATHER_INSIGHTS_AGGREGATE_ENABLED'),
+  'aggregate must be gated and completeness-checked before serving 1y/5y');
+assert(backend.includes("AGGREGATE_MAX_BYTES_BILLED = '134217728'"),
+  'aggregate reads need their own small byte cap');
+const aggregateBuild = read('scripts/build_weather_history_aggregate.sh');
+assert(aggregateBuild.includes('CAP_BYTES=1073741824') &&
+  aggregateBuild.includes('--maximum_bytes_billed="$CAP_BYTES"') &&
+  aggregateBuild.includes('--dry_run') && aggregateBuild.includes('MAX_CHUNKS'),
+  'aggregate builder must dry-run and cap every chunk at 1 GiB');
+
 execFileSync(process.execPath, ['--check', 'gcp/vayulok-weather-insights/server.mjs'], {
   stdio: 'inherit',
 });

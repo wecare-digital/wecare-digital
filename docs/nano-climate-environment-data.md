@@ -4,7 +4,7 @@ Keep the existing WECARE.DIGITAL hero, eyebrow, globe, typography, section borde
 search, map geometry, Air/Weather tabs and shared UI components. The addition is
 only an extra section using the existing detail styles. No new primary navigation.
 
-## Implemented adapters (not activated by this change)
+## Implemented adapters (activation status is in Verified status below)
 
 | Provider | Contract | Hard shared upstream attempts (UTC day / month) |
 |---|---|---|
@@ -62,16 +62,110 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   remain. Selection changes cancel the previous request; no polling, no
   automatic retry and no historical map animation.
 
-## Remaining source-specific work
+## Verified status (audit 2026-11-27, production branch 62b1c01a2)
 
-Google historical-weather service is already wired with 1 GiB query cap and
-10 GiB/day project quota; verify current deployed status and coverage before
-additional queries. WeatherNext 3 statistics Zarr needs verified access,
-real-time licensing and a bounded byte/chunk read plan; never scan expensive raw
-BigQuery views. Sentinel-5P needs a verified permitted L2/derived product,
-processing workflow, coverage and quality flags; catalog metadata alone is not
-an atmospheric concentration. No OAQ, Aurassure, Pollen, paid Sentinel Hub,
-Solar Data Layers or unverified IMD feed.
+Live page: https://wecare.digital/atmos/nano-climate/ (/vayulok/ is a 404).
+Lambda live alias: version 8. Amplify production build: #799. Deployed handler.py
+hash equals the repository file. Status uses the definition of completion: code
+tested, CI, deployed, provider authorization verified, safeguards operational,
+real data retrieved, frontend shows attributed readings, browser verified,
+graceful degradation.
+
+| Integration | Status |
+|---|---|
+| PVGIS | Complete. Live Delhi response and card verified in a browser. Also re-verified for a second selected place (cards update with the selection). |
+| SPARTAN | Complete. Live Delhi site card verified, labelled historical. |
+| Google Elevation | Code, CI, deployment and budget guard done. Not activated (not in VAYULOK_EXTENDED_SOURCES). Server key API restriction, Elevation API enablement and billing not verified (no Google Cloud credentials were available). |
+| Google Solar Building Insights | Same as Elevation. Also only runs for a precise building viewport. |
+| CPCB | Code and deployment done. Blocked: secret wecare/nano-climate/cpcb does not exist and needs a registered data.gov.in key from the owner. scripts/configure_nano_climate_sources.py already adds the read statement and VAYULOK_CPCB_SECRET once the secret exists. |
+| Historical Weather | 30d (0.987 GiB dry run) reads the raw table. 1y and 5y now read a pre-aggregated table built by scripts/build_weather_history_aggregate.sh. Until that table is built and verified, 1y and 5y report the honest cost-cap state. See below. |
+| WeatherNext 3 | No integration code. Statistics bucket is not anonymously readable (HTTP 401/403 verified), so access needs the Google account allowlisted through the WeatherNext data request form. Terms and chunk sizes are unverified. See below. |
+| Sentinel-5P | No integration code. Public catalogue verified, processing path undecided. See below. |
+
+Frontend check: the Environmental insights cards are keyed to the selected
+coordinates. A retest in the live site after selecting another place showed new
+PVGIS coordinates and the SPARTAN no_data state, so the earlier Delhi observation
+was a snapshot timing artifact, not a defect. Regression assertions were added.
+
+### Historical Weather optimization
+
+Dry-run baseline on weather_insights.weather_history_in: 30d 0.987 GiB, 1y 12.13 GiB,
+5y 35.28 GiB (earlier estimates). A later Delhi dry run on 2026-11-27 UTC
+estimated 1,077,485,760 / 13,042,935,360 / 37,902,496,320 bytes for 30d/1y/5y;
+all exceeded 1 GiB. No query was executed. The raw 30d path remains capped and
+must return an unavailable state if it exceeds the limit. Quotas are not raised.
+The following aggregate approach is a proposal only; do not execute its backfill
+without explicit owner approval of the total processing/storage budget, verified
+provider terms and project-wide quotas. Never partition a user request merely to
+circumvent the 1 GiB cap.
+
+1. scripts/build_weather_history_aggregate.sh creates
+   weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
+   windows per grid point with hours, sum/min/max temperature, precipitation sum and
+   humidity sum, de-duplicated to one row per grid point per hour. Each window is one
+   INSERT, dry-run first, with --maximum_bytes_billed=1073741824. Windows with no raw
+   rows get a sentinel row (0 hours) so they count as done. At most 4 windows per run
+   by default (never more than 12). The project quota of 10 GiB/day is shared with
+   live 30d queries (about 0.99 GiB per cache miss), so run off-peak and check the
+   day's usage first. Completed windows are skipped, so it resumes across days.
+   The 5y raw dry run is 35.28 GiB in total, so the one-time build is of that order
+   (verify billing-account-wide use before claiming it is free).
+2. Raw column names are assumed (geography, forecast_time, temperature_c, qpf_mm,
+   relative_humidity_percent). Confirm with bq show --schema, or override with
+   C_GEO, C_TIME, C_TEMP, C_RAIN, C_HUM. The dry run fails before billing on a mismatch.
+3. server.mjs reads only that table for 1y and 5y with a 128 MiB ceiling (or a stricter configured cap). It serves a
+   summary only when WEATHER_INSIGHTS_AGGREGATE_ENABLED=true and the table reaches
+   back to the range start with about one window per 16 days (aggregateComplete in
+   aggregate.mjs). Otherwise it returns query_cost_cap_exceeded (422, missing table
+   or disabled) or historical_aggregate_incomplete (503), never a raw scan or a
+   partial summary labelled 1y/5y.
+4. Differences to confirm before enabling the flag: the aggregate uses the nearest
+   single grid point within 10 km, while the raw 30d path takes the nearest row per
+   hour. After loading, compare the 30d summary with the aggregate for New Delhi
+   (sample hours, mean temperature, precipitation) and set the flag only if they
+   agree.
+
+Cloud Shell, in this order:
+
+    bash scripts/build_weather_history_aggregate.sh            # dry run
+    # Only after explicit backfill approval and verified project quota:
+    bash scripts/build_weather_history_aggregate.sh --apply
+    bash scripts/build_weather_history_aggregate.sh --verify
+
+The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights,
+and WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
+
+### WeatherNext 3 (statistics Zarr)
+
+Verified from Google documentation: gs://weathernext3_statistics_spatial/weathernext_3_0_0_statistics/zarr/
+holds precomputed _mean, _p10, _p25, _p50, _p75, _p90 for 0.1 and 0.05 degree surface
+variables, with a flattened 1-hour lead_time axis and 360-hour horizon for 6-hourly
+inits (hourly inits from 2026, 48-hour horizon). The statistics bucket is not
+Requester Pays. Access is allowlist-only (form, reviewed in 5 to 7 business days);
+anonymous listing returned 401 and an anonymous object read 403. Real-time data
+(less than 1 hour old and future) falls under the Google DeepMind Real-Time Weather
+Forecasting Experimental Data Terms of Use, which could not be read automatically
+(PDF). Those terms, the allowlist status of the wecare account and the per-chunk byte
+sizes are therefore unverified, and no code was added. P10/P50/P90 may be displayed
+only after this is confirmed and only as WeatherNext 3 with its own attribution,
+never from Google Weather. Do not query the BigQuery views.
+
+Cloud Shell verification (read-only, lists names and reads zarr.json metadata only):
+
+    bash scripts/verify_weathernext_statistics_access.sh
+
+### Sentinel-5P
+
+Verified: the Copernicus Data Space catalogue (OData, anonymous) returns current
+TROPOMI L2 NO2 granules for Delhi, for example S5P_NRTI_L2__NO2____20261127T091052...nc
+at 68 MB each; NO2, CO and aerosol index products exist as Non Time Critical (archive
+from April 2018) and Near Real Time (last month). Downloads need a free Copernicus
+Data Space account token. A 68 MB swath file per request exceeds the Lambda 6 MiB
+upstream cap and cannot be cost-bounded per visitor, so it needs an offline
+scheduled job that filters on qa_value, reduces to a small per-city JSON (time,
+coverage, qa threshold, column value in mol/m2) and publishes it. That job and the
+account are not created. Any display must say "satellite column, not surface
+concentration". No code was added.
 
 ## Official sources
 
