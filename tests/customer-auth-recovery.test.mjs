@@ -98,3 +98,12 @@ for(const status of [200,401]) test(`older refresh (${status}) cannot overwrite 
   assert.equal(await older,null);
   assert.equal(r.auth.getSession().accessToken,'new-access');
 });
+
+test('short access tokens stay in memory and legacy persisted tokens are discarded',async()=>{
+  const r=runtime({cached:true});
+  assert.equal(r.context.window.sessionStorage.getItem('wecare.customer.accessToken'),null);
+  await r.auth.restoreSession();
+  assert.equal(r.auth.getSession().accessToken,'new-access');
+  assert.equal(r.context.window.sessionStorage.getItem('wecare.customer.accessToken'),null);
+  assert.equal(r.context.window.sessionStorage.getItem('wecare.customer.expiresAt'),null);
+});

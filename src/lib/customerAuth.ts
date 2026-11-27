@@ -23,8 +23,7 @@
  *
  * Token storage
  * -------------
- * The access token goes in `sessionStorage`, not `localStorage`: it is valid for
- * 60 minutes. A server-owned session uses an HttpOnly cookie and an encrypted
+ * The access token stays in memory for its short lifetime (up to 60 minutes). A server-owned session uses an HttpOnly cookie and an encrypted
  * refresh token. Only a CSRF/expiry hint is kept in localStorage; it cannot
  * authorize a request. Customers may opt out of a persistent cookie on shared
  * devices. Short access tokens remain readable by same-origin script and expire
@@ -68,7 +67,11 @@ function parseHint ( raw: string | null ): SessionHint | null {
   } catch { return null; }
 }
 
-// Logout in another tab invalidates this tab's cached access token as well.
+// Remove older releases' persisted access tokens; the server session restores
+// authentication after navigation without exposing a token in browser storage.
+if ( typeof window !== 'undefined' ) discardAccessToken();
+
+// A login or logout in another tab invalidates this tab's cached access token.
 if ( typeof window !== 'undefined' ) window.addEventListener( 'storage', event => {
   if ( event.key === SESSION_HINT_KEY ) {
     memoryHint = null;
@@ -350,22 +353,15 @@ export function nextSessionFrom ( error: unknown ): string {
 export function storeSession ( accessToken: string, expiresAt: number ): void {
   if ( typeof window === 'undefined' ) return;
   memorySession = { accessToken, expiresAt };
-  try {
-    window.sessionStorage.setItem( TOKEN_KEY, accessToken );
-    window.sessionStorage.setItem( EXPIRY_KEY, String( expiresAt ) );
-  } catch { /* The current page can still use the in-memory short-lived token. */ }
+
 }
 
 /** The stored token, or null when absent or expired. */
 export function getSession (): CustomerSession | null {
   if ( typeof window === 'undefined' ) return null;
   sessionHint();
-  let accessToken = memorySession?.accessToken;
-  let expiresAt = memorySession?.expiresAt || 0;
-  try {
-    accessToken = window.sessionStorage.getItem( TOKEN_KEY ) || accessToken;
-    expiresAt = Number( window.sessionStorage.getItem( EXPIRY_KEY ) || expiresAt );
-  } catch { /* Use only this module's already-issued short-lived token. */ }
+  const accessToken = memorySession?.accessToken;
+  const expiresAt = memorySession?.expiresAt || 0;
   if ( !accessToken || !expiresAt ) return null;
   // Treat a token inside its last 30 seconds as gone, so a request cannot expire
   // mid-flight and surface as a confusing 401.
