@@ -2,7 +2,6 @@ import React from 'react';
 import PageMeta from '../../components/PageMeta';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../../components/RotatingHero';
-import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import AppointmentAccess from '../../components/public/AppointmentAccess';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
@@ -82,10 +81,10 @@ const SehatPage: React.FC = () => (
           </li>
         </ol>
 
-        {/* One checkout entry. Payment mode is chosen after cart review. */}
+        {/* Do not collect a service fee without an owned provider-verified booking intent. */}
         <h3 className="sht-step-t">WECARE website service fee</h3>
         <p className="sht-p">₹550 base service fee, plus 18% GST. Checkout applies the existing Express and Delight rules, a 2.5% convenience fee and GST on that fee. Hospital consultation, registration, treatment and travel charges are separate.</p>
-        <ProductBuyBox slug="sehat" offerNote="Base service fee; taxes and checkout charges apply. A service purchase does not reserve a hospital appointment." />
+        <p className="sht-p" role="status">Checkout is unavailable until appointment requests can be securely linked to a verified booking. No payment is taken for a draft.</p>
 
         <div className="sht-commerce">
           <p className="sht-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="sht-sku-value">{ PRODUCT_SKU_BY_SLUG['sehat'] }</span></p>
