@@ -128,3 +128,39 @@ updated runtime and stack pin its exact ARN, read only AWSCURRENT, validate
 approved service metadata, and remove the legacy credential-row read permission.
 The base disabled artifact never grants access to that secret. Stored login
 credentials alone do not establish an approved or working provider session.
+
+
+## Public directory fallback — separate from booking
+
+The official public directory exposes hospital and doctor-profile links:
+- https://www.apollohospitals.com/facilities/hospitals
+- https://www.apollohospitals.com/doctors
+
+Apollo's public-site disclaimer restricts commercial reuse and retention:
+https://www.apollohospitals.com/corporate/disclaimer/. A public URL, a staff IC
+account and a robots allowance do not establish permission to republish a directory.
+
+The authenticated planner offers direct official-directory links independent of
+live IC availability. These do not forward patient data, use an IC login token,
+take payment or claim booking confirmation. Customers use Apollo's own website
+for availability, verification and booking.
+
+The operator-only `scripts/apollo_public_directory.py` discovers first-page
+hospital and doctor profile links when explicitly approved by Apollo. It reads
+the current robots policy, uses a named user agent, fetches a fixed public page
+with strict size and time bounds, refuses redirects and noncanonical links,
+and returns minimal directory-only JSON. The specialty and city slugs are
+public URL components, NOT IC identifiers. It does not follow profiles or
+pagination, collect patient data, bypass verification, submit bookings or
+persist snapshots. Never enable it as a commercial catalogue feed until written
+permission and the actual response contract have been reviewed. With that
+approval, an administrator may run:
+
+`python3 scripts/apollo_public_directory.py --kind hospitals --approved-by-provider`
+
+`python3 scripts/apollo_public_directory.py --kind doctors --approved-by-provider`
+
+Do not cache or republish its results outside the approved scope. Test coverage
+uses synthetic HTML, not copied profiles. No authorized live automated scrape
+or slot reservation has been verified. IC integration and checkout remain
+separately gated.
