@@ -10,7 +10,7 @@ const SHOP: Crumb = { label: 'Shop', href: '/shop/' };
 
 const here = ( label: string ): Crumb => ( { label } );
 
-export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
+const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/atmos/green-ledger': [ HOME, here( 'Green Ledger' ) ],
   '/elsewhere/rail': [ HOME, here( 'Rail' ) ],
   '/elsewhere/cruise': [ HOME, here( 'Cruise' ) ],

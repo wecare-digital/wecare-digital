@@ -55,7 +55,7 @@ const LOCAL_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/;
 
 type LocalParts = { date: string; time: string };
 
-export function splitLocal ( value: string ): LocalParts {
+function splitLocal ( value: string ): LocalParts {
     const m = LOCAL_RE.exec( value );
     return m ? { date: m[ 1 ], time: m[ 2 ] } : { date: '', time: '' };
 }

@@ -46,7 +46,6 @@
   "src/components/workspace/pay/PayFlow.tsx": {"@next/next/no-img-element":2,"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":6},
   "src/components/workspace/pay/PaymentCustomerPicker.tsx": {"react-hooks/set-state-in-effect":1},
   "src/components/workspace/pay/PaymentFramework.tsx": {"react-hooks/set-state-in-effect":1},
-  "src/components/workspace/pay/PaymentsActivity.tsx": {"react-hooks/set-state-in-effect":1},
   "src/components/workspace/pay/ProcessTemplatePreview.tsx": {"@next/next/no-img-element":1,"react-hooks/set-state-in-effect":1},
   "src/components/workspace/pay/VaultDeliveryTiming.tsx": {"react-hooks/set-state-in-effect":1},
   "src/components/workspace/pay/VaultPdfPreview.tsx": {"react-hooks/set-state-in-effect":1},

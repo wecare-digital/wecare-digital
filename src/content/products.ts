@@ -58,7 +58,7 @@ export const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[]
   { word: d, ...PURPLE },
 ];
 
-export interface ProductPoint {
+interface ProductPoint {
   heading: string;
   body: string;
 }

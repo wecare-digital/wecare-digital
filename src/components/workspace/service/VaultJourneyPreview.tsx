@@ -125,7 +125,7 @@ type MetaTemplateCopy = { body: string; footer: string; buttons: string[]; statu
 
 /** Only render actual text if the staff Meta template read supplied its BODY.
  * Never present a hand-authored illustration as approved live copy. */
-export function parseMetaTemplateCopy ( raw: unknown ): MetaTemplateCopy | null {
+function parseMetaTemplateCopy ( raw: unknown ): MetaTemplateCopy | null {
   if ( !raw || typeof raw !== 'object' ) return null;
   const row = raw as Record<string, unknown>;
   if ( !Array.isArray( row.components ) ) return null;

@@ -67,7 +67,6 @@ export const status = {
     queued: { fg: '#6b7280', bg: '#f9fafb', solid: '#9ca3af' }, // grey
     failed: { fg: '#b91c1c', bg: '#fef2f2', solid: '#ef4444' }, // red
 } as const;
-export type StatusKey = keyof typeof status;
 
 /* ── Typography ────────────────────────────────────────────────────────── */
 export const font = {
@@ -164,7 +163,7 @@ export const layout = {
 
 /* ── Breakpoints (px) ──────────────────────────────────────────────────── */
 export const breakpoints = { sm: 480, md: 768, lg: 1024, xl: 1280 } as const;
-export const mq = {
+const mq = {
     sm: `@media (max-width: ${breakpoints.sm}px)`,
     md: `@media (max-width: ${breakpoints.md}px)`,
     lg: `@media (max-width: ${breakpoints.lg}px)`,

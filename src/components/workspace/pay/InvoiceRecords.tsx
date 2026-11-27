@@ -75,7 +75,7 @@ function money ( amount?: number, currency?: string ): string {
   }
 }
 
-export interface InvoiceCurrencyTotals {
+interface InvoiceCurrencyTotals {
   count: number;
   billed: number;
   collected: number;

@@ -47,10 +47,4 @@ export const featureFlags = {
   reviewCta: flag( process.env.NEXT_PUBLIC_ENABLE_REVIEW_CTA ),
 } as const;
 
-export type FeatureFlagName = keyof typeof featureFlags;
 
-/** Every flag and its state, for the diagnostics panel and for tests. */
-export function allFlags (): { name: FeatureFlagName; enabled: boolean }[] {
-  return ( Object.keys( featureFlags ) as FeatureFlagName[] )
-    .map( ( name ) => ( { name, enabled: featureFlags[ name ] } ) );
-}

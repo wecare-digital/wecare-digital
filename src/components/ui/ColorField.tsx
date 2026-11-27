@@ -94,7 +94,7 @@ function humanise ( token: string ): string {
     return token.replace( /([a-z])([A-Z0-9])/g, '$1 $2' ).toLowerCase();
 }
 
-export function normaliseHex ( text: string ): string | null {
+function normaliseHex ( text: string ): string | null {
     const trimmed = text.trim();
     if ( !HEX_RE.test( trimmed ) ) return null;
     return `#${ trimmed.replace( /^#/, '' ).toLowerCase() }`;

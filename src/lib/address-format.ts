@@ -40,7 +40,7 @@ import { countryCodeForName, countryNameForCode } from '../config/countryOptions
  */
 
 /** The eight stored `contact_address._RULES` keys, including derived `countryCode`. */
-export type AddressFieldKey =
+type AddressFieldKey =
   | 'addressLine1'
   | 'addressLine2'
   | 'locality'
@@ -50,7 +50,7 @@ export type AddressFieldKey =
   | 'country'
   | 'countryCode';
 
-export interface AddressFieldSpec {
+interface AddressFieldSpec {
   /** Customer-visible F001 field; countryCode is derived and therefore excluded. */
   key: Exclude<AddressFieldKey, 'countryCode'>;
   /** The visible caption. Both forms use it verbatim, so one rename moves both. */
@@ -82,8 +82,8 @@ export const ADDRESS_FIELDS: readonly AddressFieldSpec[] = [
 export type AddressFormFields = Record<AddressFieldKey, string>;
 
 /** `identity.address.DEFAULT_COUNTRY` / `DEFAULT_COUNTRY_CODE`, mirrored. */
-export const DEFAULT_ADDRESS_COUNTRY = 'India';
-export const DEFAULT_ADDRESS_COUNTRY_CODE = 'IN';
+const DEFAULT_ADDRESS_COUNTRY = 'India';
+const DEFAULT_ADDRESS_COUNTRY_CODE = 'IN';
 
 export const EMPTY_ADDRESS_FIELDS: AddressFormFields = {
   addressLine1: '',
@@ -176,7 +176,7 @@ export function addressPayload (
  * Minimal structural shape needed to resolve a contact's delivery address.
  * This module intentionally does not import api/client.ts.
  */
-export interface ContactAddressSource {
+interface ContactAddressSource {
   checkoutDeliveryAddress?: Partial<AddressFormFields> & { fullAddress?: string };
   shippingAddressJson?: string;
   shippingAddress?: string;

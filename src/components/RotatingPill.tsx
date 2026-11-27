@@ -39,7 +39,7 @@ export interface CycleWord {
   dot: string;
 }
 
-export interface RotatingPillProps {
+interface RotatingPillProps {
   words: CycleWord[];
   /**
    * Entrance phase, owned by the host so its one-shot reveal stays in step with the rest of its

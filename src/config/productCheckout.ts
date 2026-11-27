@@ -1,5 +1,5 @@
 /** Fresh SKU-first product checkout mappings. */
-export interface ProductCheckoutLine {
+interface ProductCheckoutLine {
   readonly productId: string;
   readonly variantId: string;
   readonly name: string;

@@ -49,7 +49,7 @@ export interface NavItem {
 }
 
 /** A named group in the settings tree the gear opens. */
-export interface SettingsGroup {
+interface SettingsGroup {
   id: string;
   label: string;
   icon: string;
@@ -285,107 +285,7 @@ export const settingsConfig: SettingsGroup[] = [
   // built from it), so the gear group is removed to de-duplicate those destinations.
 ];
 
-// ---------------------------------------------------------------------------
-// THE EIGHT MODULE HOMES (master prompt phase 8.1)
-// ---------------------------------------------------------------------------
-/**
- * The master prompt asks for eight module homes: Home, Communications, Customers,
- * Commerce, Growth, Service Operations, Platform Operations and Settings.
- *
- * RECONCILING THAT WITH THE SIDEBAR ABOVE
- * ---------------------------------------
- * These are not the same question, and conflating them is what made this look like a
- * contradiction. A **module home** is a route: the landing page for a domain, with its
- * inner pages separately routed and lazy-loaded. The **sidebar** is which of those are
- * one click away. The owner overrode the second — "just show main inbox, rest move
- * under settings" — and said nothing about the first.
- *
- * So the eight homes are declared here and every one is a real, reachable route. Six of
- * the eight were already live under different names; this registry stops that being
- * implicit. Keep each path reachable and included in getAllNavItems().
- *
- * Settings is deliberately `null`. A `/workspace/settings` page would be one more destination to
- * navigate to *before* navigating, with its own shell, breadcrumb and a decision about
- * the page you were on — so it is a panel (`SettingsGear`) over `settingsConfig`, not a
- * route. That was a C1 decision and it stands; recording it as a home with no path is
- * more honest than inventing a route to satisfy a count.
- */
-export interface ModuleHome {
-  /** The master prompt's name for the module. */
-  id: string;
-  label: string;
-  /** The live route, or null when the module is a panel rather than a page. */
-  path: string | null;
-  /** Where its inner pages live, for the lazy-loading requirement. */
-  innerPages: string[];
-  /** Why this route is the home, when the name does not match the master prompt's. */
-  note?: string;
-}
 
-export const moduleHomes: ModuleHome[] = [
-  {
-    id: 'home', label: 'Home', path: '/workspace',
-    innerPages: [],
-    note: 'Workspace Home is the operator launchpad. It owns attention queues, quick actions, '
-      + 'recent work and discovery of the small set of operational workspaces.',
-  },
-  {
-    id: 'communications', label: 'Communications', path: '/workspace/communications',
-    innerPages: [
-      '/workspace/communications?view=inbox',
-      '/workspace/communications?view=manage',
-    ],
-    note: 'Exactly two primary modes: Inbox for daily conversation work and Manage for channels, '
-      + 'content, automation and communications operations.',
-  },
-  {
-    id: 'customers', label: 'Customers', path: '/workspace/customers',
-    innerPages: [],
-    note: 'Customer 360 is the customer record itself; there is no separate Engage/Contact 360 destination.',
-  },
-  {
-    id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
-    innerPages: ['/workspace/commerce?view=orders', '/workspace/commerce?view=catalog'],
-    note: 'Orders and Catalog are the two Commerce modes; money collection and invoice records live in Payments.',
-  },
-  // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
-  // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed
-  // as innerPages are all still reachable in their own right — [retired public path], [retired public path]/pages,
-  // [retired public path]/analytics, [retired public path]/tracking, [retired public path]/schema, [retired public path]/whatsapp/ctwa-ads and
-  // [retired public path]/whatsapp/conversions-api each have their own nav entry — so nothing became
-  // unreachable, only the grouping page went.
-  {
-    id: 'payments', label: 'Payments', path: '/workspace/payments',
-    innerPages: [
-      '/workspace/collect',
-      '/workspace/payments?view=ledger',
-    ],
-    note: 'Collect contains custom invoice creation, Control and its scoped Log; the global Ledger remains under Payments.',
-  },
-  {
-    id: 'service-operations', label: 'Vault', path: '/workspace/service',
-    innerPages: [],
-    note: 'Vault is the only active Workspace service surface in milestone 1; it remains manual and has no customer Meta Flow.',
-  },
-  {
-    id: 'platform-operations', label: 'Platform', path: '/workspace/platform',
-    innerPages: [
-      '/workspace/platform?view=mcp-connections',
-      '/workspace/platform?view=system-architecture',
-      '/workspace/platform?view=lambda-functions',
-      '/workspace/platform?view=code-repo',
-      '/workspace/platform?view=wa-graph-tools',
-      '/workspace/platform?view=cors-settings',
-      '/workspace/platform?view=design-reference',
-    ],
-    note: 'Platform is a first-class technical-operations workspace; static inventory surfaces remain explicitly labelled as snapshots.',
-  },
-  {
-    id: 'settings', label: 'Settings', path: null,
-    innerPages: [],
-    note: 'A panel, not a route. See the block comment above.',
-  },
-];
 
 /**
  * Every destination, sidebar AND settings.
@@ -394,7 +294,7 @@ export const moduleHomes: ModuleHome[] = [
  * here becomes genuinely unreachable once the sidebar is short. `getAllNavItems`
  * therefore walks both trees, and a test asserts the settings paths are present.
  */
-export const contextualRoutes: { path: string; label: string; parent: string }[] = [
+const contextualRoutes: { path: string; label: string; parent: string }[] = [
   // Search shortcuts choose a type in the same Payments workspace. They are
   // intentionally absent from visible menu children: the owner wants one dropdown.
   { path: '/workspace/collect', label: 'Collect', parent: 'Payments' },
@@ -435,46 +335,7 @@ export function getAllNavItems (): { path: string; label: string; parent?: strin
   return items;
 }
 
-/** Just the settings destinations, for the gear panel and for tests. */
-export function getSettingsItems (): { path: string; label: string; group: string }[] {
-  return settingsConfig.flatMap( ( g ) =>
-    g.items.map( ( i ) => ( { path: i.path, label: i.label, group: g.label } ) ) );
-}
 
-/**
- * Strip a query string before comparing to a route.
- *
- * The Inbox children are `/workspace/engage/inbox?channel=rcs` — one page, six entries. Without
- * this, active-state matching compares a path against a path-plus-query and never
- * matches, so the sidebar would highlight nothing on the page you are looking at.
- */
-function basePath ( p: string ): string {
-  const i = p.indexOf( '?' );
-  return i === -1 ? p : p.slice( 0, i );
-}
 
-export function getParentPath ( pathname: string ): string | null {
-  for ( const item of navigationConfig )
-  {
-    if ( item.children?.some( ( child ) => basePath( child.path ) === pathname ) )
-      return item.path;
-    if ( pathname.startsWith( basePath( item.path ) ) && item.path !== '/' )
-      return item.path;
-  }
-  return null;
-}
 
-export function isNavItemActive ( item: NavItem, pathname: string ): boolean {
-  const base = basePath( item.path );
-  if ( base === '/' ) return pathname === '/';
-  if ( item.children ) return pathname.startsWith( base );
-  return pathname === base || pathname.startsWith( base + '/' );
-}
 
-export function isSubItemActive ( subItem: NavSubItem, pathname: string ): boolean {
-  const base = basePath( subItem.path );
-  if ( pathname === base ) return true;
-  if ( subItem.children )
-    return subItem.children.some( ( child ) => pathname === basePath( child.path ) );
-  return pathname.startsWith( base + '/' );
-}

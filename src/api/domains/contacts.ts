@@ -8,14 +8,14 @@ import type { ApiResult, CheckoutDeliveryAddress } from '../core';
 // ============================================================================
 
 
-export interface ConsentEvidence {
+interface ConsentEvidence {
   source: string;
   purpose: string;
   reference: string;
   occurredAt?: string;
 }
 
-export interface ConsentEvent extends ConsentEvidence {
+interface ConsentEvent extends ConsentEvidence {
   eventId: string;
   field: string;
   channel: 'whatsapp' | 'sms' | 'email' | string;
@@ -283,7 +283,7 @@ export async function softDeleteContactResult (
   );
 }
 
-export interface ErasureCasePreview {
+interface ErasureCasePreview {
   caseId: string;
   contactId: string;
   manifestSha256: string;
@@ -317,13 +317,13 @@ export async function approveContactErasure ( caseId: string, contactId: string 
   );
 }
 
-export interface ApprovedContactErasureRequest {
+interface ApprovedContactErasureRequest {
   caseId: string;
   manifestSha256: string;
   approvalToken: string;
 }
 
-export interface ApprovedContactErasureResult {
+interface ApprovedContactErasureResult {
   success?: boolean;
   erasureComplete: boolean;
   caseId?: string;
@@ -379,13 +379,13 @@ export interface ContactCleanupKeep {
   keepBsuids?: string[];
 }
 
-export interface ContactCleanupCandidate {
+interface ContactCleanupCandidate {
   contactId: string;
   maskedPhone: string;
   messageTotal: number;
 }
 
-export interface ContactCleanupKept {
+interface ContactCleanupKept {
   label: string;
   maskedPhone: string;
   classification: string;
@@ -411,7 +411,7 @@ export interface ContactCleanupScanResult {
   note: string;
 }
 
-export interface ContactCleanupArchiveResult {
+interface ContactCleanupArchiveResult {
   archived: number;
   refused: number;
   results: Array<{ contactId: string; result: 'archived' | 'refused'; status: number }>;
@@ -457,7 +457,7 @@ export async function archiveCleanupCandidates ( input: {
   }, 0, CLEANUP_TIMEOUT_MS, false );
 }
 
-export interface CustomerMergeResult {
+interface CustomerMergeResult {
   merged: boolean;
   idempotent?: boolean;
   sourceContactId: string;
@@ -495,7 +495,7 @@ export type ConsentChannel = 'WHATSAPP' | 'SMS' | 'EMAIL' | 'RCS' | 'VOICE' | 'P
 export type ConsentState = 'OPTED_IN' | 'OPTED_OUT' | 'PENDING';
 export type ConsentPurpose = 'MARKETING' | 'TRANSACTIONAL' | 'SERVICE';
 
-export interface ConsentRecord {
+interface ConsentRecord {
   channel: ConsentChannel;
   state: ConsentState;
   source: string;
@@ -505,7 +505,7 @@ export interface ConsentRecord {
   expiry?: number;
 }
 
-export interface ConsentChannelSummary {
+interface ConsentChannelSummary {
   state: ConsentState;
   latestRecordState: ConsentState;
   source: string;
@@ -551,24 +551,7 @@ export async function appendConsent (
   } );
 }
 
-export interface ConsentImportResult extends ConsentView {
-  imported: number;
-  refused: { index: number; reason: string }[];
-}
 
-/**
- * Import EXISTING consent evidence. A row claiming OPTED_IN must name the originating source and
- * an evidence reference or it is refused; an address book can never manufacture an opt-in.
- */
-export async function importConsent (
-  contactId: string,
-  records: Record<string, unknown>[],
-): Promise<ApiResult<ConsentImportResult>> {
-  return apiCallResult<ConsentImportResult>( `${API_BASE}/contacts`, {
-    method: 'POST',
-    body: JSON.stringify( { _action: 'consent_import', contactId, records } ),
-  } );
-}
 
 /** Only the two enabled business portfolios are projected to the Customers UI. */
 const CUSTOMER_WHATSAPP_PORTFOLIOS = ['382642103987922', '125951953587391'] as const;

@@ -1,6 +1,6 @@
-export interface PublicMenuViewport { left: number; top: number; width: number; height: number }
-export interface PublicMenuAnchor { left: number; right: number; bottom: number }
-export interface PublicMenuGeometryInput {
+interface PublicMenuViewport { left: number; top: number; width: number; height: number }
+interface PublicMenuAnchor { left: number; right: number; bottom: number }
+interface PublicMenuGeometryInput {
   viewport: PublicMenuViewport;
   anchor: PublicMenuAnchor;
   headerBottom: number;

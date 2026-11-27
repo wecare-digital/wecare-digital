@@ -23,10 +23,10 @@ import { publicActionText } from './publicActionNotices';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
 /** The same authenticated route `prepare` and `verify` use. One function, one action word. */
-export const CLAIM_BASKET_URL = `${ API_BASE }/ecommerce/prepare-checkout`;
+const CLAIM_BASKET_URL = `${ API_BASE }/ecommerce/prepare-checkout`;
 
 /** The query parameter the WhatsApp link carries. */
-export const BASKET_PARAM = 'basket';
+const BASKET_PARAM = 'basket';
 
 /**
  * What a claim did, so the page can say one honest sentence about it.
@@ -41,7 +41,7 @@ export const BASKET_PARAM = 'basket';
  *                existence oracle, and the browser must not invent a distinction it was not told.
  *   LOST       - the request never produced an answer, so it proves nothing either way.
  */
-export type ClaimOutcome =
+type ClaimOutcome =
   | { kind: 'CLAIMED'; mergedLines: number; lines: ClaimedLine[] }
   | { kind: 'CART_IN_USE'; handoffLines: number }
   | { kind: 'RETRY' }

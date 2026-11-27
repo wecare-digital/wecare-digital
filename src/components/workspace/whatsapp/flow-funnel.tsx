@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import * as api from '../../../api/client';
 
 /** Staff-readable label for every stage lambda_utils.flow_funnel records. */
-export const FUNNEL_STAGE_LABELS: Record<string, string> = {
+const FUNNEL_STAGE_LABELS: Record<string, string> = {
   launch_attempted: 'Launch requested (keyword or staff send)',
   launch_blocked: 'Launch refused by a control',
   launch_redirected: 'Website link sent instead (WABA 2)',

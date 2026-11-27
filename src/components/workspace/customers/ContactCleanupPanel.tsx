@@ -5,7 +5,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useUserRole } from '../../../hooks/useUserRole';
 
-export const CLEANUP_POLICY_NOTE =
+const CLEANUP_POLICY_NOTE =
   'Identity deletion is not available. Archive is reversible. Permanent erasure requires legal review '
   + 'and the audited deletion process (docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md).';
 
@@ -14,7 +14,7 @@ export const CLEANUP_POLICY_NOTE =
  * A line that looks like a phone number is a phone, "CC.xxxx" is a BSUID, anything else is a
  * contact id. Names are never selectors.
  */
-export function parseKeepList ( text: string ): ContactCleanupKeep {
+function parseKeepList ( text: string ): ContactCleanupKeep {
   const keep: Required<ContactCleanupKeep> = { keepContactIds: [], keepPhones: [], keepBsuids: [] };
   for ( const raw of text.split( /\r?\n/ ) ) {
     const line = raw.trim();

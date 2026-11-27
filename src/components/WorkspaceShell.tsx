@@ -18,7 +18,7 @@ import { Breadcrumbs, KeyboardShortcuts, useKeyboardShortcutsModal } from './ui'
 
 export const WorkspaceShellContext = createContext( false );
 
-export interface WorkspaceShellProps {
+interface WorkspaceShellProps {
   children: ReactNode;
   user?: any;
   onSignOut?: () => void;

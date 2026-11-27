@@ -12,13 +12,12 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Browser } from '@capacitor/browser';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Keyboard } from '@capacitor/keyboard';
 
 /* ── Helpers ── */
-export const isNative = () => Capacitor.isNativePlatform();
-export const isIOS = () => Capacitor.getPlatform() === 'ios';
-export const isAndroid = () => Capacitor.getPlatform() === 'android';
+const isNative = () => Capacitor.isNativePlatform();
+const isIOS = () => Capacitor.getPlatform() === 'ios';
+const isAndroid = () => Capacitor.getPlatform() === 'android';
 
 /* ── Push Notifications ── */
 /**
@@ -80,7 +79,7 @@ async function armPush(onToken: (token: string) => void, onNotification: (data: 
  * requestPushPermission() below, called only from the explained opt-in in the Workspace profile
  * menu (src/components/PushOptIn.tsx).
  */
-export async function initPushNotifications(
+async function initPushNotifications(
   onToken: (token: string) => void,
   onNotification: (data: unknown) => void,
 ) {
@@ -124,7 +123,7 @@ export async function requestPushPermission(
 }
 
 /* ── Status Bar ── */
-export async function configureStatusBar(dark = true, backgroundColor = '#1a3a2a') {
+async function configureStatusBar(dark = true, backgroundColor = '#1a3a2a') {
   if (!isNative()) return;
   await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light });
   if (isAndroid()) {
@@ -133,26 +132,14 @@ export async function configureStatusBar(dark = true, backgroundColor = '#1a3a2a
 }
 
 /* ── Splash Screen ── */
-export async function hideSplash() {
+async function hideSplash() {
   if (!isNative()) return;
   await SplashScreen.hide({ fadeOutDuration: 300 });
 }
 
 /* ── Haptics ── */
-export async function hapticTap() {
-  if (!isNative()) return;
-  await Haptics.impact({ style: ImpactStyle.Light });
-}
 
-export async function hapticSuccess() {
-  if (!isNative()) return;
-  await Haptics.notification({ type: 'SUCCESS' as any });
-}
 
-export async function hapticError() {
-  if (!isNative()) return;
-  await Haptics.notification({ type: 'ERROR' as any });
-}
 
 /* ── External Browser ── */
 export async function openExternal(url: string) {
@@ -164,7 +151,7 @@ export async function openExternal(url: string) {
 }
 
 /* ── Deep Links ── */
-export function initDeepLinks(navigate: (path: string) => void) {
+function initDeepLinks(navigate: (path: string) => void) {
   if (!isNative()) return;
 
   App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
@@ -194,7 +181,7 @@ export function initDeepLinks(navigate: (path: string) => void) {
 }
 
 /* ── Back Button (Android) ── */
-export function initBackButton(goBack: () => void) {
+function initBackButton(goBack: () => void) {
   if (!isAndroid()) return;
 
   App.addListener('backButton', ({ canGoBack }) => {
@@ -207,7 +194,7 @@ export function initBackButton(goBack: () => void) {
 }
 
 /* ── Keyboard ── */
-export function initKeyboard(
+function initKeyboard(
   onShow?: (height: number) => void,
   onHide?: () => void,
 ) {
@@ -223,7 +210,7 @@ export function initKeyboard(
 }
 
 /* ── Master Init ── */
-export interface InitCapacitorOptions {
+interface InitCapacitorOptions {
   push: (path: string) => void;
   back: () => void;
   /**

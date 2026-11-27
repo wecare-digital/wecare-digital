@@ -93,5 +93,3 @@ Amplify.configure( {
   }
 } );
 
-/** Importing this module is what configures Amplify; the flag is for tests and diagnostics. */
-export const AMPLIFY_CONFIGURED = true;

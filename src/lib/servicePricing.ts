@@ -29,10 +29,10 @@ import { SERVICE_CHOICES, type ServiceSlug } from '../config/services';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
 /** The one price endpoint. GET, no query string, no body. */
-export const SERVICE_PRICES_URL = `${ API_BASE }/ecommerce/service-prices`;
+const SERVICE_PRICES_URL = `${ API_BASE }/ecommerce/service-prices`;
 
 /** The only currency a service is sold in. Compared explicitly, never inferred from an amount. */
-export const SERVICES_PRICE_CURRENCY = 'INR' as const;
+const SERVICES_PRICE_CURRENCY = 'INR' as const;
 
 export type ServicePaymentTemplates = {
   readonly nativePay: string;
@@ -89,7 +89,7 @@ const UNAVAILABLE: ServicePrice = { available: false };
  * "temporarily unavailable" forever. Deriving it means adding a service to `SERVICE_CHOICES` is
  * all it takes, and `ServicePricing.test.ts` pins the equality either way.
  */
-export const allUnavailable = (): Record<string, ServicePrice> =>
+const allUnavailable = (): Record<string, ServicePrice> =>
   Object.fromEntries( SERVICE_CHOICES.map( choice => [ choice.slug, UNAVAILABLE ] as const ) );
 
 /**

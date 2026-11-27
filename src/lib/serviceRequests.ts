@@ -17,8 +17,7 @@ import type { ServiceKind } from '../config/services';
 import { publicActionText } from './publicActionNotices';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
-export const REQUEST_INTENT_URL = `${ API_BASE }/services/request-intent`;
-export const MY_REQUESTS_URL = `${ API_BASE }/services/my-requests`;
+const REQUEST_INTENT_URL = `${ API_BASE }/services/request-intent`;
 
 /**
  * Public service-refusal codes stay stable, while customer-facing feedback
@@ -44,7 +43,7 @@ export const SERVICE_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
 export const isServiceRefusal = ( code: string ): boolean =>
   Object.prototype.hasOwnProperty.call( SERVICE_REFUSAL_MESSAGES, code );
 
-export interface ServiceIntent {
+interface ServiceIntent {
   intentId: string;
   kind: ServiceKind;
   variantId: string;
@@ -61,22 +60,8 @@ export interface ServiceIntent {
   targetRequestId: string | null;
 }
 
-export interface ServiceRequestRow {
-  /** The public, copyable id, e.g. WD-REQ-7K2M9QXA. */
-  requestId: string;
-  kind: ServiceKind | string;
-  status: string;
-  fileId?: string | null;
-  fileName?: string | null;
-  deliveryStatus?: string | null;
-  /** INT epoch seconds, UTC. */
-  createdAt: number | null;
-  orderNumber: string;
-  /** For an amendment: the public id of the request it amends. */
-  targetRequestId: string | null;
-}
 
-export type IntentOutcome =
+type IntentOutcome =
   | { kind: 'ok'; intent: ServiceIntent }
   | { kind: 'notFound' }
   | { kind: 'refused'; message: string }
@@ -84,11 +69,6 @@ export type IntentOutcome =
   | { kind: 'rate' }
   | { kind: 'failed' };
 
-export type RequestsOutcome =
-  | { kind: 'ok'; requests: ServiceRequestRow[]; cursor: string }
-  | { kind: 'expired' }
-  | { kind: 'rate' }
-  | { kind: 'failed' };
 
 const headers = ( token: string ) => ( {
   'Content-Type': 'application/json',
@@ -129,37 +109,3 @@ export async function postRequestIntent (
   }
 }
 
-/**
- * The caller's own requests. `referenceIds` are the caller's PAID orders' references: the server
- * activates any that are services orders before listing, so a request whose webhook hint was
- * missed still appears (the self-heal). At most 20 travel.
- */
-export async function fetchMyRequests (
-  token: string, referenceIds: readonly string[], cursor?: string,
-): Promise<RequestsOutcome> {
-  try
-  {
-    const ids = Array.from( new Set( referenceIds.filter( Boolean ) ) ).slice( 0, 20 );
-    const response = await fetch( MY_REQUESTS_URL, {
-      method: 'POST',
-      headers: headers( token ),
-      body: JSON.stringify( {
-        ...( ids.length ? { referenceIds: ids } : {} ),
-        ...( cursor ? { cursor } : {} ),
-      } ),
-    } );
-    if ( response.status === 401 ) return { kind: 'expired' };
-    if ( response.status === 429 ) return { kind: 'rate' };
-    if ( !response.ok ) return { kind: 'failed' };
-    const data = ( await response.json() ) as { requests?: ServiceRequestRow[]; cursor?: string };
-    return {
-      kind: 'ok',
-      requests: Array.isArray( data.requests ) ? data.requests : [],
-      cursor: String( data.cursor || '' ),
-    };
-  }
-  catch
-  {
-    return { kind: 'failed' };
-  }
-}

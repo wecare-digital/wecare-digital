@@ -3,13 +3,13 @@
  * Shared by the WhatsApp inbox and the Unified inbox emoji pickers.
  */
 
-export interface EmojiCategory {
+interface EmojiCategory {
     name: string;
     keywords: string;   // space-separated search terms
     emojis: string[];
 }
 
-export const EMOJI_CATEGORIES: EmojiCategory[] = [
+const EMOJI_CATEGORIES: EmojiCategory[] = [
     {
         name: 'Smileys',
         keywords: 'smile happy face laugh cry sad angry love wink cool sick',

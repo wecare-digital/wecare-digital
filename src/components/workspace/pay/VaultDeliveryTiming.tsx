@@ -15,10 +15,10 @@ const CONFIG_KEY = 'vault_delivery_timing_v1';
 const DEFAULTS = { postReceiptAccessGapSeconds: 4 } as const;
 type Timing = { postReceiptAccessGapSeconds: number };
 
-export const validVaultDelay = ( value: unknown ): value is number =>
+const validVaultDelay = ( value: unknown ): value is number =>
   typeof value === 'number' && Number.isInteger( value ) && value >= 0 && value <= 5;
 
-export function readVaultTiming( raw: unknown ): Timing | null {
+function readVaultTiming( raw: unknown ): Timing | null {
   if ( !raw || typeof raw !== 'object' ) return null;
   const value = raw as Record<string, unknown>;
   // Older records may also contain orderStatusGapSeconds. Ignore that

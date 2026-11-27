@@ -28,9 +28,9 @@ export interface AddressDraft {
   countryCode: string;
 }
 
-export const ADDRESS_COUNTRY = 'India';
-export const ADDRESS_COUNTRY_CODE = 'IN';
-export const INDIA_PIN_RE = /^[1-9][0-9]{5}$/;
+const ADDRESS_COUNTRY = 'India';
+const ADDRESS_COUNTRY_CODE = 'IN';
+const INDIA_PIN_RE = /^[1-9][0-9]{5}$/;
 
 export const EMPTY_ADDRESS_DRAFT: AddressDraft = {
   addressLine1: '',

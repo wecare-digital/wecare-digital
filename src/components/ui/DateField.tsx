@@ -102,7 +102,7 @@ const WEEKDAYS = [
 const pad = ( n: number ) => String( n ).padStart( 2, '0' );
 
 /** The real-calendar check. Built from numeric parts, then asserted to come back unchanged. */
-export function isRealDate ( year: number, month: number, day: number ): boolean {
+function isRealDate ( year: number, month: number, day: number ): boolean {
     if ( month < 1 || month > 12 || day < 1 || day > 31 ) return false;
     const d = new Date( Date.UTC( year, month - 1, day ) );
     return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
@@ -110,7 +110,7 @@ export function isRealDate ( year: number, month: number, day: number ): boolean
 
 type Parts = { year: number; month: number; day: number };
 
-export function parseIso ( iso: string ): Parts | null {
+function parseIso ( iso: string ): Parts | null {
     const m = ISO_RE.exec( iso );
     if ( !m ) return null;
     const year = Number( m[ 1 ] );
@@ -122,13 +122,13 @@ export function parseIso ( iso: string ): Parts | null {
 const toIso = ( p: Parts ) => `${ p.year }-${ pad( p.month ) }-${ pad( p.day ) }`;
 
 /** `YYYY-MM-DD` -> `DD/MM/YYYY`, and '' for anything this component would not emit. */
-export function isoToDisplay ( iso: string ): string {
+function isoToDisplay ( iso: string ): string {
     const p = parseIso( iso );
     return p ? `${ pad( p.day ) }/${ pad( p.month ) }/${ p.year }` : '';
 }
 
 /** `DD/MM/YYYY` -> `YYYY-MM-DD`, or null. 31/02/2026 lands here and returns null. */
-export function displayToIso ( text: string ): string | null {
+function displayToIso ( text: string ): string | null {
     const m = DISPLAY_RE.exec( text.trim() );
     if ( !m ) return null;
     const day = Number( m[ 1 ] );

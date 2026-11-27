@@ -2,7 +2,7 @@ import type { ProductDef } from './products';
 import { cycle } from './products';
 import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
-export interface ProductChildPage {
+interface ProductChildPage {
   path: string;
   parent: string;
   product: ProductDef;
@@ -15,7 +15,7 @@ export interface ProductChildPage {
  * have no route; only these destinations render. Each child uses the shared ProductPage /
  * RotatingHero detail-page contract.
  */
-export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
+const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/atmos/green-ledger/',
     parent: 'Atmos',

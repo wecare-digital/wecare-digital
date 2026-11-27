@@ -2,7 +2,7 @@ import React from 'react';
 
 import { StoredAddress } from './AddressFields';
 
-export interface CheckoutIdentity {
+interface CheckoutIdentity {
   name: string;
   username?: string;
   companyName?: string;
@@ -13,7 +13,7 @@ export interface CheckoutIdentity {
   address: StoredAddress | null;
 }
 
-export function maskPhone ( phone: string ): string {
+function maskPhone ( phone: string ): string {
   const raw = String( phone || '' );
   const digits = raw.replace( /\D/g, '' );
   if ( digits.length < 7 ) return raw;

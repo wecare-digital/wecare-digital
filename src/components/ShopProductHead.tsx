@@ -53,7 +53,7 @@ interface ShopProductHeadProps {
 /** One JSON-LD node. Deliberately loose: a schema.org graph is heterogeneous by design. */
 type LdNode = Record<string, unknown>;
 
-export const shopProductSchema = (
+const shopProductSchema = (
   product: ShopProduct,
 ): { '@context': string; '@graph': LdNode[] } => {
   const url = ORIGIN + shopProductPath( product );

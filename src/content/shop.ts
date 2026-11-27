@@ -23,7 +23,7 @@ import { buildPageTitle } from '../lib/page-title';
 import catalog from './catalogSnapshot';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
 // declaration. src/config/contribution.ts imports nothing from here, so there is no cycle.
-import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
+import { CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { SERVICE_PRODUCT_IDS } from '../config/services';
 
 export interface ShopVariant { id: string; label: string; inStock: boolean; }
@@ -147,7 +147,7 @@ export function toParagraphs ( html: string ): string[] {
  * file all key on, and it cannot be edited in the catalog dashboard; the slug can. The slug is still
  * checked so the exclusion survives a product id override via `NEXT_PUBLIC_*`.
  */
-export const CONTRIBUTION_SLUG = 'contribute';
+const CONTRIBUTION_SLUG = 'contribute';
 
 /** Is this raw snapshot row the contribution vehicle rather than a shop listing? */
 const isContributionRow = ( raw: RawProduct ): boolean =>
@@ -244,26 +244,7 @@ export const KNOWN_CATALOGUE_PRODUCT_IDS: ReadonlySet<string> = new Set(
     .filter( Boolean ),
 );
 
-/** The contribution product, projected the same way. Null until the snapshot is refreshed. */
-export const CONTRIBUTION_PRODUCT: ShopProduct | null =
-  VISIBLE.filter( isContributionRow ).map( project )[ 0 ] || null;
 
-/**
- * The raw snapshot row for the contribution product, for INVARIANT CHECKS ONLY.
- *
- * `productType` and the three counts are deliberately NOT on `ShopProduct` - see this file's
- * header: `productType` reads PHYSICAL on every product in the snapshot, so surfacing it would put
- * a false statement on five pages. They are read here rather than by widening the interface every
- * product page consumes.
- *
- * Null until `scripts/build-catalog-snapshot.py` is re-run, which is NOT a configuration problem: the
- * ids a contribution line needs are committed in src/config/contribution.ts, so the feature works
- * with this row absent. All it costs is the `/shop/` exclusion, which only matters once the row
- * exists in the first place.
- */
-export const CONTRIBUTION_RAW: Record<string, unknown> | null =
-  ( ( ( catalog as { products?: RawProduct[] } ).products || [] )
-    .find( isContributionRow ) as Record<string, unknown> | undefined ) || null;
 
 /**
  * Re-exported so a cart line, the shop exclusion and the blog form all read ONE declaration.
@@ -275,39 +256,11 @@ export const CONTRIBUTION_RAW: Record<string, unknown> | null =
  */
 export { CONTRIBUTION_PRODUCT_ID };
 
-/**
- * Is a contribution offerable by this build at all?
- *
- * A product id and three choices, read together: a line with a product id and no variant id would
- * reach `normalized_catalog_items`' single-variant fallback, which is exactly the guess the
- * explicit variant exists to avoid - and on this three-variant product it answers `choose an
- * available product option` as a 502.
- */
-export const CONTRIBUTION_CONFIGURED: boolean =
-  !!CONTRIBUTION_PRODUCT_ID && CONTRIBUTION_CHOICES.length > 0
-  && CONTRIBUTION_CHOICES.every( choice => !!choice.variantId );
 
 
 
-export const shopProductBySlug = ( slug: string ): ShopProduct | null =>
-  SHOP_PRODUCTS.find( product => product.slug === slug ) || null;
 
-/** When the snapshot was taken, so a reader can tell how fresh the catalogue is. */
-export const CATALOG_FETCHED_AT = String(
-  ( catalog as { fetchedAt?: string } ).fetchedAt || '',
-);
 
-/** "26 September 2026" - the fetch timestamp as a date a reader can place. */
-export const catalogReadOn = (): string => {
-  const at = new Date( CATALOG_FETCHED_AT );
-  if ( Number.isNaN( at.getTime() ) ) return '';
-  // en-GB with an EXPLICIT UTC zone. The snapshot timestamp is UTC, and letting this resolve in the
-  // visitor's zone would render a different date either side of midnight for the same build - a
-  // hydration mismatch as well as a wrong answer.
-  return at.toLocaleDateString( 'en-GB', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
-  } );
-};
 
 /**
  * The meta description for a product page: the owner's own sentences, joined in order until the next

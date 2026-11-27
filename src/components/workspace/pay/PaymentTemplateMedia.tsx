@@ -18,9 +18,9 @@ interface Props {
 
 /** Canonical, owner-approved SOURCE media. These URLs are display references only;
  * the outbound Lambda owns the actual Meta media payload and must validate it. */
-export const PAYMENT_HEADER_SOURCE_URL =
+const PAYMENT_HEADER_SOURCE_URL =
   'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png';
-export const ORDER_DETAILS_ITEM_SOURCE_URL =
+const ORDER_DETAILS_ITEM_SOURCE_URL =
   'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png';
 
 const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signedPreview = false } ) => {

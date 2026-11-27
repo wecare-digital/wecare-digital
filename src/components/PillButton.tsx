@@ -81,7 +81,7 @@ import React from 'react';
  * own <style jsx> block; it does not rely on a consumer's styles reaching it, which they cannot.
  */
 
-export interface PillButtonProps {
+interface PillButtonProps {
   /** Formerly the dark LEFT-segment's text, e.g. "Sign in". No longer rendered - see below. */
   /**
    * NO LONGER RENDERED, and kept only so the existing call sites keep compiling.

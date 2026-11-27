@@ -34,14 +34,3 @@ export const PAYMENT_STATUS_NOTE: Readonly<Record<string, string>> = {
   disputed: 'We are looking into this payment with the bank.',
 };
 
-/** Fulfilment status labels, keyed on Meta's order_status word. */
-export const FULFILMENT_STATUS_LABEL: Readonly<Record<string, string>> = {
-  // Not a payment word: a paid order is `pending` here until work starts, and the payment line
-  // beside it already reports the captured payment. "Awaiting payment" contradicted it.
-  pending: 'Order received',
-  processing: 'Being prepared',
-  'partially-shipped': 'Partly shipped',
-  shipped: 'Shipped',
-  completed: 'Completed',
-  canceled: 'Cancelled',
-};

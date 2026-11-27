@@ -5,7 +5,6 @@ import { apiCall, apiCallResult, recordFailure, WA_BIZ_BASE } from '../core';
 import type { ApiResult } from '../core';
 import { createContact, listContacts, updateContact } from './contacts';
 import type { Contact } from './contacts';
-import type { Message } from './messaging';
 
 // ============================================================================
 // WHATSAPP TEMPLATES API (Meta Graph API)
@@ -167,7 +166,7 @@ export interface WABAAccount {
   phoneNumbers?: WABAPhoneNumber[];
 }
 
-export interface WABAPhoneNumber {
+interface WABAPhoneNumber {
   phoneNumberId: string;
   phoneNumber: string;
   displayPhoneNumber: string;
@@ -211,18 +210,6 @@ export async function getWABADetails ( wabaId: string ): Promise<WABAAccount | n
   return null;
 }
 
-/**
- * Get phone number details including quality rating
- * API: GetLinkedWhatsAppBusinessAccountPhoneNumber
- */
-export async function getPhoneNumberDetails ( phoneNumberId: string ): Promise<WABAPhoneNumber | null> {
-  const data = await apiCall<any>( `${API_BASE}/waba/phone/${phoneNumberId}` );
-  if ( data )
-  {
-    return data;
-  }
-  return null;
-}
 
 /**
  * Get system events (template status, phone quality, account updates)
@@ -244,23 +231,13 @@ export async function getWABASystemEvents ( eventType?: string ): Promise<WABASy
   return { templateStatus: [], phoneQuality: [], accountUpdates: [] };
 }
 
-/**
- * Delete WhatsApp media from Meta servers
- * API: DeleteWhatsAppMessageMedia
- */
-export async function deleteWhatsAppMedia ( mediaId: string, phoneNumberId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/waba/media/${mediaId}?phoneNumberId=${phoneNumberId}`, {
-    method: 'DELETE',
-  } );
-  return data?.success === true;
-}
 
 
 // ============================================================================
 // TEMPLATE MANAGEMENT API (Meta Graph API)
 // ============================================================================
 
-export interface TemplateDefinition {
+interface TemplateDefinition {
   name: string;
   language: string;
   category: 'UTILITY' | 'MARKETING' | 'AUTHENTICATION';
@@ -283,12 +260,12 @@ export interface MetaLibraryTemplate {
   templateBodyExampleParams?: string[];
 }
 
-export interface CreateTemplateRequest {
+interface CreateTemplateRequest {
   wabaId?: string;
   templateDefinition: TemplateDefinition;
 }
 
-export interface CreateFromLibraryRequest {
+interface CreateFromLibraryRequest {
   wabaId?: string;
   metaLibraryTemplate: {
     libraryTemplateName: string;
@@ -306,13 +283,6 @@ export interface CreateFromLibraryRequest {
   };
 }
 
-export interface UpdateTemplateRequest {
-  wabaId?: string;
-  templateCategory?: string;
-  templateComponents?: any;
-  parameterFormat?: string;
-  ctaUrlLinkTrackingOptedOut?: boolean;
-}
 
 /**
  * List templates for a WABA (enhanced version)
@@ -360,7 +330,7 @@ export async function placeDetails ( placeId: string, sessionToken?: string ): P
 // CORS MANAGEMENT (admin) — view/apply allowed origins on the HTTP APIs
 // ============================================================================
 
-export interface CorsApiStatus {
+interface CorsApiStatus {
   apiId: string;
   name?: string;
   endpoint?: string;
@@ -428,17 +398,6 @@ export async function createTemplateFromLibrary ( request: CreateFromLibraryRequ
   } );
 }
 
-/**
- * Update an existing template
- * API: UpdateWhatsAppMessageTemplate
- */
-export async function updateTemplate ( templateId: string, request: UpdateTemplateRequest ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/whatsapp/templates/${templateId}`, {
-    method: 'PUT',
-    body: JSON.stringify( request ),
-  } );
-  return data?.success === true;
-}
 
 /**
  * Delete a template
@@ -487,55 +446,10 @@ export async function listTemplateLibrary ( filters?: {
   return [];
 }
 
-/**
- * Upload media for template headers
- * API: CreateWhatsAppMessageTemplateMedia
- */
-export async function uploadTemplateMedia ( request: {
-  wabaId?: string;
-  mediaBase64?: string;
-  s3Key?: string;
-  mediaType?: string;
-  filename?: string;
-} ): Promise<{ metaHeaderHandle: string; s3Key: string } | null> {
-  return apiCall<any>( `${API_BASE}/whatsapp/templates/media`, {
-    method: 'POST',
-    body: JSON.stringify( request ),
-  } );
-}
 
-/**
- * Upload media for SENDING a template message (public URL for WhatsApp to fetch).
- * Returns a CDN URL: https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/{folder}/...
- * (the bucket is `wecare-digital-get`; its name is not a hostname.)
- *
- * Supports all WhatsApp Cloud API media types:
- *   - Documents: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT (max 100MB) → docs/
- *   - Images:    JPEG, PNG (max 5MB)                                   → img/
- *   - Videos:    MP4, 3GP (max 16MB)                                   → vid/
- *   - Audio:     AAC, AMR, MP3, M4A, OGG (max 16MB)                    → aud/
- *   - Stickers:  WebP (max 500KB)                                      → stk/
- */
-export async function uploadSendMedia ( request: {
-  fileData: string;       // base64-encoded file content
-  contentType: string;    // MIME type (e.g. "application/pdf")
-  filename: string;       // original filename
-} ): Promise<{
-  mediaUrl: string;
-  s3Key: string;
-  folder: 'docs' | 'img' | 'vid' | 'aud' | 'stk';
-  category: 'document' | 'image' | 'video' | 'audio' | 'sticker';
-  filename: string;
-  sizeBytes: number;
-} | null> {
-  return apiCall<any>( `${API_BASE}/whatsapp/templates/send-media`, {
-    method: 'POST',
-    body: JSON.stringify( request ),
-  } );
-}
 
 /** A reusable template-send media file stored in the public wa-tpl/ library. */
-export interface SendMediaItem {
+interface SendMediaItem {
   s3Key: string;
   mediaUrl: string;
   filename: string;
@@ -587,7 +501,7 @@ export function fileToBase64 ( file: File | Blob ): Promise<string> {
 // AI CONFIG MANAGEMENT API (Bedrock Control)
 // ============================================================================
 
-export interface BedrockAIConfig {
+interface BedrockAIConfig {
   enabled: boolean;
   autoReplyEnabled: boolean;
   respondToInteractive: boolean;
@@ -614,16 +528,7 @@ export interface AIInteraction {
   timestamp: number;
 }
 
-export interface AIStats {
-  totalInteractions: number;
-  approvedResponses: number;
-  approvalRate: number;
-  byLanguage: Record<string, number>;
-}
 
-export interface SupportedLanguages {
-  [ code: string ]: string;
-}
 
 /**
  * Get Bedrock AI configuration
@@ -670,113 +575,12 @@ export async function updateBedrockAIConfig ( updates: Partial<BedrockAIConfig> 
   return null;
 }
 
-/**
- * Get language-specific prompts
- * API: GET /ai/prompts or GET /ai/prompts/{lang}
- */
-export async function getAIPrompts ( lang?: string ): Promise<Record<string, string> | string> {
-  const url = lang ? `${API_BASE}/ai/prompts/${lang}` : `${API_BASE}/ai/prompts`;
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return lang ? ( data.prompt || '' ) : ( data.prompts || {} );
-  }
-  return lang ? '' : {};
-}
 
-/**
- * Update language-specific prompt
- * API: PUT /ai/prompts/{lang}
- */
-export async function updateAIPrompt ( lang: string, prompt: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/ai/prompts/${lang}`, {
-    method: 'PUT',
-    body: JSON.stringify( { language: lang, prompt } ),
-  } );
-  return data?.success === true;
-}
 
-/**
- * Get language-specific fallback messages
- * API: GET /ai/fallbacks or GET /ai/fallbacks/{lang}
- */
-export async function getAIFallbacks ( lang?: string ): Promise<Record<string, string> | string> {
-  const url = lang ? `${API_BASE}/ai/fallbacks/${lang}` : `${API_BASE}/ai/fallbacks`;
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return lang ? ( data.fallback || '' ) : ( data.fallbacks || {} );
-  }
-  return lang ? '' : {};
-}
 
-/**
- * Update language-specific fallback message
- * API: PUT /ai/fallbacks/{lang}
- */
-export async function updateAIFallback ( lang: string, fallback: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/ai/fallbacks/${lang}`, {
-    method: 'PUT',
-    body: JSON.stringify( { language: lang, fallback } ),
-  } );
-  return data?.success === true;
-}
 
-/**
- * Get AI interaction logs
- * API: GET /ai/interactions
- */
-export async function getAIInteractions ( limit?: number ): Promise<AIInteraction[]> {
-  let url = `${API_BASE}/ai/interactions`;
-  if ( limit ) url += `?limit=${limit}`;
 
-  const data = await apiCall<any>( url );
-  if ( data && data.interactions )
-  {
-    return data.interactions;
-  }
-  return [];
-}
 
-/**
- * Get AI usage statistics
- * API: GET /ai/stats
- */
-export async function getAIStats (): Promise<AIStats> {
-  const data = await apiCall<any>( `${API_BASE}/ai/stats` );
-  if ( data )
-  {
-    return {
-      totalInteractions: data.totalInteractions || 0,
-      approvedResponses: data.approvedResponses || 0,
-      approvalRate: data.approvalRate || 0,
-      byLanguage: data.byLanguage || {},
-    };
-  }
-  return { totalInteractions: 0, approvedResponses: 0, approvalRate: 0, byLanguage: {} };
-}
-
-/**
- * Get supported languages
- * API: GET /ai/languages
- */
-export async function getSupportedLanguages (): Promise<SupportedLanguages> {
-  const data = await apiCall<any>( `${API_BASE}/ai/languages` );
-  if ( data && data.languages )
-  {
-    return data.languages;
-  }
-  return {
-    'en': 'English',
-    'hi': 'Hindi',
-    'hi-Latn': 'Hinglish',
-    'bn': 'Bengali',
-    'ta': 'Tamil',
-    'te': 'Telugu',
-    'gu': 'Gujarati',
-    'mr': 'Marathi',
-  };
-}
 
 /**
  * Test AI response generation
@@ -806,99 +610,11 @@ export async function testBedrockAIResponse ( message: string ): Promise<{
 // WABA ADVANCED MANAGEMENT API (Meta Graph API)
 // ============================================================================
 
-/**
- * Download media from WhatsApp
- * API: GetWhatsAppMessageMedia
- */
-export async function getWhatsAppMedia ( mediaId: string, phoneNumberId: string, metadataOnly?: boolean ): Promise<{
-  mediaId: string;
-  mimeType: string;
-  fileSize: number;
-  s3Key?: string;
-  downloadUrl?: string;
-} | null> {
-  let url = `${API_BASE}/waba/media/${mediaId}?phoneNumberId=${phoneNumberId}`;
-  if ( metadataOnly ) url += '&metadataOnly=true';
 
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return {
-      mediaId: data.mediaId || mediaId,
-      mimeType: data.mimeType || '',
-      fileSize: data.fileSize || 0,
-      s3Key: data.s3Key,
-      downloadUrl: data.downloadUrl,
-    };
-  }
-  return null;
-}
 
-/**
- * Upload media to WhatsApp for sending
- * API: PostWhatsAppMessageMedia
- */
-export async function postWhatsAppMedia ( phoneNumberId: string, s3Key: string ): Promise<{
-  mediaId: string;
-  s3Key: string;
-} | null> {
-  return apiCall<any>( `${API_BASE}/waba/media`, {
-    method: 'POST',
-    body: JSON.stringify( { phoneNumberId, s3Key } ),
-  } );
-}
 
-/**
- * Configure event destinations for WABA
- * API: PutWhatsAppBusinessAccountEventDestinations
- */
-export async function putWABAEventDestinations ( wabaId: string, eventDestinations: {
-  eventDestinationArn: string;
-  roleArn: string;
-}[] ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/waba/${wabaId}/events`, {
-    method: 'PUT',
-    body: JSON.stringify( { wabaId, eventDestinations } ),
-  } );
-  return data?.success === true;
-}
 
-/**
- * List tags for a WABA or phone number resource
- * API: ListTagsForResource
- */
-export async function listWABATags ( resourceArn: string ): Promise<{ key: string; value: string }[]> {
-  const data = await apiCall<any>( `${API_BASE}/waba/tags?resourceArn=${encodeURIComponent( resourceArn )}` );
-  if ( data && data.tags )
-  {
-    return data.tags;
-  }
-  return [];
-}
 
-/**
- * Add tags to a WABA or phone number resource
- * API: TagResource
- */
-export async function tagWABAResource ( resourceArn: string, tags: { key: string; value: string }[] ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/waba/tags`, {
-    method: 'POST',
-    body: JSON.stringify( { resourceArn, tags } ),
-  } );
-  return data?.success === true;
-}
-
-/**
- * Remove tags from a WABA or phone number resource
- * API: UntagResource
- */
-export async function untagWABAResource ( resourceArn: string, tagKeys: string[] ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/waba/tags`, {
-    method: 'DELETE',
-    body: JSON.stringify( { resourceArn, tagKeys } ),
-  } );
-  return data?.success === true;
-}
 
 
 // ============================================================================
@@ -1059,32 +775,6 @@ export interface TemplateAnalyticsSummary {
   byCategory: Record<string, number>;
 }
 
-/**
- * Get analytics for a specific template
- * API: GET /templates/analytics/{templateName}
- */
-export async function getTemplateAnalytics ( templateName: string, wabaId?: string ): Promise<TemplateAnalytics | null> {
-  let url = `${API_BASE}/templates/analytics/${templateName}`;
-  if ( wabaId ) url += `?wabaId=${wabaId}`;
-
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return {
-      templateName: data.templateName || templateName,
-      language: data.language || 'en_US',
-      totalSent: data.totalSent || 0,
-      delivered: data.delivered || 0,
-      read: data.read || 0,
-      failed: data.failed || 0,
-      deliveryRate: data.deliveryRate || 0,
-      readRate: data.readRate || 0,
-      lastSent: data.lastSent,
-      buttonClicks: data.buttonClicks,
-    };
-  }
-  return null;
-}
 
 /**
  * Get analytics summary for all templates
@@ -1276,47 +966,8 @@ export async function sendCarouselTemplateMessage ( request: {
 // STARRED MESSAGES API
 // ============================================================================
 
-/**
- * Get starred message IDs
- */
-export function getStarredMessages (): string[] {
-  const stored = localStorage.getItem( 'starredMessages' );
-  if ( stored )
-  {
-    try
-    {
-      return JSON.parse( stored );
-    } catch
-    {
-      return [];
-    }
-  }
-  return [];
-}
 
-/**
- * Toggle star on a message
- */
-export function toggleStarMessage ( messageId: string ): boolean {
-  const starred = getStarredMessages();
-  const index = starred.indexOf( messageId );
-  if ( index > -1 )
-  {
-    starred.splice( index, 1 );
-  } else
-  {
-    starred.push( messageId );
-  }
-  localStorage.setItem( 'starredMessages', JSON.stringify( starred ) );
-  return index === -1; // Returns true if now starred
-}
 
-/**
- * Check if message is starred
- */
-export function isMessageStarred ( messageId: string ): boolean {
-  return getStarredMessages().includes( messageId );
-}
 
 // ============================================================================
 // EXPORT FUNCTIONS
@@ -1351,118 +1002,8 @@ export function exportContactsToCSV ( contacts: Contact[] ): string {
   return csvContent;
 }
 
-/**
- * Export messages to CSV
- */
-export function exportMessagesToCSV ( messages: Message[] ): string {
-  const headers = [ 'Direction', 'Contact', 'Content', 'Status', 'Timestamp', 'Channel' ];
-  const rows = messages.map( m => [
-    m.direction,
-    m.contactId,
-    m.content?.substring( 0, 200 ) || '',
-    m.status,
-    m.timestamp,
-    m.channel,
-  ] );
 
-  const csvContent = [
-    headers.join( ',' ),
-    ...rows.map( row => row.map( cell => `"${String( cell ).replace( /"/g, '""' )}"` ).join( ',' ) )
-  ].join( '\n' );
 
-  return csvContent;
-}
-
-/**
- * Export chat to text format
- */
-export function exportChatToText ( messages: Message[], contactName: string ): string {
-  const lines = [
-    `Chat Export - ${contactName}`,
-    `Exported: ${new Date().toLocaleString()}`,
-    '---',
-    '',
-  ];
-
-  messages.forEach( m => {
-    const time = new Date( m.timestamp ).toLocaleString();
-    const sender = m.direction === 'INBOUND' ? contactName : 'You';
-    lines.push( `[${time}] ${sender}: ${m.content || '[Media]'}` );
-  } );
-
-  return lines.join( '\n' );
-}
-
-/**
- * Export chat to PDF format (HTML-based, opens print dialog)
- */
-export function exportChatToPDF ( messages: Message[], contactName: string, wabaName?: string ): void {
-  const sortedMessages = [ ...messages ].sort( ( a, b ) =>
-    new Date( a.timestamp ).getTime() - new Date( b.timestamp ).getTime()
-  );
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Chat Export - ${contactName}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-    .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #25D366; }
-    .header h1 { font-size: 24px; color: #1a1a1a; margin-bottom: 8px; }
-    .header p { color: #666; font-size: 12px; }
-    .messages { display: flex; flex-direction: column; gap: 12px; }
-    .message { max-width: 70%; padding: 12px 16px; border-radius: 12px; position: relative; }
-    .message.inbound { align-self: flex-start; background: #f0f0f0; border-bottom-left-radius: 4px; }
-    .message.outbound { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 4px; }
-    .message .sender { font-size: 11px; font-weight: 600; color: #25D366; margin-bottom: 4px; }
-    .message .content { font-size: 14px; line-height: 1.4; word-wrap: break-word; }
-    .message .time { font-size: 10px; color: #999; margin-top: 6px; text-align: right; }
-    .message .media-tag { font-style: italic; color: #666; }
-    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; font-size: 11px; color: #999; }
-    @media print { body { padding: 20px; } .message { break-inside: avoid; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>◇ Chat with ${contactName}</h1>
-    <p>${wabaName ? `WABA: ${wabaName} | ` : ''}Exported: ${new Date().toLocaleString()}</p>
-    <p>${sortedMessages.length} messages</p>
-  </div>
-  <div class="messages">
-    ${sortedMessages.map( m => {
-    const time = new Date( m.timestamp ).toLocaleString();
-    const sender = m.direction === 'INBOUND' ? contactName : 'You';
-    const content = m.content || `<span class="media-tag">[${m.messageType || 'Media'}]</span>`;
-    return `
-        <div class="message ${m.direction.toLowerCase()}">
-          <div class="sender">${sender}</div>
-          <div class="content">${content}</div>
-          <div class="time">${time}</div>
-        </div>
-      `;
-  } ).join( '' )}
-  </div>
-  <div class="footer">
-    <p>Generated by WECARE.DIGITAL</p>
-  </div>
-</body>
-</html>
-  `;
-
-  // Open in new window and trigger print
-  const printWindow = window.open( '', '_blank' );
-  if ( printWindow )
-  {
-    printWindow.document.write( html );
-    printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
-  }
-}
 
 /**
  * Download file helper
@@ -1608,70 +1149,8 @@ export async function importContacts ( contacts: Partial<Contact>[] ): Promise<I
   return result;
 }
 
-// ============================================================================
-// AUTO-REPLY PER CONTACT
-// ============================================================================
 
-/**
- * Get auto-reply setting for a contact
- */
-export function getContactAutoReply ( contactId: string ): boolean {
-  const stored = localStorage.getItem( `autoReply_${contactId}` );
-  return stored === 'true';
-}
 
-/**
- * Set auto-reply setting for a contact
- */
-export function setContactAutoReply ( contactId: string, enabled: boolean ): void {
-  localStorage.setItem( `autoReply_${contactId}`, String( enabled ) );
-}
-
-/**
- * Get all contacts with auto-reply enabled
- */
-export function getAutoReplyContacts (): string[] {
-  const contacts: string[] = [];
-  for ( let i = 0; i < localStorage.length; i++ )
-  {
-    const key = localStorage.key( i );
-    if ( key?.startsWith( 'autoReply_' ) && localStorage.getItem( key ) === 'true' )
-    {
-      contacts.push( key.replace( 'autoReply_', '' ) );
-    }
-  }
-  return contacts;
-}
-
-// ============================================================================
-// AI FEEDBACK
-// ============================================================================
-
-export interface AIFeedback {
-  interactionId: string;
-  messageId: string;
-  rating: 'good' | 'bad';
-  comment?: string;
-  timestamp: number;
-}
-
-/**
- * Submit feedback for an AI response
- */
-export function submitAIFeedback ( feedback: Omit<AIFeedback, 'timestamp'> ): void {
-  const stored = localStorage.getItem( 'aiFeedback' );
-  const feedbacks: AIFeedback[] = stored ? JSON.parse( stored ) : [];
-  feedbacks.push( { ...feedback, timestamp: Date.now() } );
-  localStorage.setItem( 'aiFeedback', JSON.stringify( feedbacks ) );
-}
-
-/**
- * Get AI feedback history
- */
-export function getAIFeedbackHistory (): AIFeedback[] {
-  const stored = localStorage.getItem( 'aiFeedback' );
-  return stored ? JSON.parse( stored ) : [];
-}
 
 // ============================================================================
 // SYSTEM CONFIG
@@ -1724,17 +1203,6 @@ export async function updateSystemConfig ( configKey: string, config: any ): Pro
   return stored !== null && containsConfig( stored, JSON.parse( body ).config );
 }
 
-/**
- * Push ice breakers + slash commands to Meta Conversational Automation API
- * via the WABA management Lambda.
- */
-export async function pushConversationalComponents ( payload: { prompts: string[]; commands: { command_name: string; command_description: string }[] } ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/waba/conversational-components`, {
-    method: 'POST',
-    body: JSON.stringify( payload ),
-  } );
-  return data !== null && !data?.error;
-}
 
 
 // ============================================================================
@@ -1756,33 +1224,8 @@ export async function updateBusinessProfile ( phoneId: string, updates: Record<s
   return data?.success === true;
 }
 
-// Payment Gateway Check
-export interface GatewayConfig {
-  name: string;
-  status: string;
-  gateway: string;
-  mid: string;
-  mcc: string;
-  purposeCode: string;
-  canReceivePayments: boolean;
-  note?: string;
-}
 
-export interface GatewayCheckResult {
-  wabaId: string;
-  phone: string;
-  configurations: GatewayConfig[];
-  totalConfigs: number;
-  activeConfigs: number;
-}
 
-export async function checkPaymentGateways ( wabaId?: string ): Promise<GatewayCheckResult[]> {
-  const url = wabaId
-    ? `${WA_BIZ_BASE}/payment-config/check?wabaId=${wabaId}`
-    : `${WA_BIZ_BASE}/payment-config/check`;
-  const data = await apiCall<any>( url );
-  return data?.gatewayChecks || [];
-}
 
 // ── Username Management ──
 
@@ -1791,7 +1234,7 @@ export interface UsernameInfo {
   status?: string;
 }
 
-export interface UsernameSuggestions {
+interface UsernameSuggestions {
   suggestions: string[];
 }
 
@@ -1816,13 +1259,6 @@ export async function claimBusinessUsername ( phoneId: string, username: string,
   return { success: true, username: data?.username, transferAction: data?.transferAction };
 }
 
-export async function deleteBusinessUsername ( phoneId: string ): Promise<{ success: boolean; error?: string }> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/username?phoneId=${phoneId}`, {
-    method: 'DELETE',
-  } );
-  if ( data?.error ) return { success: false, error: data.error.message || 'Failed to delete username' };
-  return { success: data?.success === true };
-}
 
 // Flows
 export async function listFlows ( wabaId: string ): Promise<any[]> {
@@ -1837,26 +1273,8 @@ export async function getFlow ( flowId: string ): Promise<any> {
   return data?.flow || null;
 }
 
-export async function createFlow ( wabaId: string, name: string, categories?: string[] ): Promise<any> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flows`, {
-    method: 'POST',
-    body: JSON.stringify( { wabaId, name, categories } ),
-  } );
-  return data?.flow || null;
-}
 
-export async function updateFlow ( flowId: string, updates: Record<string, any> ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flows`, {
-    method: 'PUT',
-    body: JSON.stringify( { flowId, ...updates } ),
-  } );
-  return data?.success === true;
-}
 
-export async function deleteFlow ( flowId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flows?flowId=${flowId}`, { method: 'DELETE' } );
-  return data?.success === true;
-}
 
 export async function publishFlow ( flowId: string ): Promise<boolean> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/flows/publish`, {
@@ -1866,21 +1284,7 @@ export async function publishFlow ( flowId: string ): Promise<boolean> {
   return data?.success === true;
 }
 
-export async function deprecateFlow ( flowId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flows/deprecate`, {
-    method: 'POST',
-    body: JSON.stringify( { flowId } ),
-  } );
-  return data?.success === true;
-}
 
-export async function getFlowPreview ( flowId: string ): Promise<any> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flows/preview`, {
-    method: 'POST',
-    body: JSON.stringify( { flowId } ),
-  } );
-  return data?.preview || null;
-}
 
 // Webhooks
 export async function getWebhookSubscriptions ( wabaId: string ): Promise<any[]> {
@@ -1912,11 +1316,6 @@ export async function subscribeWebhookFields ( wabaId: string, fields: string[] 
 }
 
 // ── BSUID: Contact Book + Parent BSUID accounts ──
-export async function deleteContactBookEntry ( phoneId: string, bsuid: string ): Promise<{ success?: boolean; deleted?: boolean; error?: string }> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/contact-book?phoneId=${phoneId}&bsuid=${encodeURIComponent( bsuid )}`, { method: 'DELETE' } );
-  if ( data?.error ) return { success: false, error: data.error.message || 'Delete failed' };
-  return { success: data?.success, deleted: data?.deleted };
-}
 
 export async function getParentBsuidAccounts ( businessId: string ): Promise<{ parentBsuidAccountId?: string; enrolledBusinessPortfolios?: string[]; error?: string }> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/parent-bsuid-accounts?businessId=${businessId}` );
@@ -1945,13 +1344,6 @@ export async function createGroup ( phoneId: string, subject: string, descriptio
   return data?.group || null;
 }
 
-export async function updateGroup ( groupId: string, updates: Record<string, any> ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/groups`, {
-    method: 'PUT',
-    body: JSON.stringify( { groupId, ...updates } ),
-  } );
-  return data?.success === true;
-}
 
 export async function deleteGroup ( groupId: string ): Promise<boolean> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/groups?groupId=${groupId}`, { method: 'DELETE' } );
@@ -1984,7 +1376,7 @@ export async function sendGroupMessage ( phoneId: string, groupId: string, conte
 // ============================================================================
 
 // ── Template TTL ──
-export interface TtlCategoryRule {
+interface TtlCategoryRule {
   minSeconds: number; maxSeconds: number; minHuman: string; maxHuman: string;
   allowNeg1: boolean; neg1Meaning: string | null; description: string; recommendation?: string;
 }
@@ -2008,13 +1400,6 @@ export async function validateTemplateTtl ( category: string, ttl: number ): Pro
   } );
 }
 
-export async function updateTemplateTtl ( templateId: string, ttl: number, wabaId?: string ): Promise<{ success?: boolean; error?: string; warning?: string; human?: string }> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/templates/${templateId}/ttl`, {
-    method: 'POST',
-    body: JSON.stringify( { ttl, wabaId } ),
-  } );
-  return data || { success: false, error: 'No response' };
-}
 
 // ── Template validation / send-test / refresh (template-management lambda) ──
 const WA_TPL_BASE = `${API_BASE}/whatsapp/templates`;
@@ -2029,18 +1414,7 @@ export async function validateTemplateDefinition ( templateDefinition: any ): Pr
 }
 
 
-export async function sendTestTemplateMessage ( templateId: string, to: string, opts?: { templateName?: string; language?: string; components?: any[]; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  const data = await apiCall<any>( `${WA_TPL_BASE}/${templateId}/send-test`, {
-    method: 'POST',
-    body: JSON.stringify( { to, ...opts } ),
-  } );
-  return data || { success: false, error: 'No response' };
-}
 
-export async function refreshTemplate ( templateId: string ): Promise<any> {
-  const data = await apiCall<any>( `${WA_TPL_BASE}/${templateId}/refresh`, { method: 'POST' } );
-  return data?.template || null;
-}
 
 // ── Media ──
 export interface WaMediaInfo {
@@ -2111,13 +1485,7 @@ export async function sendTestMedia ( to: string, mediaType: 'image' | 'video' |
 }
 
 
-export async function sendTestContacts ( to: string, contacts: any[], phoneId?: string ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/contacts`, { method: 'POST', body: JSON.stringify( { to, contacts, phoneId } ) } ) as any;
-}
 
-export async function sendTestLocation ( to: string, latitude: number, longitude: number, opts?: { name?: string; address?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/location`, { method: 'POST', body: JSON.stringify( { to, latitude, longitude, ...opts } ) } ) as any;
-}
 
 
 // ── Flow admin (assets / migrate / sync) ──
@@ -2146,7 +1514,7 @@ export async function syncFlows ( wabaId: string ): Promise<{ success?: boolean;
 }
 
 // ── Cost-control feature flags ──
-export interface CostFlagMeta { risk: 'low' | 'medium' | 'high'; service: string; }
+interface CostFlagMeta { risk: 'low' | 'medium' | 'high'; service: string; }
 export interface CostFlagsResponse { flags: Record<string, boolean>; meta: Record<string, CostFlagMeta>; }
 
 export async function getCostFlags (): Promise<CostFlagsResponse | null> {
@@ -2253,7 +1621,7 @@ export async function listWhatsAppPreverifiedNumbers (
 // The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
 // Returns null until GET /wa-business/oba-status exists (deploy-time work), which is why
 // the dashboard row renders "unavailable" rather than throwing.
-export interface ObaPhone {
+interface ObaPhone {
   phoneId: string;
   displayPhoneNumber: string;
   verifiedName: string;
@@ -2275,16 +1643,9 @@ export async function getObaStatus ( wabaId: string ): Promise<ObaStatus | null>
   return { wabaId: data.wabaId || wabaId, obaStatus: data.obaStatus, phones: data.phones || [], note: data.note || '' };
 }
 
-export async function updatePhoneSettings ( phoneId: string, settings: Record<string, any> ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/phone-settings`, {
-    method: 'POST',
-    body: JSON.stringify( { phoneId, ...settings } ),
-  } );
-  return data?.success === true;
-}
 
 // Block Users API (per Meta BSUID docs — block/unblock by phone or BSUID)
-export interface BlockUser {
+interface BlockUser {
   phone?: string;
   user_id?: string; // BSUID
 }
@@ -2296,16 +1657,7 @@ export async function blockUsers ( wabaId: string, users: BlockUser[] ): Promise
   } );
 }
 
-export async function unblockUsers ( wabaId: string, users: BlockUser[] ): Promise<any> {
-  return apiCall<any>( `${WA_BIZ_BASE}/unblock-users`, {
-    method: 'POST',
-    body: JSON.stringify( { wabaId, users } ),
-  } );
-}
 
-export async function getBlockedUsers ( wabaId: string ): Promise<any> {
-  return apiCall<any>( `${WA_BIZ_BASE}/block-users?wabaId=${wabaId}` );
-}
 
 
 // Calling Settings (Enable/Disable calling on phone number)

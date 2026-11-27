@@ -18,8 +18,6 @@ export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
 export const CONTRIBUTION_AMOUNT_LABEL = '₹300';
 export const PAISE_PER_RUPEE = 100;
 
-export const paiseToRupees = ( paise: number ): number =>
-  Math.floor( paise / PAISE_PER_RUPEE );
 
 export const contributionChoice = ( variantId: unknown ): ContributionChoice | null =>
   CONTRIBUTION_CHOICES.find(

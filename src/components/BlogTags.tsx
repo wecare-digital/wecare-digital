@@ -42,13 +42,13 @@ import Link from 'next/link';
  * those pills silently fell back to the neutral grey border. The >>> 0 keeps it unsigned.
  */
 const TAG_HUE_COUNT = 4;
-export const tagHue = ( tag: string ): number => {
+const tagHue = ( tag: string ): number => {
   let h = 0;
   for ( let i = 0; i < tag.length; i += 1 ) h = ( h * 33 + tag.charCodeAt( i ) ) >>> 0;
   return h % TAG_HUE_COUNT;
 };
 
-export interface BlogTagsProps {
+interface BlogTagsProps {
   /** The post's tags. An empty array renders nothing. */
   tags: string[];
   /**

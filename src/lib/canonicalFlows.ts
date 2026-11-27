@@ -20,9 +20,9 @@
  */
 import { REVIEW_ENTRY_KEYWORDS, REVIEW_FLOW_ID } from './reviewEntry';
 
-export type FlowStatus = 'PUBLISHED' | 'DRAFT' | 'DEPRECATED' | 'NONE';
+type FlowStatus = 'PUBLISHED' | 'DRAFT' | 'DEPRECATED' | 'NONE';
 
-export interface CanonicalFlow {
+interface CanonicalFlow {
   /** Capability key, matching DEFAULT_FLOW_TRIGGERS keys in the inbound handler. */
   readonly capability: string;
   /** Human label as shown to staff. */
@@ -104,15 +104,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
 export const canonicalFlowId = ( capability: string ): string | null =>
   CANONICAL_FLOWS[capability]?.flowId ?? null;
 
-/** The Meta lifecycle status for a capability's canonical flow. */
-export const canonicalFlowStatus = ( capability: string ): FlowStatus =>
-  CANONICAL_FLOWS[capability]?.status ?? 'NONE';
 
-/** Published metadata for a customer-facing Flow. Draft/NONE entries deliberately return null. */
-export const publishedFlow = ( capability: string ): CanonicalFlow | null => {
-  const flow = CANONICAL_FLOWS[capability];
-  return flow?.flowId && flow.status === 'PUBLISHED' ? flow : null;
-};
 
 /** Resolve a published Meta Flow id back to the canonical capability record. */
 export const publishedFlowById = ( flowId: string ): CanonicalFlow | null => {
@@ -122,10 +114,10 @@ export const publishedFlowById = ( flowId: string ): CanonicalFlow | null => {
     .find( flow => flow.flowId === target && flow.status === 'PUBLISHED' ) ?? null;
 };
 
-export type EntryMode = 'keyword_interactive' | 'payment_template' | 'internal_event' | 'manual' | 'none';
+type EntryMode = 'keyword_interactive' | 'payment_template' | 'internal_event' | 'manual' | 'none';
 
 /** The fixed launch contract of a canonical Flow capability. */
-export interface CanonicalContract {
+interface CanonicalContract {
   readonly flowNumber: string;
   readonly flowCode: string;
   readonly label: string;
@@ -204,9 +196,6 @@ export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
   },
 };
 
-/** The launch contract for a capability, or null when it has none. */
-export const canonicalContract = ( capability: string ): CanonicalContract | null =>
-  CANONICAL_CONTRACTS[capability] ?? null;
 
 /** [capability, contract] for a canonical Flow id that carries a contract, or null. */
 export const contractForFlowId = ( flowId: string ): [ string, CanonicalContract ] | null => {

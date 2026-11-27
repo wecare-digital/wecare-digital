@@ -38,7 +38,7 @@ interface ConfirmOptions {
  * `label` carries the sentence verbatim instead, and `helper` states the constraint the
  * component enforces rather than restating the question.
  */
-export type PromptOptions = {
+type PromptOptions = {
   title?: string;
   message?: ReactNode;
   label: string;           // Visible <label> for the field. Required.

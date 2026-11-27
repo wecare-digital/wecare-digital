@@ -10,9 +10,9 @@ import { useEffect, useState } from 'react';
 import '../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
-export type AppRole = 'Admin' | 'Operator' | 'Viewer' | 'Partner' | 'unknown';
+type AppRole = 'Admin' | 'Operator' | 'Viewer' | 'Partner' | 'unknown';
 
-export interface UserRole {
+interface UserRole {
     role: AppRole;
     groups: string[];
     isPartner: boolean;   // limited-access customer
