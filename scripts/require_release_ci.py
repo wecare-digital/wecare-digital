@@ -133,8 +133,11 @@ def wait_for_release(commit: str, wait_seconds: int) -> dict:
             raise ReleaseGateError(f"Verified production CI is not available for {commit}")
         # Short sleep chunks keep the process responsive without querying GitHub early.
         next_read = time.monotonic() + min(delay, remaining)
-        while time.monotonic() < next_read:
-            time.sleep(min(30, next_read - time.monotonic()))
+        while True:
+            pause = min(30, next_read - time.monotonic())
+            if pause <= 0:
+                break
+            time.sleep(pause)
 
 
 def clean_checkout_commit(root: Path) -> str:
