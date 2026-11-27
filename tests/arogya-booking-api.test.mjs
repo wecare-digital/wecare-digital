@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appointmentDraftAction } from '../src/lib/arogyaBooking.ts';
+import { AppointmentApiError, appointmentDraftAction } from '../src/lib/arogyaBooking.ts';
 
 test('appointment storage accepts only the regional Function URL and sends private data in POST', async () => {
   const original = globalThis.fetch;
@@ -20,7 +20,9 @@ test('appointment storage accepts only the regional Function URL and sends priva
     assert.equal(calls[0].options.credentials, 'omit');
     assert.equal(calls[0].options.headers.Authorization, 'Bearer customer-token');
     assert.equal(JSON.parse(calls[0].options.body).plan.patientName, 'Synthetic Patient');
-    globalThis.fetch = async () => ({ok: false, json: async () => ({error: 'Sign in again.'})});
-    await assert.rejects(appointmentDraftAction(endpoint, 'expired-token', {action:'list'}), /Sign in again/);
+    globalThis.fetch = async () => ({ok: false, status: 401, json: async () => ({error: 'Sign in again.'})});
+    await assert.rejects(appointmentDraftAction(endpoint, 'expired-token', {action:'list'}), error => error instanceof AppointmentApiError && error.status === 401);
+    globalThis.fetch = async () => ({ok: false, status: 502, json: async () => { throw new SyntaxError('HTML response'); }});
+    await assert.rejects(appointmentDraftAction(endpoint, 'token', {action:'list'}), error => error instanceof AppointmentApiError && error.status === 502 && /temporarily unavailable/.test(error.message));
   } finally { globalThis.fetch = original; }
 });

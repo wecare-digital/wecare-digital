@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { getSession, restoreSession, requestOtp, submitOtp, nextSessionFrom, type CustomerSession } from '../../lib/customerAuth';
-import { appointmentDraftAction, type SavedAppointmentDraft } from '../../lib/arogyaBooking';
+import { clearSession, getSession, restoreSession, requestOtp, submitOtp, nextSessionFrom, type CustomerSession } from '../../lib/customerAuth';
+import { AppointmentApiError, appointmentDraftAction, type SavedAppointmentDraft } from '../../lib/arogyaBooking';
 import type { AppointmentPlan } from '../../lib/appointmentPlan';
 import PublicNotice from './PublicNotice';
 import bookingConfig from '../../content/arogyaBookingConfig.json';
@@ -13,6 +13,7 @@ interface Props {
 }
 
 const ENDPOINT = bookingConfig.endpoint;
+type Intent = { action: 'save' | 'list' } | { action: 'get' | 'delete'; draftId: string };
 
 /** Patient details stay in memory until the customer explicitly chooses Save. */
 export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Props ): React.ReactElement | null {
@@ -21,7 +22,7 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
   const [ notice, setNotice ] = useState( '' );
   const [ references, setReferences ] = useState<SavedAppointmentDraft[] | null>( null );
   const [ current, setCurrent ] = useState<SavedAppointmentDraft | null>( null );
-  const [ pending, setPending ] = useState<'save' | 'list' | null>( null );
+  const [ pending, setPending ] = useState<Intent | null>( null );
   const [ mobile, setMobile ] = useState( '' );
   const [ code, setCode ] = useState( '' );
   const [ challenge, setChallenge ] = useState( '' );
@@ -29,12 +30,12 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
 
   if ( !ENDPOINT ) return null;
 
-  async function perform ( action: 'save' | 'list', signedIn?: CustomerSession ): Promise<void> {
+  async function perform ( intent: Intent, signedIn?: CustomerSession ): Promise<void> {
     setBusy( true ); setError( '' ); setNotice( '' );
     try {
       const session = signedIn || getSession() || await restoreSession();
-      if ( !session ) { setPending( action ); return; }
-      if ( action === 'save' ) {
+      if ( !session ) { setPending( intent ); return; }
+      if ( intent.action === 'save' ) {
         const reference = current?.draftId || crypto.randomUUID();
         const result = await appointmentDraftAction( ENDPOINT, session.accessToken, {
           action: 'save', draftId: reference, revision: current?.revision || 0, plan,
@@ -42,12 +43,26 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
         if ( !result.draft ) throw new Error( 'The server did not return a saved draft.' );
         setCurrent( result.draft );
         setNotice( 'Draft saved to your account for 30 days. No Apollo appointment has been booked and no payment has been taken.' );
-      } else {
+      } else if ( intent.action === 'list' ) {
         const result = await appointmentDraftAction( ENDPOINT, session.accessToken, { action: 'list' } );
         setReferences( result.drafts || [] );
+      } else if ( 'draftId' in intent ) {
+        const result = await appointmentDraftAction( ENDPOINT, session.accessToken, intent );
+        if ( intent.action === 'get' ) {
+          if ( !result.draft?.plan ) throw new Error( 'This draft is no longer available.' );
+          setCurrent( result.draft ); onLoad( result.draft.plan ); setReferences( null );
+          setNotice( 'Saved draft opened. Provider availability still needs confirmation.' );
+        } else {
+          setReferences( items => items?.filter( item => item.draftId !== intent.draftId ) || [] );
+          if ( current?.draftId === intent.draftId ) setCurrent( null );
+          setNotice( 'Saved draft deleted from your account. Any details open in this form remain until you clear it.' );
+        }
       }
       setPending( null );
-    } catch ( failure ) { setError( failure instanceof Error ? failure.message : 'Please try again.' ); }
+    } catch ( failure ) {
+      if ( failure instanceof AppointmentApiError && failure.status === 401 ) { clearSession(); setPending( intent ); }
+      setError( failure instanceof Error ? failure.message : 'Please try again.' );
+    }
     finally { setBusy( false ); }
   }
 
@@ -63,7 +78,7 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
         const result = await submitOtp( mobile, code, challenge, false );
         if ( !result ) throw new Error( 'Check the code and try again.' );
         setChallenge( '' ); setCode( '' );
-        await perform( pending || 'list', result );
+        await perform( pending || { action: 'list' }, result );
       }
     } catch ( failure ) {
       const next = nextSessionFrom( failure );
@@ -72,36 +87,10 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
     } finally { setBusy( false ); }
   }
 
-  async function openDraft ( draftId: string ): Promise<void> {
-    setBusy( true ); setError( '' );
-    try {
-      const session = getSession() || await restoreSession();
-      if ( !session ) { setPending( 'list' ); return; }
-      const result = await appointmentDraftAction( ENDPOINT, session.accessToken, { action: 'get', draftId } );
-      if ( !result.draft?.plan ) throw new Error( 'This draft is no longer available.' );
-      setCurrent( result.draft ); onLoad( result.draft.plan ); setReferences( null );
-      setNotice( 'Saved draft opened. Provider availability still needs confirmation.' );
-    } catch ( failure ) { setError( failure instanceof Error ? failure.message : 'Could not open the draft.' ); }
-    finally { setBusy( false ); }
-  }
-
-  async function deleteDraft ( draftId: string ): Promise<void> {
-    setBusy( true ); setError( '' ); setNotice( '' );
-    try {
-      const session = getSession() || await restoreSession();
-      if ( !session ) { setPending( 'list' ); return; }
-      await appointmentDraftAction( ENDPOINT, session.accessToken, { action: 'delete', draftId } );
-      setReferences( items => items?.filter( item => item.draftId !== draftId ) || [] );
-      if ( current?.draftId === draftId ) setCurrent( null );
-      setNotice( 'Saved draft deleted from your account. Any details open in this form remain until you clear it.' );
-    } catch ( failure ) { setError( failure instanceof Error ? failure.message : 'Could not delete the draft.' ); }
-    finally { setBusy( false ); }
-  }
-
   return <div className={ styles.panel } aria-label="Saved appointment drafts">
     <div className={ styles.actions }>
-      { canSave && <button type="button" disabled={ busy } onClick={ () => { void perform( 'save' ); } }>{ busy ? 'Please wait…' : 'Save draft to my account' }</button> }
-      <button type="button" disabled={ busy } onClick={ () => { void perform( 'list' ); } }>My saved drafts</button>
+      { canSave && <button type="button" disabled={ busy } onClick={ () => { void perform( { action: 'save' } ); } }>{ busy ? 'Please wait…' : 'Save draft to my account' }</button> }
+      <button type="button" disabled={ busy } onClick={ () => { void perform( { action: 'list' } ); } }>My saved drafts</button>
     </div>
     { pending && <form onSubmit={ event => { void authenticate( event ); } }>
       <p>Verify your customer account using the existing WhatsApp sign-in. Your patient details stay on this page during verification.</p>
@@ -116,8 +105,8 @@ export default function SavedAppointmentDrafts ( { plan, canSave, onLoad }: Prop
     </form> }
     { references && <div><p>{ references.length ? 'Choose a saved draft. Drafts expire 30 days after the last save.' : 'You have no saved drafts.' }</p>
       { references.map( item => <div key={ item.draftId } className={ styles.actions }>
-        <button disabled={ busy } type="button" onClick={ () => { void openDraft( item.draftId ); } }>Open draft saved { new Date( item.updatedAt * 1000 ).toLocaleString( 'en-IN', { timeZone: 'Asia/Kolkata' } ) } IST</button>
-        <button disabled={ busy } type="button" onClick={ () => { void deleteDraft( item.draftId ); } }>Delete saved draft</button>
+        <button disabled={ busy } type="button" onClick={ () => { void perform( { action: 'get', draftId: item.draftId } ); } }>Open draft saved { new Date( item.updatedAt * 1000 ).toLocaleString( 'en-IN', { timeZone: 'Asia/Kolkata' } ) } IST</button>
+        <button disabled={ busy } type="button" onClick={ () => { void perform( { action: 'delete', draftId: item.draftId } ); } }>Delete saved draft</button>
       </div> ) }
     </div> }
     { notice && <PublicNotice mode="inline" tone="success" message={ notice } /> }
