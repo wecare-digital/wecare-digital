@@ -169,7 +169,7 @@ try {
       if (metadata.mainCount !== 1 || metadata.h1Count !== 1) result.failures.push('Expected one main and one h1');
       if (metadata.scrollWidth > metadata.width + 2) {
         result.failures.push('Horizontal page overflow');
-        result.overflowTargets = await page.evaluate(() => [...document.querySelectorAll('main *')].flatMap(el => {
+        result.overflowTargets = await page.evaluate(() => [...document.querySelectorAll('body *')].flatMap(el => {
           const r = el.getBoundingClientRect(), style = getComputedStyle(el);
           if (!r.width || !r.height || style.visibility === 'hidden' || style.display === 'none') return [];
           if (r.right <= document.documentElement.clientWidth + 2 && r.left >= -2) return [];

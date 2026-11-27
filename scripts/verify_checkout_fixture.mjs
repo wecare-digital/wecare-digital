@@ -106,7 +106,16 @@ async function scenario(width,mode) {
     });
     const page=await context.newPage();page.setDefaultTimeout(20000);
     async function snapshot(label){
-      const geom=await page.evaluate(()=>({width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
+      const geom=await page.evaluate(()=>{
+        const width=document.documentElement.clientWidth,scroll=document.documentElement.scrollWidth;
+        // Record geometry only, not page content or customer data. Include shared chrome.
+        const overflowTargets=scroll>width+2?[...document.querySelectorAll('body *')].flatMap(el=>{
+          const r=el.getBoundingClientRect(),style=getComputedStyle(el);
+          if(!r.width||!r.height||style.visibility==='hidden'||style.display==='none'||(r.right<=width+2&&r.left>=-2)) return [];
+          return [{tag:el.tagName.toLowerCase(),classes:typeof el.className==='string'?el.className.split(/\s+/).slice(0,4):[],left:Math.round(r.left),right:Math.round(r.right),position:style.position}];
+        }).sort((a,b)=>Math.max(b.right-width,-b.left)-Math.max(a.right-width,-a.left)).slice(0,25):[];
+        return {width,scroll,overflowTargets};
+      });
       const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));

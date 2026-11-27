@@ -191,6 +191,13 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
       @media(max-width:169px){
         .brand-lockup.public-header img{height:44px}
       }
+      /* The full footer lockup has a non-shrinking image and a two-line wordmark.
+         At extreme zoom there is less room than their combined intrinsic width.
+         Stack the complete signature rather than clip either part or widen the page. */
+      @media(max-width:219px){
+        .brand-lockup.public-footer.compact{flex-direction:column;align-items:flex-start;gap:4px;max-width:100%}
+        .brand-lockup.public-footer.compact .brand-copy{min-width:0;max-width:100%;overflow-wrap:anywhere}
+      }
     ` }</style>
   </span>
 );
