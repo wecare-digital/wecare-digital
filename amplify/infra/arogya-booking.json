@@ -13,6 +13,16 @@
     },
     "CodeKey": {
       "Type": "String"
+    },
+    "ApolloRegistryTableName": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^wecare-workspace-mcp$"
+    },
+    "ApolloTokenKeyArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:aws:kms:us-east-1:775261844268:key/[a-f0-9-]{36}$"
     }
   },
   "Resources": {
@@ -119,6 +129,53 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/wecare-arogya-booking:*"
                   }
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "dynamodb:GetItem"
+                      ],
+                      "Resource": {
+                        "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApolloRegistryTableName}"
+                      },
+                      "Condition": {
+                        "ForAllValues:StringEquals": {
+                          "dynamodb:LeadingKeys": [
+                            "arogya:provider:apollo"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "kms:Decrypt"
+                      ],
+                      "Resource": {
+                        "Ref": "ApolloTokenKeyArn"
+                      },
+                      "Condition": {
+                        "StringEquals": {
+                          "kms:EncryptionContext:purpose": "arogya-provider",
+                          "kms:EncryptionContext:record": "arogya:provider:apollo"
+                        }
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
                 }
               ]
             }
@@ -158,7 +215,25 @@
             "AROGYA_BOOKINGS_TABLE": {
               "Ref": "Bookings"
             },
-            "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt"
+            "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt",
+            "APOLLO_REGISTRY_TABLE": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloRegistryTableName"
+                },
+                ""
+              ]
+            },
+            "APOLLO_TOKEN_KEY_ARN": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloTokenKeyArn"
+                },
+                ""
+              ]
+            }
           }
         },
         "TracingConfig": {
@@ -230,6 +305,36 @@
       "Value": {
         "Ref": "Bookings"
       }
+    }
+  },
+  "Conditions": {
+    "ApolloReadEnabled": {
+      "Fn::And": [
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloRegistryTableName"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloTokenKeyArn"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
     }
   }
 }
