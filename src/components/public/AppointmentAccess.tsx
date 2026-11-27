@@ -30,9 +30,9 @@ export default function AppointmentAccess (): React.ReactElement {
         const session = getSession() || await restoreSession();
         if ( !active ) return;
         if ( !session ) { signIn(); return; }
-        // The existing quote action verifies Cognito identity and phone_verified
-        // without reading or writing a patient record, charging or booking.
-        await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'quote' } );
+        // Access is independent of price or provider availability.
+        const access = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'access' } );
+        if ( access.phoneVerified !== true ) throw new Error( 'Customer verification unavailable.' );
         if ( !active ) return;
         setError( '' ); setReady( true );
         expiry = setTimeout( sessionExpired, Math.max( 0, session.expiresAt - Date.now() - 30000 ) );
