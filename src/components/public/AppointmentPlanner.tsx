@@ -16,7 +16,7 @@ const EMPTY_PLAN: AppointmentPlan = {
 const STEPS = [ 'Appointment', 'Date & time', 'Patient', 'Review' ];
 
 /** Apollo-shaped local request draft. Provider submission remains disabled until server integration is verified. */
-export default function AppointmentPlanner ( { onSessionExpired }: { onSessionExpired: () => void } ): React.ReactElement {
+export default function AppointmentPlanner ( { accountKey, onAccountChanged, onSessionExpired }: { accountKey: string; onAccountChanged: () => void; onSessionExpired: () => void } ): React.ReactElement {
   const [ plan, setPlan ] = useState<AppointmentPlan>( EMPTY_PLAN );
   const [ step, setStep ] = useState( 1 );
   const [ error, setError ] = useState( '' );
@@ -29,20 +29,28 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
   const [ hospitalRevision, setHospitalRevision ] = useState( 0 );
   const [ specialityRevision, setSpecialityRevision ] = useState( 0 );
   const [ dateRevision, setDateRevision ] = useState( 0 );
-  const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired );
+  const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired, onAccountChanged );
+  const appointmentTypes = useApolloChoices( 'appointmentTypes', {}, step === 1 && hospitals.options.length > 0, catalogRetry, onSessionExpired, onAccountChanged );
   const hospitalId = plan.hospitalId || '';
   const specialityId = plan.specialityId || '';
   const doctorId = plan.doctorId || '';
   const healthCheckId = plan.healthCheckId || '';
   const hospitalSelected = hospitals.options.some( item => item.id === hospitalId );
   const isHealthCheck = plan.appointmentType === 'Health Checks';
-  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && !isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
+  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && !isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired, onAccountChanged );
   const specialitySelected = specialities.options.some( item => item.id === specialityId );
-  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, `${catalogRetry}:${specialityRevision}`, onSessionExpired );
-  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
+  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, `${catalogRetry}:${specialityRevision}`, onSessionExpired, onAccountChanged );
+  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired, onAccountChanged );
   const dates = useApolloChoices( 'dates', { hospitalId, ...( isHealthCheck ? { healthCheckId } : { doctorId } ) },
-    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), `${catalogRetry}:${dateRevision}`, onSessionExpired );
-  const catalogError = hospitals.error || specialities.error || doctors.error || healthChecks.error || dates.error;
+    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), `${catalogRetry}:${dateRevision}`, onSessionExpired, onAccountChanged );
+  const times = useApolloChoices( 'times', {}, step === 2 && hospitalSelected, `${catalogRetry}:${dateRevision}`, onSessionExpired, onAccountChanged );
+  const salutations = useApolloChoices( 'salutations', {}, step === 3 && plan.userType === 'New User', catalogRetry, onSessionExpired, onAccountChanged );
+  const hours = [ ...new Set( times.options.map( item => item.id.split( ':' )[0] ) ) ];
+  const minutes = [ ...new Set( times.options.filter( item => item.id.split( ':' )[0] === plan.time.split( ':' )[0] )
+    .map( item => item.id.split( ':' )[1] ) ) ];
+  const typeLabels = [ ...new Set( appointmentTypes.options.map( item => item.label ) ) ];
+  const salutationLabels = [ ...new Set( salutations.options.map( item => item.label ) ) ];
+  const catalogError = hospitals.error || appointmentTypes.error || specialities.error || doctors.error || healthChecks.error || dates.error || times.error || salutations.error;
 
   useEffect( () => { setToday( indiaDate() ); }, [] );
   useEffect( () => {
@@ -77,7 +85,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
 
   function advance ( event: React.FormEvent<HTMLFormElement> ): void {
     event.preventDefault();
-    if ( step === 1 && ( !hospitalSelected || !plan.city.trim() || ( isHealthCheck
+    if ( step === 1 && ( !hospitalSelected || !plan.city.trim() || !typeLabels.includes( plan.appointmentType ) || ( isHealthCheck
       ? !healthChecks.options.some( item => item.id === healthCheckId )
       : !specialitySelected || !doctors.options.some( item => item.id === doctorId ) ) ) ) {
       setError( 'Choose current hospital and appointment options before continuing.' ); return;
@@ -93,8 +101,10 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
     if ( step === 2 && plan.appointmentType !== 'Admission' && !dates.options.some( item => item.id === plan.date ) ) {
       setError( 'Choose a currently available appointment date.' ); return;
     }
+    if ( step === 2 && !times.options.some( item => item.id === plan.time ) ) { setError( 'Choose a current provider time preference.' ); return; }
     if ( step === 2 && plan.date < indiaDate() ) { setError( 'Choose today or a future date, using India Standard Time.' ); return; }
     if ( step === 3 ) {
+      if ( plan.userType === 'New User' && !salutationLabels.includes( plan.salutation ) ) { setError( 'Choose a current salutation.' ); return; }
       const message = appointmentPlanError( plan );
       if ( message ) { setError( message ); return; }
     }
@@ -106,10 +116,10 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       <input id={ `ay-${key}` } name={ key } value={ plan[key] } type={ options.type || 'text' } required={ options.required } maxLength={ options.maxLength || 120 } placeholder={ options.placeholder } autoComplete="off" onChange={ event => update( key, event.target.value ) } />
     </label>
   );
-  const select = ( key: keyof AppointmentPlan, label: string, options: readonly string[] ) => (
+  const select = ( key: keyof AppointmentPlan, label: string, options: readonly string[], loading = false ) => (
     <label htmlFor={ `ay-${key}` }>{ label } *
-      <select id={ `ay-${key}` } name={ key } value={ plan[key] } required onChange={ event => update( key, event.target.value ) }>
-        <option value="">Select</option>{ options.map( value => <option key={ value }>{ value }</option> ) }
+      <select id={ `ay-${key}` } name={ key } value={ options.includes( plan[key] || '' ) ? plan[key] : '' } required disabled={ loading || !options.length } onChange={ event => update( key, event.target.value ) }>
+        <option value="">{ loading ? 'Loading…' : options.length ? 'Select' : 'No options available' }</option>{ options.map( value => <option key={ value }>{ value }</option> ) }
       </select>
     </label>
   );
@@ -151,7 +161,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
-      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setCatalogRetry( value => value + 1 ); setStep( 1 ); setError( '' ); } } />
+      <SavedAppointmentDrafts accountKey={ accountKey } onAccountChanged={ onAccountChanged } onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setCatalogRetry( value => value + 1 ); setStep( 1 ); setError( '' ); } } />
       { catalogError && <>
         <PublicNotice mode="inline" tone="error" message={ catalogError } />
         <div className={ styles.actions }><button type="button" onClick={ () => setCatalogRetry( value => value + 1 ) }>Retry live choices</button></div>
@@ -167,7 +177,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                 { liveSelect( 'hospital', 'hospitalId', 'Hospital', hospitals.options, hospitals.loading ) }
                 { hospitalSelected && !hospitals.options.find( item => item.id === hospitalId )?.city && input( 'city', 'City', { required: true, maxLength: 80 } ) }
                 { select( 'patientMode', 'Patient mode', [ 'Telephone', 'Camp' ] ) }
-                { select( 'appointmentType', 'Appointment type', [ 'Consultation', 'Health Checks', 'Admission' ] ) }
+                { select( 'appointmentType', 'Appointment type', typeLabels, appointmentTypes.loading ) }
                 { isHealthCheck ? liveSelect( 'healthCheck', 'healthCheckId', 'Health check', healthChecks.options, healthChecks.loading ) : <>
                   { liveSelect( 'speciality', 'specialityId', 'Speciality', specialities.options, specialities.loading ) }
                   { liveSelect( 'professional', 'doctorId', 'Doctor', doctors.options, doctors.loading ) }
@@ -187,11 +197,15 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                 </label> }
                 <fieldset><legend>{ plan.appointmentType === 'Admission' ? 'Preferred admission time' : 'Preferred appointment time' } *</legend>
                   <div className={ styles.time }>
-                    <label htmlFor="ay-hour">Hour<select id="ay-hour" required value={ plan.time.split( ':' )[0] || '' } onChange={ event => update( 'time', `${event.target.value}:${plan.time.split( ':' )[1] || ''}` ) }>
-                      <option value="">HH</option>{ Array.from( { length: 23 }, ( _, i ) => String( i + 1 ).padStart( 2, '0' ) ).map( hour => <option key={ hour }>{ hour }</option> ) }
+                    <label htmlFor="ay-hour">Hour<select id="ay-hour" required disabled={ times.loading || !hours.length }
+                      value={ hours.includes( plan.time.split( ':' )[0] ) ? plan.time.split( ':' )[0] : '' }
+                      onChange={ event => update( 'time', `${event.target.value}:` ) }>
+                      <option value="">{ times.loading ? 'Loading…' : hours.length ? 'HH' : 'Unavailable' }</option>{ hours.map( hour => <option key={ hour }>{ hour }</option> ) }
                     </select></label>
-                    <label htmlFor="ay-minute">Minute<select id="ay-minute" required value={ plan.time.split( ':' )[1] || '' } onChange={ event => update( 'time', `${plan.time.split( ':' )[0] || ''}:${event.target.value}` ) }>
-                      <option value="">MM</option>{ Array.from( { length: 12 }, ( _, i ) => String( i * 5 ).padStart( 2, '0' ) ).map( minute => <option key={ minute }>{ minute }</option> ) }
+                    <label htmlFor="ay-minute">Minute<select id="ay-minute" required disabled={ times.loading || !minutes.length }
+                      value={ minutes.includes( plan.time.split( ':' )[1] ) ? plan.time.split( ':' )[1] : '' }
+                      onChange={ event => update( 'time', `${plan.time.split( ':' )[0] || ''}:${event.target.value}` ) }>
+                      <option value="">{ times.loading ? 'Loading…' : minutes.length ? 'MM' : 'Select hour' }</option>{ minutes.map( minute => <option key={ minute }>{ minute }</option> ) }
                     </select></label>
                   </div>
                 </fieldset>
@@ -208,11 +222,11 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                 </> }
                 { plan.userType === 'New User' && <>
                   <p className={ styles.help }>Use the patient name as it appears on their identity document. The hospital may charge a separate registration fee.</p>
-                  { select( 'salutation', 'Salutation', [ 'Master', 'Mr.', 'Mrs.', 'Ms.', 'Dr' ] ) }
+                  { select( 'salutation', 'Salutation', salutationLabels, salutations.loading ) }
                   { input( 'patientName', 'Patient name', { required: true } ) }
                   { input( 'age', 'Age', { required: true, type: 'number', maxLength: 3 } ) }
                   { select( 'gender', 'Gender', [ 'Male', 'Female' ] ) }
-                  { input( 'area', 'Patient area / location', { required: true, maxLength: 240 } ) }
+                  { input( 'area', 'Patient area / location', { required: true, maxLength: 120 } ) }
                   { input( 'email', 'Email', { type: 'email' } ) }
                   { input( 'mobile', 'Mobile number', { required: true, type: 'tel', maxLength: 16, placeholder: '919999999999' } ) }
                   { select( 'pickup', 'Request vehicle pickup', [ 'Yes', 'No' ] ) }
@@ -232,7 +246,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                     { select( 'shiftingFrom', 'Patient shifting from', [ 'Home', 'Other Hospital', 'RTA', 'Workplace' ] ) }
                     { input( 'shiftingDate', 'Patient shifting date', { required: true, type: 'date' } ) }
                     { input( 'shiftingTime', 'Patient shifting time (IST)', { required: true, type: 'time' } ) }
-                    { input( 'healthDescription', 'Patient health description', { required: true, maxLength: 1000 } ) }
+                    { input( 'healthDescription', 'Patient health description', { required: true, maxLength: 500 } ) }
                     { select( 'ambulancePickup', 'Request ambulance pickup', [ 'Yes', 'No' ] ) }
                     { plan.ambulancePickup === 'Yes' && <>
                       { select( 'ambulanceFrom', 'Ambulance provider', [ 'Apollo', 'Others' ] ) }
@@ -242,8 +256,8 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                     </> }
                   </> }
                 </> }
-                { plan.userType && <label htmlFor="ay-remarks">IC remarks (optional)<textarea id="ay-remarks" value={ plan.remarks } maxLength={ 1000 } onChange={ event => update( 'remarks', event.target.value ) } /></label> }
-                <p className={ styles.help }>Details stay in this tab and are cleared when it closes or reloads. Do not enter Aadhaar numbers, medical records or passwords.</p>
+                { plan.userType && <label htmlFor="ay-remarks">IC remarks (optional)<textarea id="ay-remarks" value={ plan.remarks } maxLength={ 500 } onChange={ event => update( 'remarks', event.target.value ) } /></label> }
+                <p className={ styles.help }>Unsaved details stay in this tab. Choosing Save stores the draft in your verified account for 30 days. Only enter details you are authorized to share; do not enter Aadhaar numbers, medical records or passwords.</p>
               </> }
             </div>
             { error && <PublicNotice mode="inline" tone="error" message={ error } /> }

@@ -51,9 +51,21 @@ def _int_qty(value: Any) -> int:
     return value
 
 
+AROGYA_PRODUCT_ID = '032039ce-c4ec-5d44-8fdb-d4d9ffb91f02'
+AROGYA_VARIANT_ID = 'BRX5N8Q3'
+
+
+def reject_unbound_arogya(product_id, variant_id):
+    # A normal cart has no verified appointment intent. This is enforced on
+    # the server even if a browser, WhatsApp or MCP caller forges the line.
+    if str(product_id).strip().lower() == AROGYA_PRODUCT_ID or str(variant_id).strip().upper() == AROGYA_VARIANT_ID:
+        raise ValueError('Arogya Yatra requires verified appointment checkout')
+
+
 def _unit_price_paise(product_reader: ProductReader, product_id: str, variant_id: str) -> int:
     """The authoritative per-unit price for a variant, from ProductsTable. Raises if the
     variant is absent, archived, or has no positive integer price — never guesses."""
+    reject_unbound_arogya(product_id, variant_id)
     row = product_reader(product_id)
     if not isinstance(row, Mapping):
         raise ValueError(f"product {product_id} not found")

@@ -126,7 +126,7 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
               <p>{needsMetaSetup
                 ? 'Meta must enable sign-in for this workspace before you can connect this account here. Retry Connect after Meta enables access.'
                 : descriptions[connection.kind] || 'Connection status unavailable.'}</p>
-              {provider === 'google-gmail-apollo' && <p>Authorize wecare.digital.bw@gmail.com with read-only Gmail access for Apollo login codes. This is separate from the Gmail connection in ChatGPT. Booking activation requires the service connection to be verified.</p>}
+              {provider === 'google-gmail-apollo' && <p>Authorize wecare.digital.bw@gmail.com with read-only Gmail access for Apollo login codes. This is separate from the Gmail connection in ChatGPT. Verifying connects only your staff account. A separate administrator-approved service binding and Apollo-approved credentials are required before live availability can be activated.</p>}
               {remote && <p>{connection.automaticRefresh === true ? 'Saved authorization supports automatic renewal.' : 'Saved authorization persists; renewal depends on the provider.'}</p>}
               {failures[provider] && <p className={styles.notice} role="alert">{failures[provider]}</p>}
               {connection.lastVerifiedAt && <p>Last verified: {new Date(connection.lastVerifiedAt * 1000).toLocaleString()}</p>}

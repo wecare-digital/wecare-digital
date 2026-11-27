@@ -358,7 +358,7 @@ def oauth_callback(query):
     if config['kind'] == 'oauth-sdk' and not tokens.get('refresh_token'):
         raise Refusal('Google did not grant offline access. Reconnect and complete consent.')
     if provider == 'google-gmail-apollo':
-        if 'https://www.googleapis.com/auth/gmail.readonly' not in str(tokens.get('scope', '')).split():
+        if set(str(tokens.get('scope', '')).split()) != {'https://www.googleapis.com/auth/gmail.readonly'}:
             raise Refusal('Google did not grant the required Gmail read-only scope')
         profile, _ = http('https://gmail.googleapis.com/gmail/v1/users/me/profile',
             headers={'Authorization': 'Bearer ' + str(tokens.get('access_token', ''))})
@@ -402,6 +402,12 @@ def token(owner, provider):
             refreshed, _ = http(config.get('tokenEndpoint', META_TOKEN), {"grant_type": "refresh_token", "refresh_token": tokens["refresh_token"],
                 **exchange_parameters(owner, provider)}, form=True)
             refreshed.setdefault("refresh_token", tokens["refresh_token"])
+            if provider == 'google-gmail-apollo':
+                # Google may omit scope on refresh; preserve the consented scope
+                # and refuse a grant that no longer has the exact read-only scope.
+                refreshed.setdefault('scope', tokens.get('scope', ''))
+                if set(str(refreshed.get('scope', '')).split()) != {'https://www.googleapis.com/auth/gmail.readonly'}:
+                    raise Refusal('Reconnect the approved read-only Apollo mailbox')
             if tokens.get('_oauth_client_id'):
                 refreshed['_oauth_client_id'] = tokens['_oauth_client_id']
             save_tokens(owner, provider, refreshed, lease=lease)

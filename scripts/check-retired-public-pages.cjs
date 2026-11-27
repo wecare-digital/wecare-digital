@@ -235,8 +235,8 @@ if (!shopDetails.includes('paths: SHOP_DETAIL_PRODUCTS.map(')
 }
 const detailExcluded = shopSource.match(/const RETIRED_SHOP_DETAIL_SLUGS\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
 const blockedDetails = new Set([...(detailExcluded?.[1] || '').matchAll(/'([a-z0-9-]+)'/g)].map(match => match[1]));
-for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
-  if (!blockedDetails.has(slug)) failures.push('Dynamic Shop may republish retired Aastha alias: ' + slug);
+for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva', 'sehat']) {
+  if (!blockedDetails.has(slug)) failures.push('Dynamic Shop may republish retired product alias: ' + slug);
 }
 const listingGenerator = fs.readFileSync(path.join(root, 'scripts/generate_shop_listings.py'), 'utf8');
 if (!listingGenerator.includes('"/orders/" if slug in ORDER_HUB_SERVICE_SLUGS')) {

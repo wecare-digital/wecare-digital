@@ -53,6 +53,7 @@ def test_read_is_addressed_only_in_authenticated_partition_and_checks_ttl():
     assert db.get_item.call_args.kwargs == {'Key': {'customerId': 'owner', 'draftId': ID}, 'ConsistentRead': True}
     store.delete_draft(db, 'owner', ID)
     assert db.delete_item.call_args.kwargs['Key']['customerId'] == 'owner'
+    assert '#status = :draft' in db.delete_item.call_args.kwargs['ConditionExpression']
 
 
 def test_stale_revision_fails_instead_of_overwriting_another_save():
@@ -77,6 +78,7 @@ def test_dynamodb_numbers_return_as_json_numbers_and_list_has_no_patient_details
     assert len(result) == 1 and 'plan' not in result[0]
     assert db.query.call_args.kwargs['ExpressionAttributeValues'] == {':owner': 'owner'}
     assert db.query.call_args.kwargs['Limit'] == 20
+    assert 'plan' not in db.query.call_args.kwargs['ProjectionExpression']
 
 
 def test_handler_requires_verified_customer_and_returns_no_provider_confirmation(monkeypatch):
@@ -90,10 +92,19 @@ def test_handler_requires_verified_customer_and_returns_no_provider_confirmation
     monkeypatch.setattr(module, 'require_customer', lambda _: (identity, None))
     assert module.handler(event, None)['statusCode'] == 403
     identity.phone_verified = True
+    assert module.handler(event, None)['statusCode'] == 400
+    event['body'] = json.dumps({'action': 'access'})
+    access = json.loads(module.handler(event, None)['body'])
+    assert access['phoneVerified'] is True and access['appointmentConfirmed'] is False
+    assert len(access['accountKey']) == 64 and access['accountKey'] != identity.subject
+    identity.subject = 'different-owner'
+    assert json.loads(module.handler(event, None)['body'])['accountKey'] != access['accountKey']
+    event['body'] = json.dumps({'action': 'quote'})
     reply = module.handler(event, None)
     body = json.loads(reply['body'])
     assert body['pricing']['totalPayablePaise'] == 71114
     assert body['appointmentConfirmed'] is False
+    assert body['estimateOnly'] is True and body['checkoutAvailable'] is False
     assert reply['headers']['Cache-Control'] == 'no-store, private'
 
 
@@ -106,3 +117,54 @@ def test_template_avoids_fixed_paid_addons_and_auto_scaling():
     assert not p['PointInTimeRecoverySpecification']['PointInTimeRecoveryEnabled']
     assert not any(r['Type'] in {'AWS::KMS::Key', 'AWS::ApiGatewayV2::Api', 'AWS::Events::Rule', 'AWS::EC2::NatGateway', 'AWS::ApplicationAutoScaling::ScalableTarget'} for r in resources.values())
     assert 'ProvisionedConcurrencyConfig' not in resources['Function']['Properties']
+
+
+def test_ambiguous_save_replay_returns_original_revision_without_second_write():
+    db = table()
+    expected = store.validate_plan(plan(), now=NOW)
+    row = {'draftId': ID, 'status': 'DRAFT', 'revision': 1, 'createdAt': NOW,
+           'updatedAt': NOW, 'expiresAt': NOW + 3600, 'plan': expected}
+    db.update_item.side_effect = db.meta.client.exceptions.ConditionalCheckFailedException()
+    db.get_item.return_value = {'Item': row}
+    assert store.save_draft(db, 'owner', ID, plan(), revision=0, now=NOW)['revision'] == 1
+    assert db.update_item.call_count == 1
+    with pytest.raises(store.DraftConflict):
+        store.save_draft(db, 'owner', ID, {**plan(), 'remarks': 'changed'}, revision=0, now=NOW)
+
+
+def test_submitted_rows_are_not_returned_or_deleted_by_draft_api():
+    db = table()
+    db.get_item.return_value = {'Item': {'status': 'CONFIRMED', 'expiresAt': NOW + 3600}}
+    assert store.get_draft(db, 'owner', ID, now=NOW) is None
+    db.delete_item.side_effect = db.meta.client.exceptions.ConditionalCheckFailedException()
+    with pytest.raises(store.DraftConflict):
+        store.delete_draft(db, 'owner', ID)
+
+
+def test_list_cursor_cannot_select_another_customer():
+    db = table()
+    db.query.return_value = {'Items': [], 'LastEvaluatedKey': {'customerId': 'owner', 'draftId': ID}}
+    result = store.list_draft_page(db, 'owner', now=NOW, after=ID)
+    assert result == {'drafts': [], 'nextAfter': ID}
+    assert db.query.call_args.kwargs['ExclusiveStartKey'] == {'customerId': 'owner', 'draftId': ID}
+    with pytest.raises(store.InvalidPlan):
+        store.list_draft_page(db, 'owner', now=NOW, after={'customerId': 'victim', 'draftId': ID})
+
+
+def test_old_form_cannot_save_into_a_newly_authenticated_account(monkeypatch):
+    spec = importlib.util.spec_from_file_location('arogya_bound_handler', ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    identity = SimpleNamespace(subject='owner', phone_verified=True)
+    monkeypatch.setattr(module, 'require_customer', lambda _: (identity, None))
+    db = Mock()
+    monkeypatch.setattr(module, '_table', db)
+    event = {'requestContext': {'http': {'method': 'POST'}}, 'body': json.dumps({'action': 'access'})}
+    key = json.loads(module.handler(event, None)['body'])['accountKey']
+    identity.subject = 'new-owner'
+    for claim in (None, key, 'é' * 64):
+        event['body'] = json.dumps({'action': 'save', 'accountKey': claim, 'draftId': ID, 'revision': 0, 'plan': plan()})
+        reply = module.handler(event, None)
+        assert reply['statusCode'] == 409
+        assert json.loads(reply['body'])['code'] == 'ACCOUNT_CHANGED'
+    db.assert_not_called()

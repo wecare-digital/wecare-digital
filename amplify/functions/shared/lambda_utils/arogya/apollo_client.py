@@ -70,9 +70,10 @@ class ApolloClient:
         from .apollo_session import MAILBOX
         if email != MAILBOX:
             raise ApolloUnavailable('Provider mailbox refused')
-        # These are the parameters used by the portal's normal login flow.
+        # Do not disable provider CAPTCHA or request-decryption protections. If
+        # the approved service interface requires an interactive challenge, stop.
         return self._request('SendOtp', payload={
-            'lstEmails': [email], 'skipCaptcha': True, 'skipReqDecryption': True,
+            'lstEmails': [email],
             'leadSource': 'ApolloAdminLogin', 'emailTemplateId': 188,
         })
 

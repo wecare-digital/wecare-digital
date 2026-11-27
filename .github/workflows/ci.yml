@@ -67,3 +67,9 @@ jobs:
 
       - name: Stage checkout artifacts offline
         run: python scripts/stage_shop_checkout_packages.py --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/shop-release"
+
+
+      - name: Stage and verify Arogya artifacts offline
+        run: |
+          python scripts/build_arogya_booking.py --output "$RUNNER_TEMP/arogya-release"
+          python scripts/build_arogya_booking.py --output "$RUNNER_TEMP/arogya-release" --verify

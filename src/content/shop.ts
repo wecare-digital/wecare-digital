@@ -217,6 +217,7 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
 // /shop/<slug>/ aliases must not produce a second public detail page.
 const RETIRED_SHOP_DETAIL_SLUGS = new Set( [
   'ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva',
+  'sehat', // canonical Arogya Yatra page only; no ordinary product checkout
 ] );
 export const SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter(
   product => !RETIRED_SHOP_DETAIL_SLUGS.has( product.slug ),

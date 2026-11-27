@@ -127,6 +127,9 @@ def find_apollo_otp(gmail_get: Callable, *, expected_mailbox: str,
         "q": f"from:{sender} to:{mailbox} after:{requested_at_ms // 1000}",
         "maxResults": 5,
     })
+    if listed.get('nextPageToken'):
+        return None  # cannot establish an unambiguous current challenge
+    matches = []
     for candidate in list(listed.get("messages") or [])[:5]:
         message_id = str(candidate.get("id") or "")
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", message_id) or message_id in consumed_message_ids:
@@ -151,5 +154,5 @@ def find_apollo_otp(gmail_get: Callable, *, expected_mailbox: str,
             continue
         codes = set(re.findall(r"(?<!\d)\d{6}(?!\d)", text))
         if len(codes) == 1:
-            return ChallengeCode(message_id, codes.pop())
-    return None
+            matches.append(ChallengeCode(message_id, codes.pop()))
+    return matches[0] if len(matches) == 1 else None

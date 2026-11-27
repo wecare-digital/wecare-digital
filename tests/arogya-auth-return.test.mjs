@@ -23,3 +23,11 @@ test('patient planner is mounted only through the shared access gate; no inline 
   assert.doesNotMatch(read('../src/components/public/SavedAppointmentDrafts.tsx'), /requestOtp|submitOtp|ay-signin-code/);
   assert.doesNotMatch(read('../src/components/public/AppointmentPlanner.tsx'), /apolloAppointmentCatalog|GREAMS_GENERAL_SURGEONS/);
 });
+
+
+test('draft requests are tied to the verified form account', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  assert.match(read('../src/components/public/AppointmentAccess.tsx'), /accountKey=\{ accountKey \}/);
+  assert.match(read('../src/components/public/SavedAppointmentDrafts.tsx'), /accountKey, \.\.\.request/);
+  assert.match(read('../src/components/public/SavedAppointmentDrafts.tsx'), /pendingSave\.current = request/);
+});

@@ -17,6 +17,8 @@ from .gmail_otp import find_apollo_otp
 from .apollo_client import ApolloUnavailable, ApolloSessionExpired
 
 MAILBOX = 'wecare.digital.bw@gmail.com'
+_INTERACTIVE = ('requiresCaptcha', 'RequiresCaptcha', 'captchaRequired', 'CaptchaRequired',
+                'requiresPasswordChange', 'RequiresPasswordChange', 'isPasswordExpired', 'IsPasswordExpired')
 CHALLENGE_TTL = 300
 RENEWAL_COOLDOWN = 60
 MAX_VERIFY_ATTEMPTS = 3
@@ -81,7 +83,7 @@ def _verified_session(provider, response, now):
     if not token:
         raise ApolloAuthorizationRequired('Apollo did not establish a session')
     # Credential-policy requirements must never be bypassed by an automation.
-    if any(response.get(key) for key in ('requiresPasswordChange', 'RequiresPasswordChange', 'isPasswordExpired', 'IsPasswordExpired')):
+    if any(response.get(key) for key in _INTERACTIVE):
         raise ApolloAuthorizationRequired('Apollo account requires an interactive credential update')
     profile = provider.get_profile(token)
     if not isinstance(profile, Mapping):
@@ -145,7 +147,7 @@ def _complete_candidate(store, lease, provider, candidate, now):
 
 
 def _establish_candidate(store, lease, provider, result, state, now):
-    if any(result.get(key) for key in ('requiresPasswordChange', 'RequiresPasswordChange', 'isPasswordExpired', 'IsPasswordExpired')):
+    if any(result.get(key) for key in _INTERACTIVE):
         store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
         raise ApolloAuthorizationRequired('Apollo requires an interactive credential update')
     candidate = {'stage': 'awaiting_profile', 'token': _token(result),
@@ -222,6 +224,9 @@ def advance_session(*, store, provider, gmail_get: Callable,
                          'verifyAttempts': state.get('verifyAttempts', 0) + 1, 'nextPollAt': now + 3}
             store.save(lease, attempted)
             result = provider.verify_otp(user_id=state['userId'], email=MAILBOX, otp=code.code)
+            if isinstance(result, Mapping) and any(result.get(key) for key in _INTERACTIVE):
+                store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
+                raise ApolloAuthorizationRequired('Apollo requires interactive verification')
             if _token(result):
                 return _establish_candidate(store, lease, provider, result, state, now)
             if attempted['verifyAttempts'] >= MAX_VERIFY_ATTEMPTS:
@@ -242,7 +247,7 @@ def advance_session(*, store, provider, gmail_get: Callable,
         if not isinstance(result, Mapping):
             store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
             raise ApolloAuthorizationRequired('Apollo sign-in response requires attention')
-        if any(result.get(key) for key in ('requiresPasswordChange', 'RequiresPasswordChange', 'isPasswordExpired', 'IsPasswordExpired')):
+        if any(result.get(key) for key in _INTERACTIVE):
             store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
             raise ApolloAuthorizationRequired('Apollo requires an interactive credential update')
         if _token(result):
@@ -257,7 +262,10 @@ def advance_session(*, store, provider, gmail_get: Callable,
                    'lastRenewalAt': now, 'nextPollAt': now + 3,
                    'verifyAttempts': 0, 'consumedMessageIds': [], 'challengeCount': attempts}
         store.save(lease, pending)
-        provider.send_otp(MAILBOX)
+        sent = provider.send_otp(MAILBOX)
+        if isinstance(sent, Mapping) and any(sent.get(key) for key in _INTERACTIVE):
+            store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
+            raise ApolloAuthorizationRequired('Apollo requires interactive verification')
         return SessionResult('renewing', retry_after=3)
     finally:
         store.release(lease)

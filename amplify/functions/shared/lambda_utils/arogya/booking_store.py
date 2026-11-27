@@ -109,7 +109,7 @@ def _unexpired(row, now):
 
 def get_draft(table, owner, reference, *, now):
     row = table.get_item(Key=_key(owner, reference), ConsistentRead=True).get('Item')
-    if not _unexpired(row, now):
+    if not _unexpired(row, now) or row.get('status') != 'DRAFT':
         return None
     return public_draft(row)
 
@@ -140,16 +140,47 @@ def save_draft(table, owner, reference, plan, *, revision, now):
             ExpressionAttributeNames={'#plan': 'plan', '#status': 'status'},
             ExpressionAttributeValues=values, ReturnValues='ALL_NEW')['Attributes']
     except table.meta.client.exceptions.ConditionalCheckFailedException:
+        # A lost response after a successful write must not create another draft
+        # or advance the revision twice. Only the exact same owned, still-editable
+        # plan at the expected next revision is a successful replay.
+        existing = table.get_item(Key=key, ConsistentRead=True).get('Item')
+        if (isinstance(existing, dict) and _unexpired(existing, now)
+                and existing.get('status') == 'DRAFT'
+                and existing.get('revision') == revision + 1
+                and existing.get('plan') == plan):
+            return public_draft(existing)
         raise DraftConflict('This draft changed. Reload it before saving again.') from None
     return public_draft(row)
 
 
+def list_draft_page(table, owner, *, now, after=None):
+    """One bounded query, no PII in its projection, cursor scoped to the caller."""
+    args = dict(KeyConditionExpression='customerId = :owner',
+        ExpressionAttributeValues={':owner': owner},
+        ProjectionExpression='draftId, #status, revision, createdAt, updatedAt, expiresAt',
+        ExpressionAttributeNames={'#status': 'status'},
+        Limit=20, ConsistentRead=True)
+    if after is not None:
+        args['ExclusiveStartKey'] = _key(owner, after)
+    page = table.query(**args)
+    drafts = [public_draft(row, details=False) for row in page.get('Items', [])
+              if _unexpired(row, now) and row.get('status') == 'DRAFT']
+    cursor = page.get('LastEvaluatedKey') or {}
+    next_after = draft_id(cursor['draftId']) if cursor.get('draftId') else None
+    return {'drafts': drafts, 'nextAfter': next_after}
+
+
 def list_drafts(table, owner, *, now):
-    # Explicit bound; no scan, automatic pagination or PII in list responses.
-    page = table.query(KeyConditionExpression='customerId = :owner',
-        ExpressionAttributeValues={':owner': owner}, Limit=20, ConsistentRead=True)
-    return [public_draft(row, details=False) for row in page.get('Items', []) if _unexpired(row, now)]
+    return list_draft_page(table, owner, now=now)['drafts']
 
 
 def delete_draft(table, owner, reference):
-    table.delete_item(Key=_key(owner, reference))
+    # Idempotent for absent rows, but never let the draft API delete a paid,
+    # submitted, confirmed or otherwise locked appointment.
+    try:
+        table.delete_item(Key=_key(owner, reference),
+            ConditionExpression='attribute_not_exists(draftId) OR #status = :draft',
+            ExpressionAttributeNames={'#status': 'status'},
+            ExpressionAttributeValues={':draft': 'DRAFT'})
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        raise DraftConflict('This appointment is no longer an editable draft.') from None
