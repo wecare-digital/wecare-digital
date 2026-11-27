@@ -303,4 +303,6 @@ export interface VayuLokLiveProps {
   mode?: 'air' | 'weather';
   onModeChange?: ( mode: 'air' | 'weather' ) => void;
   externalLocation?: VayuLokExternalLocation | null;
+  /** Opt-in map-first workspace; legacy layout remains the default. */
+  atlas?: boolean;
 }
