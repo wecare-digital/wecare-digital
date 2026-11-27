@@ -3,7 +3,6 @@ import VoiceSearchMic from './VoiceSearchMic';
 import SearchClearButton from './SearchClearButton';
 import { rankNavigation } from '../lib/navigationSearch';
 import VayuLokWeatherInsights from './VayuLokWeatherInsights';
-import { clampAtlasIndex, type AtlasLayer, type AtlasPerspective } from '../lib/nanoClimateAtlas';
 import {
   VayuLokCompactPill,
   VayuLokDataCard,
@@ -147,8 +146,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( mode );
-  const [ atlasPerspective, setAtlasPerspective ] = useState<AtlasPerspective>( 'conditions' );
-  const [ atlasToolsOpen, setAtlasToolsOpen ] = useState( false );
   // Nano Climate's weather/AQI map is below the hero. Defer paid Google calls until
   // the visitor is approaching this real map, not on every landing-page view.
   const [ mapViewRequested, setMapViewRequested ] = useState( false );
@@ -2369,41 +2366,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const aqiScaleLabel = air?.indexName?.trim()
     || ( air?.indexCode === 'uaqi' ? 'Universal AQI' : 'AQI' );
 
-
-  // Time explorer uses already-returned location rows. It is not historical map animation.
-  const atlasLayer: AtlasLayer = detailTab === 'weather' ? 'weather' : layer || 'air';
-  const atlasPoints = atlasPerspective === 'conditions' ? [] : detailTab === 'air'
-    ? ( atlasPerspective === 'forecast' ? airForecast.slice( 0, airForecastHours ) : airHistory )
-        .map( point => ( { time: point.time, value: Number.isFinite( point.aqi ) ? `${point.indexCode === 'uaqi' ? 'Universal ' : ''}AQI ${point.aqi}` : 'AQI unavailable' } ) )
-    : ( atlasPerspective === 'forecast' ? weatherHourly.slice( 0, weatherHours ) : weatherHistory )
-        .map( point => ( { time: point.time, value: Number.isFinite( point.temp ) ? `${point.temp}°C` : 'Temperature unavailable' } ) );
-  const atlasSelected = detailTab === 'air'
-    ? ( atlasPerspective === 'forecast' ? airForecastInspectIdx : historyInspectIdx )
-    : ( atlasPerspective === 'forecast' ? weatherHourInspectIdx : weatherHistoryInspectIdx );
-  const atlasIndex = clampAtlasIndex( atlasPoints.length, atlasSelected, atlasPerspective === 'history' );
-  const atlasPoint = atlasIndex == null ? undefined : atlasPoints[ atlasIndex ];
-  const atlasTimeLabel = ( time: number ) => Number.isFinite( time ) ? formatHistoryPointLabel( time, displayTimeZoneId, locationZoneLabel ) : 'Time unavailable';
-  const chooseAtlasLayer = ( next: AtlasLayer ) => {
-    const nextMode = next === 'weather' ? 'weather' : 'air';
-    if ( next === 'AQI' || next === 'PM25' ) {
-      setHeatmapMetric( next );
-      setLayer( next );
-    } else {
-      setLayer( null );
-    }
-    setDetailTab( nextMode );
-    onModeChange?.( nextMode );
-  };
-  const inspectAtlasPoint = ( index: number ) => {
-    if ( atlasPerspective === 'forecast' ) {
-      if ( detailTab === 'air' ) setAirForecastInspectIdx( index );
-      else setWeatherHourInspectIdx( index );
-    } else if ( atlasPerspective === 'history' ) {
-      if ( detailTab === 'air' ) setHistoryInspectIdx( index );
-      else setWeatherHistoryInspectIdx( index );
-    }
-  };
-
   const currentWorldDestination: WorldTimeDestination = {
     name: place.name,
     addr: place.addr,
@@ -2441,7 +2403,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   return (
-    <section className="vl-live" data-atlas={ atlas ? 'true' : undefined } aria-label="Nano Climate conditions">
+    <section className="vl-live" aria-label="Nano Climate conditions">
       <VayuLokUiStyles />
       {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
           a city or pincode while the map is still loading or if it fails entirely. The map is a
@@ -2507,6 +2469,20 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         <div className="vl-live-workspace">
           <section className="vl-live-map-region" ref={ mapRegionRef } aria-label="Weather and air-quality map">
             <div className="vl-live-map-shell">
+
+              { detailTab === 'weather' && weatherVisual && mapVisible && (
+                <div
+                  className={ `vl-live-weather-visual ${weatherVisual.className}` }
+                  style={ {
+                    '--vl-sky-opacity': weatherVisual.skyOpacity,
+                    '--vl-cloud-opacity': weatherVisual.cloudOpacity,
+                  } as React.CSSProperties }
+                  aria-hidden="true"
+                >
+                  <div className="vl-live-sky-wash" />
+                  <div className="vl-live-cloud-field"><i /><i /><i /><i /></div>
+                </div>
+              ) }
 
               {/* Full-height details card. On desktop it occupies the adjacent grid column
                   and follows normal page scrolling; on phones/tablets it appears below the
@@ -2602,104 +2578,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 ) : null }
               </div>
 
-
-              <div className={ atlas ? 'vl-atlas-map-column' : 'vl-live-map-contents' }>
-                { atlas && (
-                  <div className="vl-atlas-layers">
-                    <div className="vl-atlas-control-head"><strong>Explore layers</strong><span>Current map</span></div>
-                    <div className="vl-atlas-layer-options" role="group" aria-label="Map layer">
-                      { ( [
-                        [ 'air', 'Air quality' ], [ 'AQI', 'AQI heatmap' ],
-                        [ 'PM25', 'PM2.5' ], [ 'weather', 'Weather' ],
-                      ] as const ).map( ( [ key, label ] ) => (
-                        <button key={ key } type="button" aria-pressed={ atlasLayer === key }
-                          disabled={ ( key === 'AQI' || key === 'PM25' ) && ( !mapActive || !hasSelection ) }
-                          onClick={ () => chooseAtlasLayer( key ) }>{ label }</button>
-                      ) ) }
-                    </div>
-                    <p className="vl-atlas-note" role="status">{
-                      !mapVisible || mapFailed ? 'Map not available yet. Location readings are shown separately.'
-                      : atlasLayer === 'AQI' ? 'Google Universal AQI heatmap · differs from local AQI'
-                      : atlasLayer === 'PM25' ? 'Google PM2.5 concentration heatmap'
-                      : atlasLayer === 'weather' ? ( regionalWeatherMapType ? 'Current regional precipitation layer · Google' : 'Local weather context · not a radar layer' )
-                      : 'Selected location · Google Maps'
-                    }</p>
-                  </div>
-                ) }
-                <div className={ atlas ? 'vl-atlas-map-stage' : 'vl-live-map-contents' }>
-              { detailTab === 'weather' && weatherVisual && mapVisible && (
-                <div
-                  className={ `vl-live-weather-visual ${weatherVisual.className}` }
-                  style={ {
-                    '--vl-sky-opacity': weatherVisual.skyOpacity,
-                    '--vl-cloud-opacity': weatherVisual.cloudOpacity,
-                  } as React.CSSProperties }
-                  aria-hidden="true"
-                >
-                  <div className="vl-live-sky-wash" />
-                  <div className="vl-live-cloud-field"><i /><i /><i /><i /></div>
-                </div>
-              ) }
-              { ( !mapActive || mapFailed ) ? (
-                /* MAP-FREE FALLBACK. This branch used to render an eager
-                   maps.google.com/maps?...&output=embed iframe. On a public page that is an
-                   UNCONSENTED third-party request to Google on every keyless or map-failed visit,
-                   and under output:'export' a keyless build shipped it to every visitor. Removed
-                   as an owner-approved privacy fix. The placeholder is self-contained: no src, no
-                   href, no remote background - it only restates place state the component already
-                   holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
-                   .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
-                <div className="vl-live-map-placeholder" role="status">
-                  <strong>{ previewPlace.name || 'New Delhi' }</strong>
-                  { previewPlace.addr && <span>{ previewPlace.addr }</span> }
-                  <p>{ mapActive ? 'Could not load map' : 'Map unavailable' }</p>
-                  { mapActive && mapFailed && (
-                    <button
-                      type="button"
-                      className="vl-live-map-retry"
-                      onClick={ () => { setMapFailed( false ); setMapVisible( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
-                    >
-                      Try again
-                    </button>
-                  ) }
-                </div>
-              ) : (
-                <>
-                  { !mapVisible && (
-                    <div className="vl-live-map-fallback" role="status" aria-label="Loading map">
-                      <span className="vl-live-map-loading-dot" aria-hidden="true" />
-                    </div>
-                  ) }
-                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ place === DEFAULT_PLACE ? `Map of India; weather and air quality readings are for ${place.name}` : `Weather and air-quality map around ${place.name}` } />
-                </>
-              ) }
-                </div>
-                { atlas && (
-                  <div className="vl-atlas-time">
-                    <div className="vl-atlas-control-head"><strong>Time explorer</strong><span>Selected location</span></div>
-                    <div className="vl-atlas-time-options" role="group" aria-label="Time perspective">
-                      { ( [ [ 'conditions', 'Conditions' ], [ 'forecast', 'Forecast' ], [ 'history', 'History' ] ] as const ).map( ( [ key, label ] ) => (
-                        <button key={ key } type="button" aria-pressed={ atlasPerspective === key } onClick={ () => setAtlasPerspective( key ) }>{ label }</button>
-                      ) ) }
-                    </div>
-                    { atlasPerspective === 'conditions' ? <p className="vl-atlas-note">Current conditions for the selected location.</p> : atlasPoint && atlasIndex != null ? (
-                      <>
-                        <div className="vl-atlas-reading"><strong>{ atlasPoint.value }</strong><span>{ atlasTimeLabel( atlasPoint.time ) }</span></div>
-                        <input type="range" min={ 0 } max={ atlasPoints.length - 1 } step={ 1 }
-                          value={ atlasIndex } disabled={ atlasPoints.length < 2 }
-                          aria-label={ atlasPerspective === 'forecast' ? 'Inspect forecast time' : 'Inspect historical time' }
-                          aria-valuetext={ atlasTimeLabel( atlasPoint.time ) + ' · ' + atlasPoint.value }
-                          onChange={ e => inspectAtlasPoint( Number( e.currentTarget.value ) ) } />
-                        <div className="vl-atlas-time-bounds"><span>{ atlasTimeLabel( atlasPoints[ 0 ].time ) }</span><span>{ atlasTimeLabel( atlasPoints[ atlasPoints.length - 1 ].time ) }</span></div>
-                      </>
-                    ) : <p className="vl-atlas-note" role="status">No readings available for this time range yet.</p> }
-                    <p className="vl-atlas-note">Time controls inspect location readings; the map shows current available layers.</p>
-                  </div>
-                ) }
-              </div>
-
               <div className="vl-live-air-card-wrap">
-              <aside className="vl-live-air-card" aria-label={ atlas ? 'Selected location details' : 'Air quality details' }>
+              <aside className="vl-live-air-card" aria-label="Air quality details">
                 {/* Place name (as Google returned it), the live clock and the zone label are raw
                     data, not UI copy - kept out of translation per the data-honesty rule. */}
                 <div className="vl-live-air-context" aria-label="Selected location and local time" data-wc-no-translate="true">
@@ -2762,16 +2642,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   </button>
                 </div>
 
-                { atlas && (
-                  <div className="vl-atlas-context">
-                    <strong>{ detailTab === 'air' ? 'Air quality' : 'Weather' } · { atlasPerspective === 'conditions' ? 'Conditions' : atlasPerspective === 'forecast' ? 'Forecast' : 'History' }</strong>
-                    <small>{ detailTab === 'air' ? 'Google Air Quality API' : 'Google Weather API' }</small>
-                  </div>
-                ) }
                 { detailTab === 'air' && (
                   air ? (
-                    <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-air-panel" aria-labelledby={ atlas ? undefined : 'vl-live-air-tab' } aria-label="Air details">
-                      <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'conditions' }>
+                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
                       <div className="vl-live-air-gauge-row">
                         <span className="vl-live-air-aqi-spine" aria-hidden="true" />
                         <div
@@ -2831,8 +2704,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </div>
                       ) }
 
-                      </div>
-                      <div className="vl-atlas-slice" hidden={ atlas }>
                       {/* SECTION 1 - HEATMAP. This control keeps the
                           same real Google AQI tile behavior, using the exact Material Symbols
                           "switches" glyph requested for the control. */}
@@ -2878,8 +2749,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </div>
                       </div>
 
-                      </div>
-                      <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'forecast' }>
                       <div className="vl-live-air-forecast">
                         <div className="vl-live-air-forecast-head">
                           <h2 className="vl-live-air-forecast-title">Air Forecast</h2>
@@ -2972,8 +2841,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         ) }
                       </div>
 
-                      </div>
-                      <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'conditions' }>
                       {/* SECTION 2 - HEALTH RECOMMENDATIONS. Only Google's returned
                           population-specific text is rendered. Missing groups disappear rather than
                           receiving static/fabricated advice. */}
@@ -3039,8 +2906,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </div>
                       ) }
 
-                      </div>
-                      <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'history' }>
                       {/* SECTION 3 - HOURLY HISTORY. Reuses the existing airHistory state and
                           historyRange/aqiCategory helpers. An inline-SVG AQI line chart over the
                           loaded points, weekday gridlines, a pinned current-value bubble and
@@ -3212,22 +3077,18 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           );
                         } )() }
                       </div>
-                      </div>
                     </div>
                   ) : (
-                    <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-air-panel" aria-labelledby={ atlas ? undefined : 'vl-live-air-tab' } aria-label="Air details">
+                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
                       <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? publicActionText( 'blocked' ) : 'Choose a place for air quality.' }</p>
                     </div>
                   )
                 ) }
 
                 { detailTab === 'weather' && (
-                  <div className="vl-live-air-panel" role={ atlas ? 'region' : 'tabpanel' } id="vl-live-weather-panel" aria-labelledby={ atlas ? undefined : 'vl-live-weather-tab' } aria-label="Weather details">
+                  <div className="vl-live-air-panel" role="tabpanel" id="vl-live-weather-panel" aria-labelledby="vl-live-weather-tab" aria-label="Weather details">
                     { weather ? (
                       <>
-                        { atlas && atlasPerspective === 'forecast' && !weatherHourly.length && !weatherDaily.length && <p className="vl-live-air-empty" role="status">Forecast data is not available yet.</p> }
-                        { atlas && atlasPerspective === 'history' && !weatherHistory.length && <p className="vl-live-air-empty" role="status">Recent hourly history is not available yet.</p> }
-                        <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'conditions' }>
                         {/* CURRENT CONDITIONS - large primary block, mirroring the Air AQI hero. */}
                         <div className="vl-live-wx-now">
                           <div className="vl-live-wx-now-head">
@@ -3278,7 +3139,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           ) ) }
                         </ul>
 
-                        </div>
                         {/* ALERTS - empty/unsupported states stay out of the layout. A provider
                             failure remains visible, matching Nano Climate's failure contract; real
                             alerts render with their authority/source attribution as before. */}
@@ -3333,7 +3193,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </div>
                         ) }
 
-                        <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'forecast' }>
                         {/* HOURLY FORECAST - reuses the Air Forecast strip interaction. */}
                         { weatherHourly.length > 0 && (
                           <div className="vl-live-air-forecast">
@@ -3522,8 +3381,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </section>
                         ) }
 
-                        </div>
-                        <div className="vl-atlas-slice" hidden={ atlas && atlasPerspective !== 'history' }>
                         {/* LAST 24 HOURS - weather history with a metric toggle. */}
                         { weatherHistory.length > 0 && (
                           <div className="vl-live-wx-history">
@@ -3611,7 +3468,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           includeUiStyles={ false }
                         />
 
-                        </div>
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
                     ) : (
@@ -3623,17 +3479,47 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               </aside>
               </div>
 
+              { ( !mapActive || mapFailed ) ? (
+                /* MAP-FREE FALLBACK. This branch used to render an eager
+                   maps.google.com/maps?...&output=embed iframe. On a public page that is an
+                   UNCONSENTED third-party request to Google on every keyless or map-failed visit,
+                   and under output:'export' a keyless build shipped it to every visitor. Removed
+                   as an owner-approved privacy fix. The placeholder is self-contained: no src, no
+                   href, no remote background - it only restates place state the component already
+                   holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
+                   .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
+                <div className="vl-live-map-placeholder" role="status">
+                  <strong>{ previewPlace.name || 'New Delhi' }</strong>
+                  { previewPlace.addr && <span>{ previewPlace.addr }</span> }
+                  <p>{ mapActive ? 'Could not load map' : 'Map unavailable' }</p>
+                  { mapActive && mapFailed && (
+                    <button
+                      type="button"
+                      className="vl-live-map-retry"
+                      onClick={ () => { setMapFailed( false ); setMapVisible( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
+                    >
+                      Try again
+                    </button>
+                  ) }
+                </div>
+              ) : (
+                <>
+                  { !mapVisible && (
+                    <div className="vl-live-map-fallback" role="status" aria-label="Loading map">
+                      <span className="vl-live-map-loading-dot" aria-hidden="true" />
+                    </div>
+                  ) }
+                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ place === DEFAULT_PLACE ? `Map of India; weather and air quality readings are for ${place.name}` : `Weather and air-quality map around ${place.name}` } />
+                </>
+              ) }
+
+
 
             </div>
           </section>
         </div>
 
-        { atlas && (
-          <button className="vl-atlas-tools-toggle" type="button" aria-expanded={ atlasToolsOpen } aria-controls="vl-atlas-place-tools" onClick={ () => setAtlasToolsOpen( value => !value ) }>
-            { atlasToolsOpen ? 'Hide place tools' : 'Place tools' } <span aria-hidden="true">{ atlasToolsOpen ? '−' : '+' }</span>
-          </button>
-        ) }
-        <section id="vl-atlas-place-tools" className="vl-live-tools" aria-labelledby="vl-live-tools-title" hidden={ atlas && !atlasToolsOpen }>
+        <section className="vl-live-tools" aria-labelledby="vl-live-tools-title">
           <div className="vl-live-tools-layout">
             <div className="vl-live-tools-left">
               <div className="vl-live-tools-head">
@@ -4709,57 +4595,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-route-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
           .vl-live-route-metrics>div:first-child{grid-column:1/-1}
         }
-        /* Atlas: opt-in layout, existing provider-backed state and attribution. */
-        .vl-live-map-contents,.vl-atlas-slice{display:contents}
-        .vl-atlas-slice[hidden],.vl-live-tools[hidden]{display:none!important}
-        .vl-live[data-atlas="true"]{padding-bottom:24px}
-        .vl-live[data-atlas="true"] .vl-live-shell{max-width:1600px;padding-bottom:32px}
-        .vl-live[data-atlas="true"] .vl-live-map-search{max-width:1552px;width:calc(100% - 48px);margin:0 auto 20px}
-        .vl-live[data-atlas="true"] .vl-live-search-field{border:1px solid var(--hair);border-radius:12px;background:white}
-        .vl-live[data-atlas="true"] .vl-live-search-field input{border:0;border-radius:12px;padding-inline-start:16px}
-        .vl-live[data-atlas="true"] .vl-live-search-field input:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-        .vl-live[data-atlas="true"] .vl-live-map-shell{--vl-map-height:clamp(420px,calc(100svh - 300px),680px);grid-template-columns:minmax(0,1fr) minmax(300px,400px);column-gap:16px;grid-template-rows:auto;align-items:start;min-height:0;overflow:visible}
-        .vl-atlas-map-column{grid-area:1/1;position:sticky;top:88px;min-width:0;border:1px solid var(--hair);border-radius:var(--panel-r);background:white;overflow:hidden}
-        .vl-atlas-map-stage{position:relative;height:var(--vl-map-height);min-width:0;isolation:isolate;background:var(--lime-tint)}
-        .vl-live[data-atlas="true"] .vl-atlas-map-stage .vl-live-map-canvas,.vl-live[data-atlas="true"] .vl-atlas-map-stage .vl-live-map-placeholder,.vl-live[data-atlas="true"] .vl-atlas-map-stage .vl-live-weather-visual,.vl-live[data-atlas="true"] .vl-atlas-map-stage .vl-live-map-fallback{position:absolute;inset:0;width:100%;height:100%;border-radius:0}
-        .vl-live[data-atlas="true"] .vl-live-air-card-wrap{grid-area:1/2;margin:0;min-width:0}
-        .vl-live[data-atlas="true"] .vl-live-air-card{padding:20px;min-height:240px}
-        .vl-live[data-atlas="true"] .vl-live-mobile-snapshot,.vl-live[data-atlas="true"] .vl-live-air-toggle{display:none}
-        .vl-atlas-layers,.vl-atlas-time{padding:14px 16px;background:#fff;color:var(--green)}
-        .vl-atlas-layers{border-bottom:1px solid var(--hair)}
-        .vl-atlas-time{border-top:1px solid var(--hair)}
-        .vl-atlas-control-head,.vl-atlas-reading,.vl-atlas-time-bounds{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-        .vl-atlas-control-head strong,.vl-atlas-reading strong{font-size:var(--vl-data-size);font-weight:650}
-        .vl-atlas-control-head span,.vl-atlas-reading span,.vl-atlas-note,.vl-atlas-time-bounds{font-size:var(--vl-meta-size);color:var(--muted);line-height:1.45}
-        .vl-atlas-note{margin:8px 0 0}
-        .vl-atlas-layer-options,.vl-atlas-time-options{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-        .vl-atlas-time-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:4px;border:1px solid var(--hair);border-radius:12px}
-        .vl-atlas-layer-options button,.vl-atlas-time-options button{min-height:44px;padding:0 12px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font-size:14px;font-weight:650;white-space:nowrap}
-        .vl-atlas-time-options button{border:0;border-radius:8px;padding:4px;white-space:normal}
-        .vl-atlas-layer-options button[aria-pressed="true"],.vl-atlas-time-options button[aria-pressed="true"]{background:var(--lime);border-color:var(--lime)}
-        .vl-atlas-layer-options button:disabled{opacity:.45;cursor:not-allowed}
-        .vl-atlas-reading{margin-top:12px}
-        .vl-atlas-time input{display:block;width:100%;min-height:44px;margin:0;accent-color:var(--green)}
-        .vl-atlas-time input:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-        .vl-atlas-time-bounds span{min-width:0;overflow-wrap:anywhere}
-        .vl-atlas-context{display:flex;flex-direction:column;gap:4px;margin-top:12px}
-        .vl-atlas-context strong{color:var(--green);font-size:var(--vl-panel-heading-size);font-weight:700}
-        .vl-atlas-context small{font-size:var(--vl-meta-size);color:var(--muted)}
-        .vl-atlas-tools-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:20px;min-height:var(--tap-min);padding:12px 16px;background:white;border:1px solid var(--hair);border-radius:var(--panel-r);color:var(--green);font-weight:650}
-        .vl-atlas-tools-toggle:hover{background:var(--lime-tint)}
-        @media(max-width:1050px){
-          .vl-live[data-atlas="true"] .vl-live-map-shell{--vl-map-height:clamp(360px,66vw,520px);grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;row-gap:16px;contain:none}
-          .vl-atlas-map-column{position:relative;top:auto;grid-area:1/1}
-          .vl-live[data-atlas="true"] .vl-live-air-card-wrap{grid-area:2/1;margin:0}
-        }
-        @media(max-width:700px){
-          .vl-live[data-atlas="true"] .vl-live-map-search{width:calc(100% - 32px);margin-bottom:12px}
-          .vl-live[data-atlas="true"] .vl-live-map-shell{--vl-map-height:clamp(300px,90vw,420px)}
-          .vl-live[data-atlas="true"] .vl-live-air-card{padding:16px}
-          .vl-atlas-layers,.vl-atlas-time{padding:12px}
-          .vl-atlas-layer-options button,.vl-atlas-time-options button{font-size:13px;padding:0 9px}
-        }
-
       `}</style>
     </section>
   );

@@ -15,16 +15,22 @@ test( 'Atlas time inspection stays within real provider rows', () => {
   assert.equal( clampAtlasIndex( 3, 1.8, false ), 1 );
 });
 
-test( 'Atlas is opt-in and uses existing provider-backed controls', () => {
+test( 'Nano Climate keeps the original shared visual system in every build', () => {
   const page = source( 'pages/atmos/nano-climate.tsx' );
   const live = source( 'components/VayuLokLive.tsx' );
-  assert.ok( page.includes( "process.env.NEXT_PUBLIC_NANO_CLIMATE_ATLAS === 'true'" ) );
-  assert.ok( page.includes( 'atlas={ atlasEnabled }' ) );
+  assert.ok( page.includes( 'badgeLabel="Nano Climate by WECARE.DIGITAL"' ) );
+  assert.ok( page.includes( 'words={ cycleWords }' ) );
+  assert.ok( page.includes( 'pillKey={ mode }' ) );
   assert.ok( page.includes( '<VayuLokApprovedGlobe' ) );
-  assert.ok( live.includes( 'setLayer( next )' ) );
-  assert.ok( live.includes( 'airForecast.slice( 0, airForecastHours ) : airHistory' ) );
-  assert.ok( live.includes( 'weatherHourly.slice( 0, weatherHours ) : weatherHistory' ) );
-  assert.ok( live.includes( 'Time controls inspect location readings; the map shows current available layers.' ) );
+  assert.ok( page.includes( '<RotatingHero' ) );
+  assert.ok( page.includes( 'atlas={ atlasEnabled }' ) );
+  assert.doesNotMatch( page, /atlasEnabled\s*\?|vl-atlas-page-head/ );
+  assert.doesNotMatch( live, /data-atlas=|vl-atlas-|vl-live-map-contents/ );
+  assert.ok( live.includes( 'className="vl-live-air-toggle"' ) );
+  assert.ok( live.includes( 'className="vl-live-tools"' ) );
+  assert.ok( live.includes( '.vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}' ) );
+  assert.ok( live.includes( 'padding-inline-start:10px;border-inline-start:3px solid var(--lime)' ) );
   assert.ok( live.includes( '<VayuLokWeatherInsights\n                          lat={ place.lat }' ) );
   assert.ok( live.includes( 'resetAtlasLocationReadings();\n    setPlace( next );' ) );
+  assert.equal( ( live.match( /ref=\{ mapHost \}/g ) || [] ).length, 1 );
 });
