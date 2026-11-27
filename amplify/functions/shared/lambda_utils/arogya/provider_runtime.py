@@ -1,8 +1,8 @@
-"""Read-only catalogue adapter for an approved, verified Apollo server session.
+"""Read-only catalogue adapter with explicitly enabled, fenced provider renewal.
 
-An administrator/provider integration must establish the encrypted ready session.
-This module never logs in, reads Gmail, exports browser credentials, or writes to
-Apollo. Unknown response schemas and expired sessions fail closed.
+An administrator must bind a verified business Gmail grant and configure provider-
+approved credentials. No credentials, mail, tokens, patient lookup or booking writes
+are exposed to customers. Unknown response schemas fail closed.
 """
 from __future__ import annotations
 
@@ -15,8 +15,11 @@ import time
 import boto3
 from botocore.exceptions import ClientError
 
-from .apollo_client import ApolloClient, ApolloUnavailable
-from .apollo_session import MAILBOX
+from .apollo_client import ApolloClient, ApolloUnavailable, ApolloSessionExpired
+from .apollo_session import MAILBOX, ApolloAuthorizationRequired, advance_session, invalidate_session
+from .gmail_otp import MailboxAccessRequired, GmailReadUnavailable
+from .provider_grant import VerifiedGmailGrant
+from .session_store import EncryptedSessionStore, RenewalLeaseLost
 
 RECORD = 'arogya:provider:apollo'
 CONTEXT = {'purpose': 'arogya-provider', 'record': RECORD}
@@ -33,6 +36,12 @@ WRAPPERS = ('data', 'result', 'items', 'hospitals', 'specialities', 'doctors',
 
 class CatalogueUnavailable(RuntimeError):
     pass
+
+
+class CatalogueRenewing(CatalogueUnavailable):
+    def __init__(self, retry_after):
+        super().__init__('Apollo catalogue session is being renewed')
+        self.retry_after = min(60, max(2, int(retry_after)))
 
 
 class InvalidCatalogueRequest(ValueError):
@@ -113,30 +122,73 @@ def normalize(kind, raw, *, now):
     return sorted(result.values(), key=lambda item: item['id'] if kind == 'dates' else item['label'].casefold())
 
 
-def _provider_session(now):
+def _secret(arn):
+    # The exact ARN is deployment-pinned and separately scoped by IAM.
+    if not arn.startswith('arn:aws:secretsmanager:'):
+        raise CatalogueUnavailable('Apollo runtime credential is not configured')
+    value = boto3.client('secretsmanager').get_secret_value(SecretId=arn)
+    raw = value.get('SecretString')
+    if not isinstance(raw, str) or len(raw) > 8192:
+        raise CatalogueUnavailable('Apollo runtime credential is invalid')
+    config = json.loads(raw)
+    if not isinstance(config, dict):
+        raise CatalogueUnavailable('Apollo runtime credential is invalid')
+    return config
+
+
+def _provider_config():
+    config = _secret(os.environ['APOLLO_CREDENTIAL_SECRET_ARN'])
+    sender = config.get('approvedSender', '')
+    header = config.get('applicationHeader')
+    password = config.get('password')
+    if (config.get('providerAutomationApproved') is not True
+            or config.get('username') != MAILBOX
+            or not isinstance(sender, str) or not re.fullmatch(r'[^\s@]+@(?:[a-z0-9-]+\.)*apollohospitals\.com', sender)
+            or not isinstance(header, str) or not header or len(header) > 2048
+            or not isinstance(password, str) or not password or len(password) > 1024):
+        raise CatalogueUnavailable('Apollo runtime requires administrator configuration')
+    return config
+
+
+def _runtime_store():
     table_name = os.environ.get('APOLLO_REGISTRY_TABLE')
     key_arn = os.environ.get('APOLLO_TOKEN_KEY_ARN')
-    if not table_name or not key_arn:
+    if (os.environ.get('APOLLO_AUTOMATION_ENABLED') != 'true'
+            or table_name != 'wecare-workspace-mcp' or not key_arn):
         raise CatalogueUnavailable('Apollo catalogue authorization required')
-    item = boto3.resource('dynamodb').Table(table_name).get_item(
-        Key={'pk': RECORD}, ConsistentRead=True).get('Item', {})
-    if not item.get('cipher'):
-        raise CatalogueUnavailable('Apollo catalogue authorization required')
-    state = json.loads(boto3.client('kms').decrypt(
-        KeyId=key_arn, CiphertextBlob=bytes(item['cipher']),
-        EncryptionContext=CONTEXT)['Plaintext'])
-    if (not isinstance(state, dict) or state.get('stage') != 'ready'
-            or type(state.get('expiresAt')) is not int or state['expiresAt'] <= now + 30
-            or not isinstance(state.get('token'), str) or not state['token']
-            or not isinstance(state.get('applicationHeader'), str) or not state['applicationHeader']):
-        raise CatalogueUnavailable('Apollo catalogue authorization required')
-    client = ApolloClient(state['applicationHeader'])
-    profile = client.get_profile(state['token'])
-    email = str(profile.get('EmailId', profile.get('emailId', profile.get('userName', '')))).strip().lower() if isinstance(profile, dict) else ''
-    if email != MAILBOX:
-        raise CatalogueUnavailable('Apollo catalogue account mismatch')
-    return client, state['token']
+    table = boto3.resource('dynamodb').Table(table_name)
+    kms = boto3.client('kms')
+    return table, kms, EncryptedSessionStore(table, kms, key_arn=key_arn, record_key=RECORD)
 
+
+def _provider_session(now):
+    table, kms, store = _runtime_store()
+    grant = VerifiedGmailGrant(table, kms, key_arn=os.environ['APOLLO_TOKEN_KEY_ARN'],
+        owner=os.environ.get('APOLLO_GMAIL_GRANT_OWNER', ''),
+        oauth_config=lambda: _secret(os.environ['APOLLO_GOOGLE_OAUTH_SECRET_ARN']))
+    # The administrator's verified binding must exist on every catalogue read.
+    # Verify metadata before reading credentials or contacting Apollo.
+    grant.verified_row()
+    config = _provider_config()
+    client = ApolloClient(config['applicationHeader'])
+    gmail = None
+
+    def gmail_get(path, params):
+        nonlocal gmail
+        if gmail is None:
+            gmail = grant.transport()
+        return gmail(path, params)
+
+    def credentials():
+        # Validate the authorized mailbox before starting a new login challenge.
+        grant.verify_mailbox()
+        return {'username': config['username'], 'password': config['password']}
+
+    result = advance_session(store=store, provider=client, gmail_get=gmail_get,
+        credentials=credentials, approved_sender=config['approvedSender'], now=now)
+    if result.status != 'ready' or not result.token:
+        raise CatalogueRenewing(result.retry_after or 3)
+    return client, result.token
 
 def read_catalog(body, *, now=None, session=None):
     """Request only approved read operations; return normalized public options."""
@@ -162,9 +214,22 @@ def read_catalog(body, *, now=None, session=None):
         category = 'consultation' if keys[0] == 'doctorId' else 'healthCheck'
     if set(body) - allowed:
         raise InvalidCatalogueRequest('Unexpected catalogue parameters')
+    token = ''
     try:
         provider, token = (session or _provider_session)(now)
         raw = provider.available_dates(category, token=token, **params) if kind == 'dates' else provider.catalog(kind, token=token, **params)
         return {'options': normalize(kind, raw, now=now), 'observedAt': now}
-    except (ApolloUnavailable, ClientError, KeyError, TypeError, ValueError):
+    except ApolloSessionExpired:
+        # Do not expose a provider 401 as customer authentication failure. Invalidate
+        # only the rejected token, then let a later bounded request renew it.
+        if token and session is None:
+            try:
+                _, _, store = _runtime_store()
+                invalidate_session(store, token, now=int(time.time()))
+            except (ClientError, RenewalLeaseLost, CatalogueUnavailable):
+                raise CatalogueUnavailable('Apollo catalogue temporarily unavailable') from None
+            raise CatalogueRenewing(3) from None
+        raise CatalogueUnavailable('Apollo catalogue temporarily unavailable') from None
+    except (ApolloUnavailable, ApolloAuthorizationRequired, MailboxAccessRequired, GmailReadUnavailable,
+            RenewalLeaseLost, ClientError, KeyError, TypeError, ValueError):
         raise CatalogueUnavailable('Apollo catalogue is temporarily unavailable') from None
