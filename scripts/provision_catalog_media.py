@@ -89,7 +89,7 @@ def apply():
             try:
                 lam.create_function(
                     FunctionName=FUNCTION,
-                    Runtime="python3.14",
+                    Runtime="python3.15",
                     Role=role,
                     Handler="handler.handler",
                     Code={"ZipFile": artifact},

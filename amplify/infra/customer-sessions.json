@@ -148,7 +148,7 @@
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "FunctionName": "wecare-customer-session",
-        "Runtime": "python3.14",
+        "Runtime": "python3.15",
         "Handler": "handler.handler",
         "Role": {
           "Fn::GetAtt": [
