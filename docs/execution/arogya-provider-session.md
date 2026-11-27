@@ -56,6 +56,21 @@ Admin interface. Credentials must not be pasted into chats, source or logs.
 
 ## Release boundary
 
+The booking Lambda also accepts an IAM-authorized native SDK Invoke with exactly
+`{"internalAction":"checkProviderCatalogue","catalogue":{"action":"catalog","kind":"hospitals"}}`.
+This read-only operator check delegates to the same strict catalogue reader. It
+can advance normal on-demand session renewal but cannot read patients, drafts or
+submit bookings. It returns normalized public catalogue choices or a sanitized
+renewing/unavailable status. Other catalogue kinds use the same validated ID
+fields as customer catalogue requests.
+
+This is not an HTTP action. Function URL events always include `requestContext`
+and must pass genuine customer WhatsApp authentication, even when their body or
+envelope contains the operator action. The URL resource policy's native invoke
+permission is restricted to invocations via the Function URL. Direct SDK Invoke
+requires an independently authorized AWS IAM operator; no fabricated HTTP
+authorizer identity or customer token is used.
+
 scripts/deploy_workspace_mcp.py requires merged wecare.digital source before
 activation. Build and review the deterministic workspace-MCP archive first;
 preserve all existing stack parameters. The current change adds an OAuth

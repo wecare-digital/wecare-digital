@@ -32,6 +32,21 @@ def _response(code, value):
 
 
 def handler(event, context):
+    # Native SDK Invoke is IAM-authorized. Function URLs always supply
+    # requestContext, including for unsigned requests. Keep this operator-only
+    # health check outside HTTP and limit it to the existing public catalogue
+    # reader; it cannot access customer drafts, patient records or bookings.
+    if 'requestContext' not in event and event.get('internalAction') == 'checkProviderCatalogue':
+        if set(event) != {'internalAction', 'catalogue'} or not isinstance(event['catalogue'], dict):
+            return _response(400, {'error': 'Invalid provider check.'})
+        try:
+            return _response(200, catalog.read_catalog(event['catalogue'], now=int(time.time())))
+        except catalog.InvalidCatalogueRequest as error:
+            return _response(400, {'error': str(error)})
+        except catalog.CatalogueRenewing as pending:
+            return _response(202, {'status': 'renewing', 'retryAfter': pending.retry_after})
+        except Exception:
+            return _response(503, {'error': 'Live Apollo availability is temporarily unavailable.'})
     method = event.get('requestContext', {}).get('http', {}).get('method', '')
     if method != 'POST':
         return _response(405, {'error': 'Use POST.'})
