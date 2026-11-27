@@ -182,11 +182,13 @@
   --public-nav-heading-size: 15px;
   --public-nav-heading-weight: 700;
   --public-nav-heading-leading: 1.25;
-  --public-nav-radius: 8px;
+  --public-hover-radius: 13px;
+  --public-hover-surface: #f2f9de;
+  --public-nav-radius: var(--public-hover-radius);
   --public-nav-stroke: 2;
   --public-nav-row-desktop: 46px;
   --public-nav-row-mobile: 52px;
-  --public-nav-hover: rgba(209, 244, 112, .38);
+  --public-nav-hover: var(--public-hover-surface);
   --public-focus-ring: 3px;
   --public-cta-height: 52px;
   --public-cta-radius: 50px;
@@ -200,7 +202,7 @@
   --public-search-underline: var(--public-brand-lime);
   /* Lime is the visible brand stripe; dark green next to it keeps keyboard focus distinct. */
   --public-search-focus-shadow: inset 0 -3px 0 var(--public-search-underline), inset 0 -5px 0 var(--public-brand-green);
-  --public-button-hover: var(--lime-hover);
+  --public-button-hover: var(--public-hover-surface);
   --public-card-radius: 14px;
   --public-card-padding: 26px;
   --public-card-padding-mobile: 22px;
