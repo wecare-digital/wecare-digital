@@ -332,7 +332,7 @@ def package() -> bytes:
 def deploy_lambda(zip_bytes: bytes) -> None:
     lam = boto3.client("lambda", region_name=REGION)
     config = dict(
-        Runtime="python3.12",
+        Runtime="python3.14",
         Role=ROLE_ARN,
         Handler="seo_tools_handler.handler",
         Timeout=FUNCTION_TIMEOUT,

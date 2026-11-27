@@ -514,7 +514,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
             FunctionName=FUNCTION_NAME,
             Role=ROLE_ARN,
             Handler="handler.handler",
-            Runtime="python3.12",
+            Runtime="python3.14",
             Timeout=30,
             MemorySize=512,
             TracingConfig={"Mode": "Active"},
@@ -525,7 +525,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
 
     client.create_function(
         FunctionName=FUNCTION_NAME,
-        Runtime="python3.12",
+        Runtime="python3.14",
         Role=ROLE_ARN,
         Handler="handler.handler",
         Code={"ZipFile": zip_bytes},

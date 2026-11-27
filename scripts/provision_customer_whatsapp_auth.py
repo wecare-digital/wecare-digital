@@ -321,7 +321,7 @@ def ensure_function(dry_run: bool) -> str:
         try:
             lam().create_function(
                 FunctionName=FUNCTION_NAME,
-                Runtime="python3.12",
+                Runtime="python3.14",
                 Role=role_arn,
                 Handler="handler.handler",
                 Code={"ZipFile": _zip_handler()},

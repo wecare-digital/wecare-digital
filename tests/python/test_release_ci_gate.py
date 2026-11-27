@@ -160,7 +160,7 @@ def test_canonical_apply_uploads_only_verified_commit_bytes(monkeypatch, tmp_pat
 
     class Lambda:
         def get_function_configuration(self, **_kwargs):
-            return {"Handler": "handler.lambda_handler"}
+            return {"Handler": "handler.lambda_handler", "Runtime": "python3.14"}
 
     captured = []
     def upload(_client, _spec, package, _current):

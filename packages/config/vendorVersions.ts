@@ -204,25 +204,25 @@ export const GOOGLE_ADDRESS_VALIDATION: VendorVersion = {
 } as const;
 
 /**
- * Lambda runtime for the existing fleet.
+ * Lambda runtime for the zip-packaged fleet.
  *
- * `python3.13` to `python3.15` are GA and newer. Moving 64 functions is a fleet migration, not a config
- * change, and `python3.12` is fully supported, so the lag is deliberate.
+ * Moved python3.12 -> python3.14 on 2026-11-27. The Python suite passes on 3.14, every handler
+ * compiles on it with warnings as errors, no removed stdlib module is imported, and the Pillow
+ * and cryptography layers were rebuilt from cp314 wheels and verified in a throwaway 3.14 function.
+ * python3.15 is GA but was not tested here; 3.14 is supported until 2029-06-30.
  */
 export const LAMBDA_PYTHON_RUNTIME: VendorVersion = {
   name: 'AWS Lambda Python runtime',
-  configured: 'python3.12',
+  configured: 'python3.14',
   verifiedLatest: 'python3.15',
   verifiedOn: '2026-11-27',
   evidence: 'LIVE',
   drift: 'lag-allowed-with-reason',
   upgradeBlockedReason:
-    'python3.12 stays supported until 2028-10-31. Moving the fleet needs the Pillow and ' +
-    'cryptography layers rebuilt for the new runtime and a per-function verification, so it is ' +
-    'its own change, not a side effect of a dependency bump.',
+    'python3.14 is the newest runtime this repo has been verified on (suite, compile, layers). ' +
+    'python3.15 needs the same verification before the fleet moves again.',
   rederive: "aws lambda list-functions --query 'Functions[].Runtime' | sort -u",
 } as const;
-
 /** Node.js. `.nvmrc` pins the major; the local toolchain and CI must agree. */
 export const NODE_RUNTIME: VendorVersion = {
   name: 'Node.js',
