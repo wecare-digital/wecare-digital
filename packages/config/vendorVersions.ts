@@ -206,28 +206,29 @@ export const GOOGLE_ADDRESS_VALIDATION: VendorVersion = {
 /**
  * Lambda runtime for the existing fleet.
  *
- * `python3.13` is GA and newer. Moving 64 functions is a fleet migration, not a config
+ * `python3.13` to `python3.15` are GA and newer. Moving 64 functions is a fleet migration, not a config
  * change, and `python3.12` is fully supported, so the lag is deliberate.
  */
 export const LAMBDA_PYTHON_RUNTIME: VendorVersion = {
   name: 'AWS Lambda Python runtime',
   configured: 'python3.12',
-  verifiedLatest: 'python3.13',
-  verifiedOn: '2026-09-26',
+  verifiedLatest: 'python3.15',
+  verifiedOn: '2026-11-27',
   evidence: 'LIVE',
   drift: 'lag-allowed-with-reason',
   upgradeBlockedReason:
-    '64 of 65 functions run python3.12 and it remains supported. A fleet-wide runtime ' +
-    'move is its own change with its own verification, not a side effect of this build.',
+    'python3.12 stays supported until 2028-10-31. Moving the fleet needs the Pillow and ' +
+    'cryptography layers rebuilt for the new runtime and a per-function verification, so it is ' +
+    'its own change, not a side effect of a dependency bump.',
   rederive: "aws lambda list-functions --query 'Functions[].Runtime' | sort -u",
 } as const;
 
 /** Node.js. `.nvmrc` pins the major; the local toolchain and CI must agree. */
 export const NODE_RUNTIME: VendorVersion = {
   name: 'Node.js',
-  configured: '24',
-  verifiedLatest: '24',
-  verifiedOn: '2026-09-26',
+  configured: '26',
+  verifiedLatest: '26',
+  verifiedOn: '2026-11-27',
   evidence: 'LIVE',
   drift: 'must-be-latest',
   upgradeBlockedReason: undefined,
@@ -268,9 +269,9 @@ export const TYPESCRIPT: VendorVersion = {
 
 export const AWS_CDK: VendorVersion = {
   name: 'aws-cdk-lib',
-  configured: '2.274.0',
-  verifiedLatest: '2.274.0',
-  verifiedOn: '2026-10-25',
+  configured: '2.278.0',
+  verifiedLatest: '2.278.0',
+  verifiedOn: '2026-11-27',
   evidence: 'LIVE',
   drift: 'pinned',
   upgradeBlockedReason:
@@ -316,7 +317,6 @@ export type VendorKey = keyof typeof VENDOR_VERSIONS;
  * as data means the check enforces it instead of a reviewer remembering it.
  */
 export const REJECTED_RUNTIMES: ReadonlyArray<{ readonly id: string; readonly reason: string }> = [
-  { id: 'nodejs26.x', reason: 'preview; not GA' },
   { id: 'python3.9', reason: 'the local interpreter is 3.9 but the fleet is 3.12; never deploy 3.9' },
   { id: 'nodejs18.x', reason: 'end of support' },
   { id: 'nodejs20.x', reason: 'superseded by 22/24 for new functions' },

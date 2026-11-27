@@ -6,7 +6,6 @@
   "metaAuthTemplateLanguage": "en",
   "lambdaPythonRuntime": "python3.12",
   "rejectedRuntimes": [
-    "nodejs26.x",
     "python3.9",
     "nodejs18.x",
     "nodejs20.x"
