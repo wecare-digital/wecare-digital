@@ -4,7 +4,7 @@ A customer basket pays ONE Express amount, not one amount per line:
 * Contribute: ₹15 within its existing exact ₹300 gross contract.
 * Vault: ₹25 once per standalone Vault checkout.
 * The other 27 customer SKUs: ₹45 once per checkout.
-The unlisted ₹2 commerce verification SKU is internal QA, not a customer item.
+The unlisted commerce verification SKUs are internal QA, not customer items.
 
 Customer payment amounts are now calculated by unified_pricing.py using
 these shared Express constants. The older with_standard_express helper is
@@ -30,14 +30,23 @@ STANDARD_EXPRESS_POLICY = "shop-express-noncontribute-2026-11-02"
 # Internal verification only; absent from all public shop and Meta catalog lists.
 INTERNAL_QA_PRODUCT_ID = "native:commerce-test-2"
 INTERNAL_QA_VARIANT_ID = "WCTEST2R26"
+INTERNAL_QA_ONE_PRODUCT_ID = "native:commerce-test-1"
+INTERNAL_QA_ONE_VARIANT_ID = "WCTEST1R26"
+INTERNAL_QA_VARIANTS = {
+    INTERNAL_QA_PRODUCT_ID: INTERNAL_QA_VARIANT_ID,
+    INTERNAL_QA_ONE_PRODUCT_ID: INTERNAL_QA_ONE_VARIANT_ID,
+}
 
 
 def is_internal_qa_cart(canonical: Sequence[tuple[str, str, int]]) -> bool:
-    """Only the unlisted internal test SKU bypasses the customer Express fee."""
+    """Only explicitly allowlisted standalone QA items use the existing QA pricing."""
+    if len(canonical) != 1:
+        return False
+    product, variant, quantity = canonical[0]
     return (
-        len(canonical) == 1
-        and canonical[0][0] == INTERNAL_QA_PRODUCT_ID
-        and canonical[0][1] == INTERNAL_QA_VARIANT_ID
+        product in INTERNAL_QA_VARIANTS
+        and INTERNAL_QA_VARIANTS[product] == variant
+        and (product != INTERNAL_QA_ONE_PRODUCT_ID or quantity == 1)
     )
 
 
@@ -58,8 +67,8 @@ def expected_express_paise(product_id: object, variant_id: object) -> int:
         if variant != CONTRIBUTE_VARIANT_ID:
             raise ValueError("CONTRIBUTE_VARIANT_POLICY_UNVERIFIED")
         return CONTRIBUTE_EXPRESS_PAISE
-    if product == INTERNAL_QA_PRODUCT_ID:
-        if variant != INTERNAL_QA_VARIANT_ID:
+    if product in INTERNAL_QA_VARIANTS:
+        if variant != INTERNAL_QA_VARIANTS[product]:
             raise ValueError("INTERNAL_QA_VARIANT_UNVERIFIED")
         return 0
     return STANDARD_EXPRESS_PAISE
@@ -151,7 +160,8 @@ __all__ = [
     "CONTRIBUTE_EXPRESS_PAISE", "VAULT_EXPRESS_PAISE", "STANDARD_EXPRESS_PAISE",
     "VAULT_PRODUCT_ID", "VAULT_VARIANT_ID", "CONTRIBUTE_PRODUCT_ID",
     "CONTRIBUTE_VARIANT_ID", "STANDARD_EXPRESS_POLICY", "INTERNAL_QA_PRODUCT_ID",
-    "INTERNAL_QA_VARIANT_ID", "is_internal_qa_cart", "expected_express_paise",
+    "INTERNAL_QA_VARIANT_ID", "INTERNAL_QA_ONE_PRODUCT_ID",
+    "INTERNAL_QA_ONE_VARIANT_ID", "INTERNAL_QA_VARIANTS", "is_internal_qa_cart", "expected_express_paise",
     "verified_registered_fee", "frozen_customer_cart_express_paise",
     "with_standard_express",
 ]
