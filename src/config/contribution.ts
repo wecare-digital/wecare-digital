@@ -1,7 +1,8 @@
 /** Live contribution configuration. Server-side ProductsTable remains the authoritative price source. */
 
 export const CONTRIBUTION_CURRENCY = 'INR' as const;
-export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
+/** A review entry, not a payment link. No charge or message on navigation. */
+export const CONTRIBUTE_CTA_HREF = '/checkout/?contribute=1';
 export const CONTRIBUTION_PRODUCT_ID: string = '24fa0f39-330b-5365-b7eb-9caf27ad37f1';
 
 export interface ContributionChoice {
