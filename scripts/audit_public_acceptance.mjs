@@ -267,6 +267,30 @@ try {
       }
       if (rotation.issues.some(issue => issue.includes('did not continue'))) result.notes.push('Headline rotation did not continue beyond its first cycle.');
       if (result.words.length > 1) result.notes.push('Visually review balanced wording and screen-reader behavior separately.');
+      // The compact globe must retain working, unclipped native city controls.
+      // This is an additional check; the full WCAG scan below remains unchanged.
+      if (route.path === '/atmos/nano-climate/' && profile.width <= 280) {
+        const frame = page.frameLocator('iframe.vag-frame');
+        const picker = frame.getByLabel('Globe city', { exact: true });
+        const retry = frame.getByRole('button', { name: 'Retry reading', exact: true });
+        for (const control of [picker, retry]) {
+          await control.waitFor({ state: 'visible', timeout: 10000 });
+          const fits = await control.evaluate(el => {
+            const r = el.getBoundingClientRect();
+            return r.width >= 44 && r.height >= 44 && r.left >= 0 && r.top >= 0
+              && r.right <= window.innerWidth + 1 && r.bottom <= window.innerHeight + 1;
+          });
+          if (!fits) result.failures.push('Compact globe control is clipped or smaller than 44px');
+        }
+        if (await frame.locator('.city-pin:enabled,.fallback-dot:enabled').count()) {
+          result.failures.push('Compact globe exposes overlapping interactive pins');
+        }
+        await picker.selectOption('london');
+        if ((await frame.locator('#cityPanelName').textContent())?.trim() !== 'London') {
+          result.failures.push('Compact globe city selection did not update the reading panel');
+        }
+        await picker.selectOption('delhi');
+      }
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       result.axe = {
         // Record selector targets, not HTML, inputs or customer data. The
