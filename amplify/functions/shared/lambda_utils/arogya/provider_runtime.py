@@ -183,12 +183,17 @@ def _provider_config():
     arn = os.environ.get('APOLLO_SERVICE_SECRET_ARN', '')
     if not re.fullmatch(r'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-[A-Za-z0-9]+', arn):
         raise CatalogueUnavailable('Apollo runtime requires administrator configuration')
-    config = _secret(arn)
+    return validate_provider_config(_secret(arn), os.environ.get('APOLLO_GMAIL_GRANT_OWNER', ''))
+
+
+def validate_provider_config(config, owner):
+    if not isinstance(config, dict) or not isinstance(owner, str) or not re.fullmatch(r'[a-f0-9]{64}', owner):
+        raise CatalogueUnavailable('Apollo runtime requires administrator configuration')
     sender = config.get('approvedSender', '')
     header = config.get('applicationHeader')
     password = config.get('password')
     if (config.get('providerAutomationApproved') is not True
-            or config.get('grantOwner') != os.environ.get('APOLLO_GMAIL_GRANT_OWNER')
+            or config.get('grantOwner') != owner
             or config.get('username') != MAILBOX
             or config.get('websiteAddress') != 'https://aauser-ic.apollohospitals.com/'
             or not isinstance(sender, str) or not re.fullmatch(r'[^\s@]+@(?:[a-z0-9-]+\.)*apollohospitals\.com', sender)
