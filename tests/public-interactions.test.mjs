@@ -74,8 +74,14 @@ test('shared cards, actions and paging keep responsive tokens and logical scroll
     assert.ok(read(p).includes('--public-progress-height'),p);
   }
   for(const p of ['src/components/ProductBlogPanel.tsx','src/components/ShopListingView.tsx']) assert.ok(read(p).includes('Math.abs( el.scrollLeft )'),p);
-  assert.ok(read('src/components/PillButton.tsx').includes('--public-responsive-cta-size'));
-  assert.ok(read('src/components/CheckoutAction.tsx').includes('--public-responsive-cta-size'));
+  const actions=read('src/styles/public-interactions.css');
+  const actionRule=actions.match(/:is\(\.auth-action,[\s\S]*?\)\s*\{([^}]+)\}/);
+  assert.ok(actionRule, 'shared Auth action rule');
+  assert.match(actionRule[0], /\.public-auth-action\b/);
+  assert.match(actionRule[0], /\.checkout-action\b/);
+  assert.match(actionRule[1], /font:\s*700 var\(--public-responsive-cta-size\)/);
+  assert.ok(read('src/components/PillButton.tsx').includes('pill public-auth-action'));
+  assert.ok(read('src/components/CheckoutAction.tsx').includes('className="checkout-action"'));
   const support=read('src/components/SupportWidget.tsx');
   assert.ok(support.includes('window.visualViewport'));
   assert.ok(support.includes('publicSupportGeometry( {'));
@@ -113,11 +119,23 @@ test('public searches and labelled actions share the Auth action design', () => 
     ['src/components/CheckoutProfile.tsx', 'checkout-profile-action'],
     ['src/components/CheckoutAction.tsx', 'checkout-action'],
     ['src/components/PillButton.tsx', 'public-auth-action'],
-    ['src/components/public/ClosingBand.tsx', 'cb-cta'],
     ['src/components/get/GetPage.tsx', 'sf-file-action-button'],
   ]) {
     assert.ok(read(path).includes(action), path);
     assert.ok(css.includes('.' + action), action);
   }
   assert.ok(read('src/components/orders/OrderActionsMenu.tsx').includes('background:var(--public-button-hover)'));
+});
+
+test('Home closing CTA and shared dock retain their original design instead of Auth action styles', () => {
+  const css=read('src/styles/public-interactions.css');
+  assert.doesNotMatch(css, /\.cb-cta\b|\.home-close-cta\b|\.ps-action\b/);
+  const home=read('src/pages/index.tsx');
+  assert.match(home, /\.home-close-cta\)\{font-size:18px;/);
+  const closing=read('src/components/public/ClosingBand.tsx');
+  assert.match(closing, /\.cb-cta\{[^}]*border-radius:var\(--public-cta-radius\)/);
+  assert.match(closing, /\.cb-cta\{[^}]*background:var\(--public-brand-lime\)/);
+  const dock=read('src/components/PublicShare.tsx');
+  assert.match(dock, /\.ps-action\{[^}]*border-radius:50%/);
+  assert.match(dock, /\.ps-subscribe\{background:var\(--public-brand-lime\)/);
 });

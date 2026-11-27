@@ -323,18 +323,21 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
         .ps-action{
-          position:relative;width:48px;height:48px;box-sizing:border-box;border-radius:var(--public-hover-radius);
-          border:0;background:var(--public-lime-tint);color:var(--public-brand-green);
+          position:relative;width:48px;height:48px;box-sizing:border-box;border-radius:50%;
+          border:2px solid var(--public-hairline);background:#fff;color:var(--public-brand-green);
           display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto;
           cursor:pointer;text-decoration:none;
           transition:background-color .18s,border-color .18s,transform .18s,box-shadow .18s;
         }
         .ps-action:hover{
-          background:var(--public-button-hover);transform:translateY(-1px);
-          box-shadow:var(--public-lift-shadow);
+          border-color:var(--public-brand-green);background:var(--public-hover-surface);transform:translateY(-2px);
+          box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
         /* Keep the round rupee icon consistent with Subscribe and Share. The dropdown
            intentionally makes no price or checkout promise while fulfillment is pending. */
+        .ps-contribute{background:#eef7d6;border-color:var(--public-brand-green)}
+        .ps-subscribe{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
+        .ps-subscribe:hover{background:var(--public-hover-surface)}
         .ps-action:active{transform:translateY(0)}
         .ps-action:focus-visible,.ps-menu-item:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;

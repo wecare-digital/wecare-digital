@@ -89,10 +89,18 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb.is-armed.is-in .cb-points li:nth-child(1){transition-delay:.34s}
         .cb.is-armed.is-in .cb-points li:nth-child(2){transition-delay:.43s}
         .cb.is-armed.is-in .cb-points li:nth-child(3){transition-delay:.52s}
-        .cb-cta{margin-top:32px;transition:opacity .5s ease,transform .5s ease,background-color .18s,box-shadow .18s,text-decoration-color .18s}
+        .cb-cta{
+          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);margin-top:32px;
+          max-width:100%;min-width:0;text-align:center;overflow-wrap:anywhere;
+          padding:8px clamp(8px,6vw,28px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
+          transition:opacity .5s ease,transform .5s ease,background-color .2s,box-shadow .2s;
+        }
         .cb.is-armed .cb-cta{opacity:0;transform:translateY(8px);pointer-events:none}
         .cb.is-armed.is-in .cb-cta{opacity:1;transform:none;pointer-events:auto;transition-delay:.62s}
         .cb.is-armed .cb-cta:focus{opacity:1;transform:none;pointer-events:auto;transition:none}
+        .cb-cta:hover{background:var(--public-button-hover);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .cb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         @media(prefers-reduced-motion:reduce){
           .cb-rule,.cb-points li,.cb-cta{transition:none}
           .cb.is-armed .cb-rule{transform:scaleX(1)}
@@ -103,6 +111,7 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         }
         @media(max-width:767px){
           .cb-title{max-width:none;font-size:var(--public-mobile-section-size)}
+          .cb-cta{font-size:var(--public-responsive-cta-size)}
         }
         @media(max-width:279px){
           .cb-panel{padding:clamp(10px,5vw,28px)}
