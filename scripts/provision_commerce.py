@@ -146,7 +146,7 @@ def main(argv=None) -> int:
         return 0
 
     print("\nread-back verification:")
-    return verify_shadow(members, source_note=why)
+    return verify_runtime(members, source_note=why)
 
 
 if __name__ == "__main__":
