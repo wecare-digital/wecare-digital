@@ -1,0 +1,132 @@
+name: Historical route live audit
+
+# One-time read-only observation. Do not merge this audit-only branch.
+on:
+  pull_request:
+    branches: [wecare.digital]
+    paths:
+      - '.github/workflows/historical-route-live-audit.yml'
+permissions:
+  contents: read
+jobs:
+  http:
+    name: HTTP status and redirect chains
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Probe each historical URL and control
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures as cf
+          import json, urllib.request, urllib.error, urllib.parse
+          SITE = "https://wecare.digital"
+          history = json.load(open("config/historical-route-paths.json"))
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *a, **kw):
+                  return None
+          def inspect(path):
+              start = SITE + path
+              url = start
+              hops = []
+              for _ in range(5):
+                  try:
+                      req = urllib.request.Request(url, headers={"User-Agent":"WECARE-Historical-Route-Audit/1"})
+                      try:
+                          response = urllib.request.build_opener(NoRedirect).open(req, timeout=12)
+                      except urllib.error.HTTPError as e:
+                          response = e
+                      with response:
+                          code = response.code
+                          location = response.headers.get("Location", "")
+                          body = response.read(262144).decode("utf8", "replace")
+                      hops.append({"status":code,"url":url,"location":location})
+                      if code in (301,302,303,307,308) and location:
+                          target = urllib.parse.urljoin(url, location)
+                          if urllib.parse.urlsplit(target).netloc != "wecare.digital":
+                              return {"path":path,"hops":hops,"external":True}
+                          url = target
+                          continue
+                      return {"path":path,"hops":hops,"terminal":code,"final":url,
+                              "shared404":'"page":"/404"' in body and "noindex" in body}
+                  except Exception as e:
+                      return {"path":path,"hops":hops,"error":str(e)}
+              return {"path":path,"hops":hops,"error":"redirect hop limit"}
+          paths = history["publicPaths"] + history["workspacePaths"]
+          checks = [p + "/" for p in paths] + paths
+          checks += ["/vayulok/?utm_source=chatgpt.com", "/definitely-not-a-page/nested/?utm_source=qa", "/", "/terms/", "/shop/", "/atmos/nano-climate/", "/aastha/panchang/", "/niji-setu/parichay/", "/orders/"]
+          with cf.ThreadPoolExecutor(max_workers=5) as pool:
+              for row in pool.map(inspect, checks):
+                  print("HTTP_ROW " + json.dumps(row), flush=True)
+          PY
+  browser:
+    name: Actual browser homepage handoff
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+      - name: Install isolated Chromium tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/route-qa" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.1
+          ln -s "$RUNNER_TEMP/route-qa/node_modules" node_modules
+          "$RUNNER_TEMP/route-qa/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Observe all historical paths, without submitting forms
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import { chromium } from 'playwright';
+          const origin = 'https://wecare.digital';
+          const home = origin + '/';
+          const history = JSON.parse(readFileSync('config/historical-route-paths.json', 'utf8'));
+          const active = ['/', '/terms/', '/shop/', '/atmos/nano-climate/', '/aastha/panchang/', '/niji-setu/parichay/', '/orders/'];
+          const paths = [...history.publicPaths, ...history.workspacePaths].map(path => path + '/');
+          paths.push('/vayulok/?utm_source=chatgpt.com', '/definitely-not-a-page/nested/?utm_source=qa', ...active);
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext({serviceWorkers:'block'});
+          await context.route('**/*', route => {
+            const request = route.request();
+            const url = new URL(request.url());
+            if (url.origin !== origin || !['GET','HEAD'].includes(request.method()) || ['image','media','font'].includes(request.resourceType())) return route.abort();
+            return route.continue();
+          });
+          let cursor = 0;
+          async function worker() {
+            for (;;) {
+              const index = cursor++;
+              if (index >= paths.length) return;
+              const path = paths[index];
+              const expected = active.includes(path) ? origin + path : home;
+              const page = await context.newPage();
+              const row = {path,expected};
+              const started = Date.now();
+              try {
+                const outcome = page.waitForURL(expected,{waitUntil:'domcontentloaded',timeout:15000}).then(() => true, () => false);
+                try { const initial = await page.goto(origin+path,{waitUntil:'commit',timeout:15000}); row.initialStatus = initial?.status() ?? null; }
+                catch (error) { row.navigationError = String(error).slice(0,200); }
+                row.reachedExpected = await outcome;
+                row.final = page.url();
+                if (row.reachedExpected) {
+                  try { await page.locator('header.hdr').waitFor({state:'attached',timeout:5000}); row.header = true; }
+                  catch { row.header = false; }
+                }
+                row.pass = row.reachedExpected && row.final === expected && row.header === true;
+              } catch (error) {
+                row.error = String(error).slice(0,200);
+                row.pass = false;
+              } finally {
+                row.ms = Date.now()-started;
+                console.log('BROWSER_ROW '+JSON.stringify(row));
+                await page.close();
+              }
+            }
+          }
+          try { await Promise.all(Array.from({length:4},worker)); }
+          finally { await context.close(); await browser.close(); }
+          JS
