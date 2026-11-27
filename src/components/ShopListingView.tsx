@@ -126,7 +126,8 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
     const max = el.scrollWidth - el.clientWidth;
     // No overflow (every card fits) means there is nothing to page: full bar, both arrows off.
     if ( max <= 1 ) { setProgress( 1 ); setAtStart( true ); setAtEnd( true ); return; }
-    const left = el.scrollLeft;
+    // Modern browser RTL scroll origins are negative; measure logical distance.
+    const left = Math.abs( el.scrollLeft );
     setProgress( Math.min( 1, Math.max( 0, left / max ) ) );
     setAtStart( left <= 1 );
     setAtEnd( left >= max - 1 );
@@ -148,7 +149,11 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
   useEffect( () => {
     if ( typeof window === 'undefined' ) return;
     window.addEventListener( 'resize', measure );
-    return () => window.removeEventListener( 'resize', measure );
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver( measure ) : null;
+    if ( rowRef.current ) observer?.observe( rowRef.current );
+    const direction = typeof MutationObserver !== 'undefined' ? new MutationObserver( measure ) : null;
+    direction?.observe( document.documentElement, { attributes: true, attributeFilter: [ 'dir', 'lang' ] } );
+    return () => { window.removeEventListener( 'resize', measure ); observer?.disconnect(); direction?.disconnect(); };
   }, [ measure ] );
 
   const prefersReduced = (): boolean =>
@@ -159,7 +164,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
     const el = rowRef.current;
     if ( !el ) return;
     // One viewport-worth, minus a card so the next page keeps a card of context, like a swipe.
-    const step = Math.max( el.clientWidth * 0.9, 280 );
+    const step = Math.max( el.clientWidth * 0.9, 280 ) * ( window.getComputedStyle( el ).direction === 'rtl' ? -1 : 1 );
     // Feature-detect scrollBy for the same reason as scrollTo above (jsdom / older WebViews).
     if ( typeof el.scrollBy === 'function' ) {
       el.scrollBy( { left: dir * step, behavior: prefersReduced() ? 'auto' : 'smooth' } );
@@ -212,14 +217,14 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                 <button
                   type="button"
                   className="shop-arrow"
-                  aria-label="Scroll products left"
+                  aria-label="Previous products"
                   disabled={ atStart }
                   onClick={ () => scrollByPage( -1 ) }
                 >‹</button>
                 <button
                   type="button"
                   className="shop-arrow"
-                  aria-label="Scroll products right"
+                  aria-label="Next products"
                   disabled={ atEnd }
                   onClick={ () => scrollByPage( 1 ) }
                 >›</button>
@@ -279,13 +284,13 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              DOM tags in this file, so styled-jsx scopes them without :global(). */
           .shop-pager{display:flex;flex-direction:column;gap:12px;margin:0}
           .shop-pager-row{display:flex;align-items:center;justify-content:flex-end}
-          .shop-arrows{display:flex;align-items:center;gap:8px}
+          .shop-arrows{display:flex;align-items:center;gap:var(--public-pager-gap);flex-wrap:wrap}
           /* Lime-themed, matching the pill language: dark-green 2px edge at rest (2px means
              hoverable), full lime on hover like the CTA. 44x44 is the WCAG 2.5.8 touch floor, so
              the arrows are reliably tappable on phones and in-app browsers, not just clickable. */
           .shop-arrow{
             display:inline-flex;align-items:center;justify-content:center;
-            width:44px;height:44px;flex:0 0 auto;
+            width:var(--public-pager-size);height:var(--public-pager-size);box-sizing:border-box;flex:0 0 auto;
             border:2px solid var(--public-brand-green);border-radius:50%;background:#fff;
             color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
             transition:background-color .2s,border-color .2s,opacity .2s;
@@ -297,7 +302,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              progress rather than action, fine as a thin bar. The fill width is set inline from
              the scroll position; a 4% floor keeps a sliver visible at the very start. */
           .shop-progress-track{
-            width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+            width:100%;height:var(--public-progress-height);border-radius:50px;background:var(--public-progress-track);overflow:hidden;
           }
           .shop-progress-fill{
             height:100%;border-radius:50px;background:var(--public-brand-lime);transition:width .2s ease;
@@ -343,10 +348,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                three-up width at the 1300px measure; flex:0 0 means never grow and never shrink,
                which is what stops the row collapsing the cards to fit. scroll-snap-align:start
                pairs with the row's scroll-snap-type so a card settles against the left edge. */
-            flex:0 0 320px;scroll-snap-align:start;
+            flex:0 0 320px;scroll-snap-align:start;max-width:100%;min-width:0;box-sizing:border-box;overflow-wrap:anywhere;
             display:flex;flex-direction:column;gap:10px;
-            padding:26px;background:#fff;
-            border:1px solid var(--public-hairline);border-radius:14px;
+            padding:var(--public-card-padding);background:#fff;
+            border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);
             border-inline-start:3px solid #3da35a;
             overflow:hidden;color:inherit;
             transition:border-color .2s,transform .2s,box-shadow .2s;
@@ -359,7 +364,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           }
           .shop-in :global(.shop-card-action){
             display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
-            min-height:44px;margin-top:auto;padding:0 18px;border:2px solid var(--public-brand-green);
+            min-height:var(--tap-min);max-width:100%;min-width:0;box-sizing:border-box;text-align:center;overflow-wrap:anywhere;margin-top:auto;padding:6px clamp(6px,4vw,18px);border:2px solid var(--public-brand-green);
             border-radius:50px;background:#fff;color:var(--public-brand-green);font-size:16px;font-weight:600;
             text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
           }
@@ -382,7 +387,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             color:var(--public-body);
             display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
           }
-          .shop-card-foot{display:flex;align-items:baseline;gap:12px;margin-top:4px}
+          .shop-card-foot{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-top:4px;min-width:0}
           /* Dark green, not lime: lime means actionable on this site and the actionable surface
              is the button on the product page, not the price on a listing card. Tabular figures,
              like the product page. Rendered only where a live catalogue row supplies the string -
@@ -398,7 +403,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
 
           /* The honest miss, on the blog listing's own empty-state rung. */
           .shop-empty{
-            border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;
+            border:1px dashed #d1d5db;border-radius:var(--public-card-radius);padding:var(--public-empty-padding);text-align:center;overflow-wrap:anywhere;
             font-size:20px;line-height:1.4;letter-spacing:-.125px;color:var(--public-muted);
           }
 
@@ -407,9 +412,12 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              card plus a hint of the next, which is the cue that the row scrolls. The body rung
              steps down and the clamp opens, the same pair of moves the blog listing makes. */
           @media(max-width:767px){
-            .shop-card{flex-basis:82vw;padding:22px}
+            .shop-card{flex-basis:min(82vw,100%);padding:var(--public-card-padding-mobile)}
+            .shop-card-name{font-size:var(--public-mobile-card-size)}
             .shop-card-tag{font-size:18px;-webkit-line-clamp:4}
           }
+          @media(max-width:279px){.shop-card{flex-basis:100%;padding:var(--public-card-padding-reflow)}.shop-card-tag{-webkit-line-clamp:unset}}
+          @media(hover:none){.shop-card:hover,.shop-in :global(.shop-card-action:hover){transform:none;box-shadow:none}}
           /* A shadow appearing under a card is the same "something moved" cue as the lift, and the
              progress fill / arrow tints stop animating under reduced-motion too. */
           @media(prefers-reduced-motion:reduce){

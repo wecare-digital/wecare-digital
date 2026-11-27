@@ -111,7 +111,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
           falls back to, and what makes Enter meaningful before hydration. */}
       <form ref={ formRef } className="bs-form" role="search" action={ action } method="get">
         <label className="bs-label" htmlFor={ inputId }>{ label }</label>
-        <div className="bs-field">
+        <div className="bs-field" data-public-search-field="standard">
           <input
             ref={ inputRef }
             id={ inputId }
@@ -120,7 +120,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
             name="q"
             placeholder={ placeholder }
             autoComplete="off"
-            onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); clearSearch(); } } }
+            onKeyDown={ e => { if ( e.nativeEvent.isComposing ) return; if ( e.key === 'Escape' && query ) { e.preventDefault(); clearSearch(); } } }
             { ...( live
               ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value.slice( 0, 120 ) ) }
               : { onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => setLocalQuery( e.target.value ) } ) }
@@ -165,12 +165,12 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            (ProductBlogPanel), so every search a visitor meets reads as one control. Transparent
            fill, 1px bottom hairline; on focus the hairline darkens with a lime underline. */
         .bs-form input{
-          width:100%;min-width:0;height:52px;padding:0 44px 0 2px;
+          width:100%;min-width:0;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .bs-form input:not(:placeholder-shown){padding-inline-end:90px}
+        .bs-form input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .bs-form input::-webkit-search-cancel-button,.bs-form input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .bs-form input::-ms-clear{display:none}
         .bs-form input::placeholder{color:var(--public-muted,#4b5563)}

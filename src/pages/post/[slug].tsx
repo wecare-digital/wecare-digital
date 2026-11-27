@@ -353,11 +353,11 @@ export default function BlogPostPage ( {
               filters the full corpus. name="q" is the param /blog/ reads. There is still no visible
               submit button; the shared lime mic is the one icon on this borderless field. The form submits on
               Enter, and the sr-only label gives it an accessible name. */}
-          <form ref={ postSearchFormRef } className="post-search" role="search" action="/blog/" method="get">
+          <form ref={ postSearchFormRef } className="post-search" data-public-search-field="standard" role="search" action="/blog/" method="get">
             <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
             <input ref={ postSearchInputRef } id="post-q" name="q" type="search" maxLength={ 120 } autoComplete="off" placeholder="Search posts"
               onChange={ e => setPostSearchQuery( e.target.value ) }
-              onKeyDown={ e => { if ( e.key === 'Escape' && postSearchQuery ) { e.preventDefault(); clearPostSearch(); } } } />
+              onKeyDown={ e => { if ( e.nativeEvent.isComposing ) return; if ( e.key === 'Escape' && postSearchQuery ) { e.preventDefault(); clearPostSearch(); } } } />
             <SearchClearButton query={ postSearchQuery } onClear={ clearPostSearch } />
             <VoiceSearchMic
               onTranscript={ transcript => {
@@ -523,12 +523,12 @@ export default function BlogPostPage ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .post-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .post-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .post-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .post-search input::-webkit-search-cancel-button,.post-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .post-search input::-ms-clear{display:none}
         .post-search input::placeholder{color:var(--public-muted)}

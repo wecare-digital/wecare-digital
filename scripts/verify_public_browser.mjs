@@ -38,7 +38,7 @@ const devices = [
 ];
 const routes = [
   {path: '/', name: 'home'},
-  {path: '/shop/', name: 'shop'},
+  {path: '/shop/', name: 'shop', input: '#shop-q', query: 'visa'},
   {path: '/terms/', name: 'terms', input: 'input[aria-label="Find a legal clause"]', query: 'refund'},
   {path: '/privacy/', name: 'privacy', input: 'input[aria-label="Find a legal clause"]', query: 'personal data'},
   {path: '/blog/', name: 'blog', input: '#blog-q', query: 'integrity'},
@@ -74,7 +74,7 @@ for (const [path, eyebrow] of expected) {
   else routes.push({path: url, name: path.slice(1).replaceAll('/', '-'), eyebrow});
 }
 const selectedRoutes = normalizedRoute ? routes.filter(route => (route.path.replace(/\/+$/, '') || '/') === normalizedRoute)
-  : menuOnly ? routes.filter(route => ['/', '/grahak-os/', '/shop/', '/terms/'].includes(route.path)) : routes;
+  : menuOnly ? routes.filter(route => ['/', '/relay-os/', '/shop/', '/terms/'].includes(route.path)) : routes;
 assert.ok(selectedRoutes.length, 'No registered QA route matches ' + normalizedRoute);
 const focusedDevices = [
   ['desktop-2560', 2560, 1440, false], ['desktop-1920', 1920, 1080, false],
@@ -85,6 +85,24 @@ const focusedDevices = [
   ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
 ];
 const matrix = normalizedRoute || menuOnly || baselineOnly ? [...devices, ...focusedDevices] : devices;
+async function assertSharedSearchGeometry(field, name) {
+  const geometry = await field.evaluate(el => {
+    const parent = el.parentElement;
+    const box = parent.getBoundingClientRect();
+    const controls = [el, ...parent.querySelectorAll('button.public-search-clear, button.voice-search-mic')].filter(node => node.getClientRects().length);
+    const rects = controls.map(node => {const r=node.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});
+    return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,marked:parent.hasAttribute('data-public-search-field')};
+  });
+  assert.ok(geometry.marked, name + ': missing shared search layout');
+  for (const [i, a] of geometry.rects.entries()) {
+    assert.ok(a.left >= geometry.box.left - 2 && a.right <= geometry.box.right + 2 && a.top >= geometry.box.top - 2 && a.bottom <= geometry.box.bottom + 2, name + ': search control leaves row');
+    if(i>0) assert.ok(a.width >= 44 && a.height >= 44, name + ': search action touch size');
+    for (const b of geometry.rects.slice(i+1)) {
+      assert.ok(a.right <= b.left+1 || b.right <= a.left+1 || a.bottom <= b.top+1 || b.bottom <= a.top+1, name + ': search controls overlap');
+    }
+  }
+}
+
 async function verifyMenu(page, name, width, height, touch) {
   const trigger = page.getByRole('button', {name: 'Open navigation', exact: true});
   const nav = page.getByRole('navigation', {name: 'Public navigation'});
@@ -127,6 +145,7 @@ async function verifyMenu(page, name, width, height, touch) {
   const clear = nav.getByRole('button', {name: 'Clear search', exact: true});
   const clearBox = await clear.boundingBox();
   assert.ok(clearBox && clearBox.width >= 44 && clearBox.height >= 44, name + ': clear target');
+  await assertSharedSearchGeometry(field, name);
   await clear.click();
   assert.equal(await field.inputValue(), '', name + ': clear query');
   assert.ok(await field.evaluate(el => el === document.activeElement), name + ': clear focus');
@@ -385,8 +404,7 @@ try {
             const clearBox = await clear.boundingBox();
             assert.ok(inputBox && clearBox && clearBox.width >= 44 && clearBox.height >= 44,
               name + ': missing or undersized clear target');
-            assert.ok(clearBox.x >= inputBox.x && clearBox.x + clearBox.width <= inputBox.x + inputBox.width + 2,
-              name + ': clear control overflows input');
+            await assertSharedSearchGeometry(field, name);
             await clear.click();
             assert.equal(await field.inputValue(), '');
             assert.ok(await field.evaluate(el => el === document.activeElement), name + ': focus not restored');

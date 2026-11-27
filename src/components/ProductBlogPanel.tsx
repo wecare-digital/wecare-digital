@@ -127,7 +127,11 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
     const clamped = Math.min( Math.max( 0, next ), Math.max( 0, pageCount - 1 ) );
     setPage( clamped );
     const el = trackRef.current;
-    if ( el ) el.scrollTo( { left: clamped * el.clientWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' } );
+    if ( el ) {
+      const left = clamped * el.clientWidth * ( window.getComputedStyle( el ).direction === 'rtl' ? -1 : 1 );
+      if ( typeof el.scrollTo === 'function' ) el.scrollTo( { left, behavior: prefersReducedMotion() ? 'auto' : 'smooth' } );
+      else el.scrollLeft = left;
+    }
   }, [ pageCount ] );
 
   // Read the page back from a native swipe/drag: snap settles on a page boundary, so round the
@@ -135,7 +139,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   const onTrackScroll = useCallback( (): void => {
     const el = trackRef.current;
     if ( !el || el.clientWidth === 0 ) return;
-    const nearest = Math.round( el.scrollLeft / el.clientWidth );
+    const nearest = Math.round( Math.abs( el.scrollLeft ) / el.clientWidth );
     setPage( p => ( p === nearest ? p : Math.min( Math.max( 0, nearest ), Math.max( 0, pageCount - 1 ) ) ) );
   }, [ pageCount ] );
 
@@ -143,7 +147,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   const resetToFirstPage = useCallback( (): void => {
     setPage( 0 );
     const el = trackRef.current;
-    if ( el ) el.scrollTo( { left: 0, behavior: 'auto' } );
+    if ( el ) {
+      if ( typeof el.scrollTo === 'function' ) el.scrollTo( { left: 0, behavior: 'auto' } );
+      else el.scrollLeft = 0;
+    }
   }, [] );
 
   const selectCategory = useCallback( ( c: string ): void => {
@@ -159,8 +166,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
 
   // Arrow-key paging when focus is within the pager, so it is reachable without a pointer.
   const onTrackKeyDown = useCallback( ( e: React.KeyboardEvent<HTMLDivElement> ): void => {
-    if ( e.key === 'ArrowRight' ) { e.preventDefault(); goToPage( activePage + 1 ); }
-    else if ( e.key === 'ArrowLeft' ) { e.preventDefault(); goToPage( activePage - 1 ); }
+    const step = window.getComputedStyle( e.currentTarget ).direction === 'rtl' ? -1 : 1;
+    if ( e.key === 'ArrowRight' ) { e.preventDefault(); goToPage( activePage + step ); }
+    else if ( e.key === 'ArrowLeft' ) { e.preventDefault(); goToPage( activePage - step ); }
   }, [ goToPage, activePage ] );
 
   const showPager = filtered.length > 0 && pageCount > 1;
@@ -192,7 +200,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       </div>
 
       {/* Borderless live search with the shared site voice mic. */}
-      <div className="pbp-search">
+      <div className="pbp-search" data-public-search-field="standard">
         <label className="pbp-sr" htmlFor="pbp-q">Search the blog</label>
         <input
           id="pbp-q"
@@ -202,7 +210,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           placeholder="Search posts"
           value={ query }
           onChange={ e => { setQuery( e.target.value.slice( 0, 120 ) ); resetToFirstPage(); } }
-          onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); setQuery( '' ); resetToFirstPage(); } } }
+          onKeyDown={ e => { if ( e.nativeEvent.isComposing ) return; if ( e.key === 'Escape' && query ) { e.preventDefault(); setQuery( '' ); resetToFirstPage(); } } }
         />
         <SearchClearButton query={ query } onClear={ () => { setQuery( '' ); resetToFirstPage(); } } />
         <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript.slice( 0, 120 ) ); resetToFirstPage(); } } />
@@ -359,12 +367,12 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .pbp-search input{
-          width:100%;box-sizing:border-box;height:48px;padding:0 44px 0 2px;
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .pbp-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .pbp-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .pbp-search input::-webkit-search-cancel-button,.pbp-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .pbp-search input::-ms-clear{display:none}
         .pbp-search input::placeholder{color:var(--public-muted)}
@@ -414,7 +422,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           display:inline-flex;align-items:center;justify-content:center;
           /* 44x44 is the WCAG 2.5.8 / platform minimum touch target, so the arrows are reliably
              tappable on phones, foldables and in-app browsers, not just clickable with a mouse. */
-          width:44px;height:44px;flex:0 0 auto;
+          width:var(--public-pager-size);height:var(--public-pager-size);box-sizing:border-box;flex:0 0 auto;
           border:2px solid #1a3a2a;border-radius:50%;background:#fff;
           color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s,opacity .2s;
@@ -428,9 +436,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           border-top:1px solid var(--public-hairline);
         }
         .pbp-nav-row{display:flex;align-items:center;justify-content:flex-end}
-        .pbp-arrows{display:flex;align-items:center;gap:8px}
+        .pbp-arrows{display:flex;align-items:center;gap:var(--public-pager-gap);flex-wrap:wrap}
         .pbp-progress-track{
-          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          width:100%;height:var(--public-progress-height);border-radius:50px;background:var(--public-progress-track);overflow:hidden;
           margin:0;
         }
         .pbp-progress-fill{

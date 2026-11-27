@@ -109,7 +109,7 @@ const Pager: React.FC<PagerProps> = ( {
            footer keeps its shape. */
         .pager{display:flex;flex-direction:column;gap:12px;margin:48px 0 0;padding:24px 0 0;border-top:1px solid var(--public-hairline)}
         .pager-row{display:flex;align-items:center;justify-content:flex-end}
-        .pager-arrows{display:flex;align-items:center;gap:8px}
+        .pager-arrows{display:flex;align-items:center;gap:var(--public-pager-gap);flex-wrap:wrap}
 
         /* EVERY ARROW RULE GOES THROUGH :global(), because .pager-arrow is on a next/link
            (capitalised component), and styled-jsx attaches its scoping class only to lowercase
@@ -120,7 +120,7 @@ const Pager: React.FC<PagerProps> = ( {
            hoverable), full lime on hover like the CTA. 44x44 is the WCAG 2.5.8 touch floor. */
         .pager :global(.pager-arrow){
           display:inline-flex;align-items:center;justify-content:center;
-          width:44px;height:44px;flex:0 0 auto;
+          width:var(--public-pager-size);height:var(--public-pager-size);box-sizing:border-box;flex:0 0 auto;
           border:2px solid var(--public-brand-green);border-radius:50%;background:#fff;
           color:var(--public-brand-green);font-size:20px;line-height:1;text-decoration:none;
           transition:background-color .2s,border-color .2s,opacity .2s;
@@ -139,7 +139,7 @@ const Pager: React.FC<PagerProps> = ( {
            rather than action, fine as a thin bar. The fill width is inline from page/totalPages,
            with a 4% floor so a sliver shows on page 1. */
         .pager-progress-track{
-          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          width:100%;height:var(--public-progress-height);border-radius:50px;background:var(--public-progress-track);overflow:hidden;
         }
         .pager-progress-fill{
           height:100%;border-radius:50px;background:var(--public-brand-lime);transition:width .2s ease;
