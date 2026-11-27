@@ -63,6 +63,10 @@ def quote_native_cart(
 
     registered_express = {}
     for line in lines:
+        try:
+            native_cart.reject_unbound_arogya(line.product_id, line.variant_id)
+        except ValueError as exc:
+            raise catalog_pricing.CatalogPricingError(str(exc)) from exc
         product = product_reader(line.product_id)
         if not isinstance(product, Mapping) or product.get("status", "active") != "active":
             raise catalog_pricing.CatalogPricingError("product is not active")
