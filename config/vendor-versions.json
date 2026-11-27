@@ -1,7 +1,7 @@
 {
   "generatedBy": "packages/config/vendorVersions.ts via scripts/check-versions.ts --write",
-  "metaGraphApiVersion": "v26.0",
-  "metaGraphApiBase": "https://graph.facebook.com/v26.0",
+  "metaGraphApiVersion": "v27.0",
+  "metaGraphApiBase": "https://graph.facebook.com/v27.0",
   "metaAuthTemplateName": "wecare_otp",
   "metaAuthTemplateLanguage": "en",
   "lambdaPythonRuntime": "python3.12",

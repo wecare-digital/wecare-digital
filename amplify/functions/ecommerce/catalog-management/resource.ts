@@ -8,7 +8,7 @@
  * 
  * Environment Variables:
  *   META_TOKEN_SECRET: wecare/meta-system-user-token
- *   META_API_VERSION: v25.0
+ *   META_API_VERSION: v27.0
  *   CATALOG_CACHE_TABLE: stack-wecare-digital-CatalogCacheTable
  *   WABA1_ID: 2094615664435155
  *   WABA2_ID: 2513394156072604

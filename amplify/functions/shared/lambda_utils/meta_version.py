@@ -68,13 +68,19 @@ _BASE_RE = re.compile(r"^https://graph\.facebook\.com/(v\d{1,3}\.\d)$")
 #: vendor-side release can change this application's behaviour with no deploy and no
 #: commit, which is the opposite of what `docs/compatibility.md` exists to record.
 #:
-#: Moved v25.0 -> v26.0 on 2026-10-01 after `docs/execution/meta-graph-version-audit-20261001.md`
+#: Moved v26.0 -> v27.0 on 2026-11-27. v27.0 was released 2026-11-04. Its changelog deprecates the
+#: Catalog Batch API (`POST /{catalog-id}/batch`), `meta_moment_maker_spec`, and the lookalike
+#: `country`/`location_spec` fields; a repo-wide search found no call to any of them. v25.0 stops
+#: being available on 2027-02-23, so the six functions still pinned to it by environment variable
+#: need this move before then.
+#:
+#: Earlier move: v25.0 -> v26.0 on 2026-10-01 after `docs/execution/meta-graph-version-audit-20261001.md`
 #: cleared every endpoint this repo calls against the v26.0 changelog. v26.0 is the latest
 #: Graph version; v25.0 remains supported until 2028-07-29, so this is a correctness move
 #: rather than an outage deadline. Live round trip on v26.0 is still UNVERIFIED -- see that
 #: document -- and the live Lambda environments pin v25.0 explicitly, so merging this does
 #: not move production.
-_DEFAULT = "v26.0"
+_DEFAULT = "v27.0"
 
 
 class MetaVersionError(ValueError):

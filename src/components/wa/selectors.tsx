@@ -53,7 +53,7 @@ export const PhoneNumberSelector: React.FC<{ value: string; onChange: ( metaPhon
     </div>
 );
 
-const GRAPH_VERSIONS = [ 'v25.0', 'v24.0', 'v23.0', 'v22.0', 'v21.0', 'v20.0' ];
+const GRAPH_VERSIONS = [ 'v27.0', 'v26.0', 'v25.0', 'v24.0', 'v23.0', 'v22.0', 'v21.0', 'v20.0' ];
 const GRAPH_VERSION_OPTIONS: SelectOption[] = GRAPH_VERSIONS.map( v => ( { value: v, label: v } ) );
 export const GraphVersionSelector: React.FC<{ value: string; onChange: ( v: string ) => void; label?: string }> = (
     { value, onChange, label = 'Graph API version' }

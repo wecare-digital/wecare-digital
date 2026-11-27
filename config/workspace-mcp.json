@@ -4,7 +4,7 @@
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
   "deploymentBranch": "wecare.digital",
-  "metaOAuthVersion": "v26.0",
+  "metaOAuthVersion": "v27.0",
   "connections": {
     "meta-social": {
       "kind": "remote-mcp",
