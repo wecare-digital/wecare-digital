@@ -12,23 +12,29 @@ export interface SavedAppointmentDraft {
 
 export class AppointmentApiError extends Error {
   readonly status: number;
-  constructor ( message: string, status: number ) { super( message ); this.status = status; }
+  readonly code?: string;
+  constructor ( message: string, status: number, code?: string ) { super( message ); this.status = status; this.code = code; }
 }
 
 /** Exact deployment URL comes from the public deployment configuration; no patient data goes in a URL. */
 export async function appointmentDraftAction (
   endpoint: string, token: string, body: Record<string, unknown>,
-): Promise<{ draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string }> {
+): Promise<{ draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string; nextAfter?: string | null }> {
   if ( !/^https:\/\/[a-z0-9-]+\.lambda-url\.us-east-1\.on\.aws\/$/.test( endpoint ) ) throw new Error( 'Saved appointments are not available yet.' );
-  const response = await fetch( endpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ token }` },
-    body: JSON.stringify( body ), cache: 'no-store', credentials: 'omit',
-    signal: AbortSignal.timeout( 20000 ),
-  } );
-  let value: { error?: string; draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string };
+  const controller = new AbortController();
+  const timeout = setTimeout( () => controller.abort(), 20000 );
+  let response: Response;
+  try {
+    response = await fetch( endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ token }` },
+      body: JSON.stringify( body ), cache: 'no-store', credentials: 'omit',
+      signal: controller.signal,
+    } );
+  } finally { clearTimeout( timeout ); }
+  let value: { error?: string; code?: string; draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string; nextAfter?: string | null };
   try { value = await response.json(); }
   catch { throw new AppointmentApiError( 'Appointment storage is temporarily unavailable. Check My saved drafts before saving again.', response.status ); }
-  if ( !response.ok ) throw new AppointmentApiError( typeof value.error === 'string' ? value.error : 'Appointment storage is temporarily unavailable. Please try again.', response.status );
+  if ( !response.ok ) throw new AppointmentApiError( typeof value.error === 'string' ? value.error : 'Appointment storage is temporarily unavailable. Please try again.', response.status, typeof value.code === 'string' ? value.code : undefined );
   return value;
 }
 
