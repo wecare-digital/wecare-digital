@@ -96,20 +96,28 @@ raised. Approach:
 1. scripts/build_weather_history_aggregate.sh creates
    weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
    windows per grid point with hours, sum/min/max temperature, precipitation sum and
-   humidity sum. Each window is one INSERT of about 0.5 GiB, dry-run first, with
-   --maximum_bytes_billed=1073741824, at most 8 windows (about 4 GiB) per run by
-   default and never more than 12, so one run stays under the 10 GiB/day project
-   quota. Completed windows are skipped, so it resumes across days. Five years is
-   about 119 windows (roughly 60 GiB of one-time scanning over about 15 daily runs,
-   inside the free 1 TiB per month query allowance; verify billing-account-wide use
-   before claiming it is free).
-2. server.mjs reads only that table for 1y and 5y with a 128 MiB cap. A missing
-   table returns query_cost_cap_exceeded (HTTP 422), never a raw scan. Coverage dates
-   returned to the UI show exactly what has been loaded.
-3. Assumption to confirm: weather_history_in has one row per grid point per hour.
-   Run the script without --apply first; the dry run validates the SQL against the
-   real schema. After loading, compare the 30d raw summary with the aggregate summary
-   for New Delhi.
+   humidity sum, de-duplicated to one row per grid point per hour. Each window is one
+   INSERT, dry-run first, with --maximum_bytes_billed=1073741824. Windows with no raw
+   rows get a sentinel row (0 hours) so they count as done. At most 4 windows per run
+   by default (never more than 12). The project quota of 10 GiB/day is shared with
+   live 30d queries (about 0.99 GiB per cache miss), so run off-peak and check the
+   day's usage first. Completed windows are skipped, so it resumes across days.
+   The 5y raw dry run is 35.28 GiB in total, so the one-time build is of that order
+   (verify billing-account-wide use before claiming it is free).
+2. Raw column names are assumed (geography, forecast_time, temperature_c, qpf_mm,
+   relative_humidity_percent). Confirm with bq show --schema, or override with
+   C_GEO, C_TIME, C_TEMP, C_RAIN, C_HUM. The dry run fails before billing on a mismatch.
+3. server.mjs reads only that table for 1y and 5y with a 128 MiB cap. It serves a
+   summary only when WEATHER_INSIGHTS_AGGREGATE_ENABLED=true and the table reaches
+   back to the range start with about one window per 16 days (aggregateComplete in
+   aggregate.mjs). Otherwise it returns query_cost_cap_exceeded (422, missing table
+   or disabled) or historical_aggregate_incomplete (503), never a raw scan or a
+   partial summary labelled 1y/5y.
+4. Differences to confirm before enabling the flag: the aggregate uses the nearest
+   single grid point within 10 km, while the raw 30d path takes the nearest row per
+   hour. After loading, compare the 30d summary with the aggregate for New Delhi
+   (sample hours, mean temperature, precipitation) and set the flag only if they
+   agree.
 
 Cloud Shell, in this order:
 
@@ -117,7 +125,8 @@ Cloud Shell, in this order:
     bash scripts/build_weather_history_aggregate.sh --apply    # repeat daily until done
     bash scripts/build_weather_history_aggregate.sh --verify
 
-The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights.
+The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights,
+and WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
 
 ### WeatherNext 3 (statistics Zarr)
 

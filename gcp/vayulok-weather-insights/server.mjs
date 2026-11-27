@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { URL } from 'node:url';
+import { aggregateComplete, aggregateSql } from './aggregate.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
@@ -17,6 +18,9 @@ const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 // closed; it never falls back to a raw multi-year scan.
 const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
   || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
+// The aggregate is served only after an operator has built it and compared it with
+// the raw 30d summary (docs/nano-climate-environment-data.md). Off by default.
+const AGGREGATE_ENABLED = String(process.env.WEATHER_INSIGHTS_AGGREGATE_ENABLED || '').toLowerCase() === 'true';
 const AGGREGATE_MAX_BYTES_BILLED = '134217728'; // 128 MiB, far below the 1 GiB ceiling
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
 function boundedQueryBytes(value) {
@@ -433,53 +437,6 @@ function weatherSql(source) {
   ].join('\n');
 }
 
-// Reads only the pre-aggregated table. Columns are written by the build script:
-// lat, lng, window_start, window_end, sample_hours, temp_sum, temp_min, temp_max,
-// precip_sum, humidity_sum, humidity_n, first_observed_at, last_observed_at.
-function aggregateSql(table) {
-  const tick = String.fromCharCode(96);
-  const t = tick + table + tick;
-  return [
-    'WITH candidate AS (',
-    '  SELECT lat, lng,',
-    '    SQRT(POW((lat - @lat) * 111.0, 2) + POW((lng - @lng) * 111.0 * COS(RADIANS(@lat)), 2)) AS distance_km',
-    '  FROM ' + t,
-    '  WHERE window_start >= @start_date',
-    '    AND lat BETWEEN @lat - 0.3 AND @lat + 0.3',
-    '    AND lng BETWEEN @lng - 0.3 AND @lng + 0.3',
-    '  GROUP BY lat, lng',
-    '  HAVING distance_km <= 10',
-    '  ORDER BY distance_km',
-    '  LIMIT 1',
-    '),',
-    'base AS (',
-    '  SELECT a.*, c.distance_km',
-    '  FROM ' + t + ' AS a JOIN candidate AS c ON a.lat = c.lat AND a.lng = c.lng',
-    '  WHERE a.window_start >= @start_date',
-    '),',
-    'monthly AS (',
-    '  SELECT EXTRACT(MONTH FROM window_start) AS month,',
-    '    SAFE_DIVIDE(SUM(temp_sum), SUM(sample_hours)) AS mean_temperature_c,',
-    '    SUM(precip_sum) AS precipitation_mm,',
-    '    SAFE_DIVIDE(SUM(humidity_sum), SUM(humidity_n)) AS mean_humidity_pct',
-    '  FROM base GROUP BY month',
-    ')',
-    'SELECT',
-    '  ANY_VALUE(distance_km) AS grid_distance_km,',
-    '  MIN(first_observed_at) AS coverage_start,',
-    '  MAX(last_observed_at) AS coverage_end,',
-    '  SUM(sample_hours) AS sample_hours,',
-    '  SAFE_DIVIDE(SUM(temp_sum), SUM(sample_hours)) AS mean_temperature_c,',
-    '  MIN(temp_min) AS min_temperature_c,',
-    '  MAX(temp_max) AS max_temperature_c,',
-    '  SUM(precip_sum) AS precipitation_mm,',
-    '  SAFE_DIVIDE(SUM(humidity_sum), SUM(humidity_n)) AS mean_humidity_pct,',
-    '  ARRAY(SELECT AS STRUCT month, mean_temperature_c, precipitation_mm, mean_humidity_pct',
-    '    FROM monthly ORDER BY month) AS monthly',
-    'FROM base',
-  ].join('\n');
-}
-
 function cleanSummary(row, range) {
   if (!row || !Number(row.sample_hours)) return null;
   const round = (value, digits = 1) => {
@@ -571,7 +528,7 @@ async function handleInsights(req, res, url) {
     pending = (async () => {
       let rows;
       if (range !== '30d') {
-        if (!validTable(AGGREGATE_TABLE)) {
+        if (!AGGREGATE_ENABLED || !validTable(AGGREGATE_TABLE)) {
           const error = new Error('invalid_weather_insights_aggregate_table');
           error.code = 'query_cost_cap_exceeded';
           throw error;
@@ -582,6 +539,11 @@ async function handleInsights(req, res, url) {
             param('lng', 'FLOAT64', gridLng),
             param('start_date', 'DATE', startDate(range)),
           ], AGGREGATE_MAX_BYTES_BILLED);
+          if (!aggregateComplete(rows[0], startDate(range), new Date().toISOString().slice(0, 10))) {
+            const incomplete = new Error('historical_aggregate_incomplete');
+            incomplete.code = 'historical_aggregate_incomplete';
+            throw incomplete;
+          }
         } catch (error) {
           // Missing aggregate table: report the cost cap honestly, never scan raw data.
           if (/Not found/i.test(String(error?.message || error))) error.code = 'query_cost_cap_exceeded';

@@ -11,8 +11,12 @@
 #   first; a chunk is skipped if its estimate is not below 1 GiB.
 # - Every load also sets --maximum_bytes_billed=1073741824, so BigQuery refuses to run it
 #   if the estimate was wrong. Quotas are never changed.
-# - MAX_CHUNKS (default 8, about 4 GiB) keeps one run far below the 10 GiB/day project
-#   quota. Run again on following days; completed windows are skipped (resumable).
+# - MAX_CHUNKS (default 4, about 2 GiB) leaves most of the 10 GiB/day project quota for
+#   live 30d queries (about 0.99 GiB each). Run off-peak and check the day's usage first.
+#   Run again on following days; completed windows are skipped (resumable).
+# - Windows whose raw scan returns no rows get a sentinel row (NULL lat/lng, 0 hours)
+#   in the small aggregate table, so they count as done and completeness is measurable.
+# - Rows are de-duplicated to one per grid point per hour, matching the raw 30d path.
 # - Only complete windows that ended before today (UTC) are loaded, one INSERT per window,
 #   guarded by NOT EXISTS, so re-runs never duplicate rows.
 # - The service (gcp/vayulok-weather-insights/server.mjs) only reads this aggregate for
@@ -25,7 +29,14 @@ LOCATION="${LOCATION:-US}"
 RAW="${PROJECT}.${DATASET}.weather_history_in"
 AGG="${PROJECT}.${DATASET}.weather_history_in_windows"
 YEARS="${YEARS:-5}"
-MAX_CHUNKS="${MAX_CHUNKS:-8}"
+MAX_CHUNKS="${MAX_CHUNKS:-4}"
+# Raw column names. Override if the dry run reports a schema mismatch; confirm them
+# first with: bq show --schema --format=prettyjson ${RAW}
+C_GEO="${C_GEO:-geography}"
+C_TIME="${C_TIME:-forecast_time}"
+C_TEMP="${C_TEMP:-temperature_c}"
+C_RAIN="${C_RAIN:-qpf_mm}"
+C_HUM="${C_HUM:-relative_humidity_percent}"
 CAP_BYTES=1073741824
 MODE="dry-run"
 [ "${1:-}" = "--apply" ] && MODE="apply"
@@ -37,6 +48,7 @@ bq_q() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sq
 if [ "$MODE" = "verify" ]; then
   bq_q --format=prettyjson "
     SELECT COUNT(*) AS rows_loaded, COUNT(DISTINCT window_start) AS windows,
+           COUNTIF(sample_hours = 0) AS empty_windows,
            MIN(window_start) AS first_window, MAX(window_start) AS last_window,
            COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))) AS grid_points
     FROM \`${AGG}\`"
@@ -76,26 +88,42 @@ if bq show "${AGG}" >/dev/null 2>&1; then
   DONE=$(bq_q --format=csv "SELECT CAST(window_start AS STRING) FROM \`${AGG}\` GROUP BY 1" | tail -n +2)
 fi
 
+raw_select() { # $1=start $2=end ; one row per grid point per hour, like the raw 30d path
+cat <<SQL
+SELECT ROUND(ST_Y(${C_GEO}), 4) AS lat, ROUND(ST_X(${C_GEO}), 4) AS lng, ${C_TIME} AS t,
+  SAFE_CAST(${C_TEMP} AS FLOAT64) AS temp, SAFE_CAST(${C_RAIN} AS FLOAT64) AS rain,
+  SAFE_CAST(${C_HUM} AS FLOAT64) AS hum
+FROM \`${RAW}\`
+WHERE ${C_TIME} >= TIMESTAMP '$1' AND ${C_TIME} < TIMESTAMP '$2' AND ${C_TEMP} IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY ${C_GEO}, ${C_TIME} ORDER BY ${C_TIME}) = 1
+SQL
+}
+
 insert_sql() { # $1=start $2=end
 cat <<SQL
 INSERT INTO \`${AGG}\`
+WITH hourly AS ($(raw_select "$1" "$2"))
 SELECT
-  ROUND(ST_Y(geography), 4) AS lat, ROUND(ST_X(geography), 4) AS lng,
-  DATE '$1' AS window_start, DATE '$2' AS window_end,
+  lat, lng, DATE '$1' AS window_start, DATE '$2' AS window_end,
   COUNT(*) AS sample_hours,
-  SUM(SAFE_CAST(temperature_c AS FLOAT64)) AS temp_sum,
-  MIN(SAFE_CAST(temperature_c AS FLOAT64)) AS temp_min,
-  MAX(SAFE_CAST(temperature_c AS FLOAT64)) AS temp_max,
-  SUM(SAFE_CAST(qpf_mm AS FLOAT64)) AS precip_sum,
-  SUM(SAFE_CAST(relative_humidity_percent AS FLOAT64)) AS humidity_sum,
-  COUNTIF(relative_humidity_percent IS NOT NULL) AS humidity_n,
-  MIN(forecast_time) AS first_observed_at, MAX(forecast_time) AS last_observed_at,
+  SUM(temp) AS temp_sum, MIN(temp) AS temp_min, MAX(temp) AS temp_max,
+  SUM(rain) AS precip_sum,
+  SUM(hum) AS humidity_sum, COUNTIF(hum IS NOT NULL) AS humidity_n,
+  MIN(t) AS first_observed_at, MAX(t) AS last_observed_at,
   CURRENT_TIMESTAMP() AS loaded_at
-FROM \`${RAW}\`
-WHERE forecast_time >= TIMESTAMP '$1' AND forecast_time < TIMESTAMP '$2'
-  AND temperature_c IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM \`${AGG}\` WHERE window_start = DATE '$1')
+FROM hourly
+WHERE NOT EXISTS (SELECT 1 FROM \`${AGG}\` WHERE window_start = DATE '$1')
 GROUP BY lat, lng
+SQL
+}
+
+# Touches only the small aggregate table: marks a window as done when it had no raw rows.
+sentinel_sql() { # $1=start $2=end
+cat <<SQL
+INSERT INTO \`${AGG}\` (window_start, window_end, sample_hours, loaded_at)
+SELECT DATE '$1', DATE '$2', 0, CURRENT_TIMESTAMP()
+FROM (SELECT 1)
+WHERE NOT EXISTS (SELECT 1 FROM \`${AGG}\` WHERE window_start = DATE '$1')
 SQL
 }
 
@@ -105,12 +133,8 @@ while read -r START END; do
   if printf '%s\n' "$DONE" | grep -qx "$START"; then continue; fi
   [ "$loaded" -lt "$MAX_CHUNKS" ] || { echo "Reached MAX_CHUNKS=$MAX_CHUNKS; run again tomorrow."; break; }
   SQL=$(insert_sql "$START" "$END")
-  # The estimate is the identical raw scan without the aggregate-side NOT EXISTS guard.
-  EST_SQL="SELECT ROUND(ST_Y(geography),4) AS lat, ROUND(ST_X(geography),4) AS lng, COUNT(*) AS n,
-    SUM(SAFE_CAST(temperature_c AS FLOAT64)) AS t, SUM(SAFE_CAST(qpf_mm AS FLOAT64)) AS p,
-    SUM(SAFE_CAST(relative_humidity_percent AS FLOAT64)) AS h, MIN(forecast_time) AS a, MAX(forecast_time) AS b
-    FROM \`${RAW}\` WHERE forecast_time >= TIMESTAMP '$START' AND forecast_time < TIMESTAMP '$END'
-    AND temperature_c IS NOT NULL GROUP BY lat, lng"
+  # The estimate is the identical raw scan as the INSERT.
+  EST_SQL="$(raw_select "$START" "$END")"
   BYTES=$(bq_q --dry_run --format=json "$EST_SQL" 2>&1 | python3 -c '
 import json,re,sys
 t=sys.stdin.read()
@@ -122,6 +146,7 @@ print(m.group(1) if m else "")')
   total_bytes=$((total_bytes + BYTES))
   [ "$MODE" = "apply" ] || continue
   bq_q --maximum_bytes_billed="$CAP_BYTES" "$SQL" >/dev/null
+  bq_q "$(sentinel_sql "$START" "$END")" >/dev/null
   echo "  loaded"
   loaded=$((loaded + 1))
 done <<< "$WINDOWS"

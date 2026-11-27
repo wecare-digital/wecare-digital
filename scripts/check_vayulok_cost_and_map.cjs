@@ -85,6 +85,8 @@ assert(backend.includes("param('lat', 'FLOAT64', gridLat)"),
 // Multi-year ranges read only the pre-aggregated table; the raw table stays 30d only.
 assert(backend.includes("if (range !== '30d')") && backend.includes('aggregateSql(AGGREGATE_TABLE)'),
   '1y and 5y must be served from the aggregate table');
+assert(backend.includes('aggregateComplete(rows[0]') && backend.includes('WEATHER_INSIGHTS_AGGREGATE_ENABLED'),
+  'aggregate must be gated and completeness-checked before serving 1y/5y');
 assert(backend.includes("AGGREGATE_MAX_BYTES_BILLED = '134217728'"),
   'aggregate reads need their own small byte cap');
 const aggregateBuild = read('scripts/build_weather_history_aggregate.sh');
