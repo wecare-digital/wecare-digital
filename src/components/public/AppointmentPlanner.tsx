@@ -15,7 +15,7 @@ const EMPTY_PLAN: AppointmentPlan = {
 const STEPS = [ 'Appointment', 'Date & time', 'Patient', 'Review' ];
 
 /** Apollo-shaped local request draft. Provider submission remains disabled until server integration is verified. */
-export default function AppointmentPlanner (): React.ReactElement {
+export default function AppointmentPlanner ( { onSessionExpired }: { onSessionExpired: () => void } ): React.ReactElement {
   const [ plan, setPlan ] = useState<AppointmentPlan>( EMPTY_PLAN );
   const [ step, setStep ] = useState( 1 );
   const [ error, setError ] = useState( '' );
@@ -96,7 +96,7 @@ export default function AppointmentPlanner (): React.ReactElement {
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
-      <SavedAppointmentDrafts key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 4 ); setError( '' ); } } />
+      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 4 ); setError( '' ); } } />
       <div className={ styles.panel }>
         <h3 ref={ heading } tabIndex={ -1 }>{ STEPS[step - 1] }</h3>
         { step < 4 ? (
