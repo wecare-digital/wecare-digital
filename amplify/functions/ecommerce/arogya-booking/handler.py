@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import time
@@ -55,7 +56,8 @@ def handler(event, context):
         if action == 'catalog':
             return _response(200, catalog.read_catalog(body, now=now))
         if action == 'access' and set(body) == {'action'}:
-            return _response(200, {'phoneVerified': True, 'appointmentConfirmed': False})
+            account_key = hashlib.sha256(('arogya-account:' + identity.subject).encode()).hexdigest()
+            return _response(200, {'phoneVerified': True, 'accountKey': account_key, 'appointmentConfirmed': False})
         if action == 'quote' and set(body) == {'action'}:
             # Formula preview only; live ProductsTable, provider and paid-order
             # binding are not yet activated. Never present this as payable quote.
