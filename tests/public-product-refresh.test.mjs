@@ -29,10 +29,10 @@ const retired = [
   ['/sehat', 'src/pages/sehat.tsx'],
 ];
 
-test('new product pages and public registries agree; retired pages are absent', () => {
+test('public registrations agree; historical names stay absent unless explicitly reassigned', () => {
   const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   const sitemap = read('scripts/generate-sitemap.js');
-  // The retired-family denylist may name an old URL; only PUBLIC_EXACT advertises it.
+  // Historical names are observations; only explicit registration advertises them.
   const publicExact = sitemap.split('const PUBLIC_EXACT = new Set( [')[1].split('] );')[0];
   const meta = read('src/pages/_app.tsx');
   const catalog = JSON.parse(read('config/public-pages.json')).pages;
@@ -43,16 +43,20 @@ test('new product pages and public registries agree; retired pages are absent', 
     assert.ok(meta.includes("'" + route + "':"), route);
     assert.ok(catalog.some(page => page.path === route), route);
   }
-  for (const [route, file] of retired) {
-    assert.ok(!existsSync(file), file);
-    assert.ok(!header.includes("href: '" + route + "/'"), route);
-    assert.ok(!publicExact.includes("'" + route + "'"), route);
-    assert.ok(!meta.includes("'" + route + "':"), route);
-    assert.ok(!catalog.some(page => page.path === route), route);
+  for (const [route] of retired) {
+    const registered = catalog.some(page => page.path === route);
+    const base = 'src/pages' + route;
+    const candidates = ['.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts', '/index.jsx', '/index.js'].map(ext => base + ext);
+    assert.equal(candidates.some(existsSync), registered, route + ': registration must match source');
+    assert.equal(publicExact.includes("'" + route + "'"), registered, route);
+    assert.equal(meta.includes("'" + route + "':"), registered, route);
+    if (!registered) assert.ok(!header.includes("href: '" + route + "/'"), route);
   }
   assert.ok(header.indexOf("label: 'Rail'") < header.indexOf("label: 'Cruise'"));
   assert.ok(header.indexOf("label: 'Cruise'") < header.indexOf("label: 'Arogya Yatra'"));
-  assert.ok(!existsSync('src/pages/atmos/index.tsx'));
+  if (!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/atmos')) {
+    assert.ok(!existsSync('src/pages/atmos/index.tsx'));
+  }
 });
 
 test('generated public page manifest matches source', () => {
@@ -67,11 +71,15 @@ test('all missing and retired public pages navigate Home without republishing th
   assert.ok(page.includes('<Link href="/">'));
   const effect = page.match(/useEffect\( \(\) => \{([\s\S]*?)\n  \}, \[\] \);/);
   assert.ok(effect, 'shared 404 navigation effect');
+  const history = JSON.parse(read('config/historical-route-paths.json'));
+  const registered = new Set(JSON.parse(read('config/public-pages.json')).pages.map(page => page.path));
+  assert.equal(new Set(history.publicPaths).size, history.publicPaths.length);
+  assert.equal(new Set(history.workspacePaths).size, history.workspacePaths.length);
+  assert.ok(history.infrastructureAdjacent.every(path => history.publicPaths.includes(path)));
+  assert.ok(history.workspacePaths.every(path => path.startsWith('/workspace/')));
   for (const url of [
-    ...retired.flatMap(([route]) => [route, route + '/?utm_source=chatgpt.com']),
-    '/shop/niji-setu/', '/ritual-guru/', '/aastha/',
-    '/shop/ritual-guru-puja-guidance/', '/shop/ritual-guru-diy-puja-kit/',
-    '/shop/ritual-guru-ritva/', '/definitely-not-a-page/', '/unknown/nested/?x=1#section',
+    ...history.publicPaths.filter(route => !registered.has(route) && !history.infrastructureAdjacent.includes(route)).flatMap(route => [route, route + '/?utm_source=qa']),
+    '/definitely-not-a-page/', '/unknown/nested/?x=1#section',
     '/404/', '/',
   ]) {
     const redirects = [];
@@ -169,9 +177,13 @@ test('Niji Setu is a non-clickable family and both destinations use shared subme
   const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("label: 'Parichay', href: '/niji-setu/parichay/'"));
   assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
-  assert.ok(!header.includes("href: '/niji-setu/'"));
+  if (!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/niji-setu')) {
+    assert.ok(!header.includes("href: '/niji-setu/'"));
+  }
   assert.ok(header.includes('{ link.nested ? ('));
-  assert.ok(!existsSync('src/pages/niji-setu/index.tsx'));
+  if (!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/niji-setu')) {
+    assert.ok(!existsSync('src/pages/niji-setu/index.tsx'));
+  }
 });
 
 test('menu icons share a 24px viewport and stay visible at narrow widths', () => {
@@ -199,7 +211,9 @@ test('Relay OS keeps the existing checkout identity and public label', () => {
 test('Aastha is a non-clickable family, with all three approved destinations and the expanded Panchang scope', () => {
   const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("label: 'Aastha',"));
-  assert.ok(!header.includes("href: '/aastha/'"));
+  if (!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/aastha')) {
+    assert.ok(!header.includes("href: '/aastha/'"));
+  }
   assert.ok(header.includes("label: 'Vidhi', href: '/aastha/vidhi/'"));
   assert.ok(header.includes("label: 'Samagri', href: '/aastha/samagri/'"));
   assert.ok(header.includes("label: 'Panchang', href: '/aastha/panchang/'"));
@@ -208,7 +222,9 @@ test('Aastha is a non-clickable family, with all three approved destinations and
     assert.ok(products.includes("heading: '" + name + "'"));
   }
   assert.ok(products.includes("slug: 'ritual-guru-ritva'"));
-  assert.ok(!existsSync('src/pages/aastha/index.tsx'));
+  if (!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/aastha')) {
+    assert.ok(!existsSync('src/pages/aastha/index.tsx'));
+  }
 });
 
 test('Aastha uses the official outlined Hindu temple artwork with the shared 24px menu icon footprint', () => {
