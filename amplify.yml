@@ -105,6 +105,10 @@ frontend:
         - test -n "$AWS_COMMIT_ID"; export SHOP_RELEASE_COMMIT="$AWS_COMMIT_ID"; python3 -m pip install --disable-pip-version-check --no-input --quiet boto3
         - python3 scripts/stage_shop_checkout_packages.py --commit "$SHOP_RELEASE_COMMIT" --output /tmp/wecare-shop-checkout-release > /tmp/wecare-shop-staging.log 2>&1 || { aws s3 cp /tmp/wecare-shop-staging.log "$WEB_BUILD_DIAGNOSTICS/shop-stage-failure.log" --only-show-errors || true; cat /tmp/wecare-shop-staging.log; exit 1; }; cat /tmp/wecare-shop-staging.log
         - for f in /tmp/wecare-shop-checkout-release/*.zip /tmp/wecare-shop-checkout-release/manifest.json; do aws s3 cp "$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/customer-commerce/shop-checkout-release/$SHOP_RELEASE_COMMIT/$(basename "$f")" --only-show-errors || { echo "Shop checkout artifact staging failed for $(basename "$f")" | tee /tmp/wecare-shop-upload-failure.log; aws s3 cp /tmp/wecare-shop-upload-failure.log "$WEB_BUILD_DIAGNOSTICS/shop-upload-failure.log" --only-show-errors || true; exit 1; }; done
+        # Stage the appointment Lambda only for the exact verified production commit.
+        # No IAM changes, stack execution or provider activation occurs here.
+        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then python3 scripts/build_arogya_booking.py --output /tmp/wecare-arogya-release && python3 scripts/build_arogya_booking.py --output /tmp/wecare-arogya-release --verify || exit 1; fi
+        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then for f in arogya-booking.zip arogya-booking.json manifest.json; do aws s3 cp "/tmp/wecare-arogya-release/$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/arogya-booking/staged/$AWS_COMMIT_ID/$f" --only-show-errors || exit 1; done; fi
   artifacts:
     baseDirectory: out
     files:
