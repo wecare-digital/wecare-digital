@@ -94,7 +94,7 @@ test('public navigation arrows use the same brand-green token as icons, with sea
   assert.ok(read('src/pages/auth.tsx').includes('.country-search input:focus{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}'));
 });
 
-test('public searches and primary pills share Home lime and retain contrast', () => {
+test('public searches and labelled actions share the Auth action design', () => {
   const tokens = read('src/styles/tokens.css');
   assert.ok(tokens.includes('--public-search-underline: var(--public-brand-lime)'));
   assert.ok(tokens.includes('--public-search-focus-shadow: inset 0 -3px 0 var(--public-search-underline), inset 0 -5px 0 var(--public-brand-green)'));
@@ -105,7 +105,19 @@ test('public searches and primary pills share Home lime and retain contrast', ()
   const css = read('src/styles/public-interactions.css');
   assert.ok(css.includes('@media (hover: hover) and (pointer: fine)'));
   assert.ok(css.includes('background-color: var(--public-hover-surface)'));
-  for (const path of ['src/components/PillButton.tsx','src/components/public/ClosingBand.tsx','src/components/orders/OrderActionsMenu.tsx']) {
-    assert.ok(read(path).includes('background:var(--public-button-hover)'), path);
+  for (const token of ['background: var(--public-button-hover)', 'border-radius: var(--public-hover-radius)', 'background: var(--public-lime-tint)', 'min-height: 52px', 'font: 700 var(--public-responsive-cta-size)/1.35 var(--font-sans)', 'text-decoration: underline']) assert.ok(css.includes(token), token);
+  for (const [path, action] of [
+    ['src/pages/auth.tsx', 'auth-action'],
+    ['src/components/cart/CartPage.tsx', 'cart-auth-action'],
+    ['src/pages/checkout/status.tsx', 'co-auth-action'],
+    ['src/components/CheckoutProfile.tsx', 'checkout-profile-action'],
+    ['src/components/CheckoutAction.tsx', 'checkout-action'],
+    ['src/components/PillButton.tsx', 'public-auth-action'],
+    ['src/components/public/ClosingBand.tsx', 'cb-cta'],
+    ['src/components/get/GetPage.tsx', 'sf-file-action-button'],
+  ]) {
+    assert.ok(read(path).includes(action), path);
+    assert.ok(css.includes('.' + action), action);
   }
+  assert.ok(read('src/components/orders/OrderActionsMenu.tsx').includes('background:var(--public-button-hover)'));
 });

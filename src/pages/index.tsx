@@ -790,7 +790,7 @@ const HomePage: React.FC = () => {
            only Home's band, so other routes stay untouched until their own migration.
            The closing heading also balances at every width. The sitewide balance rule stops at
            767px, so tablets and desktop got the greedy break, which left "today." alone. */
-        :global(.cb.home-close .home-close-cta){font-size:18px;max-width:100%;min-width:0;justify-content:center;text-align:center;overflow-wrap:anywhere}
+        :global(.cb.home-close .home-close-cta){max-width:100%;min-width:0;justify-content:center;text-align:center;overflow-wrap:anywhere}
         :global(.cb.home-close .home-close-title){text-wrap:balance;overflow-wrap:anywhere}
         :global(.cb.home-close .home-close-lead),
         :global(.cb.home-close .home-close-eyebrow){overflow-wrap:anywhere}
@@ -838,7 +838,6 @@ const HomePage: React.FC = () => {
           .home-flow-list{grid-auto-rows:auto;gap:28px}
           /* Home closing hierarchy remains the reference. */
           :global(.cb.home-close .home-close-title){font-size:var(--public-mobile-section-size)}
-          :global(.cb.home-close .home-close-cta){font-size:var(--public-mobile-cta-font-size)}
 
         }
 

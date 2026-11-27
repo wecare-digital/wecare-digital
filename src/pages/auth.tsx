@@ -364,17 +364,6 @@ const AuthPage: React.FC = () => {
         .country-row[aria-selected='true']{background:var(--public-brand-lime)}
         /* Shared action treatment for Sign in, Verify, Resend and Edit on all viewports. */
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
-        .auth-action{
-          display:inline-flex;align-items:center;justify-content:center;min-height:52px;min-width:116px;max-width:100%;overflow-wrap:anywhere;white-space:normal;
-          padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);
-          color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);
-          text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
-          cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
-        }
-        .auth-action:hover:not(:disabled){background:var(--public-button-hover);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
-        .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-        .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
         @media(max-width:1024px){
           .auth-card{width:min(100%,540px)}
@@ -388,7 +377,6 @@ const AuthPage: React.FC = () => {
           .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;font-size:16px}
           .phone-control>input{min-height:52px;padding:0 2px 0 12px;font-size:16px}
           .code-control{min-height:52px;padding:0 2px;border-radius:0;font-size:16px}
-          .auth-action{font-size:var(--public-mobile-cta-font-size);min-height:52px}
           .country-panel{position:fixed;top:auto;inset-inline:16px;bottom:max(16px,env(safe-area-inset-bottom));width:auto;max-width:none;max-height:min(62dvh,460px);border-radius:18px}
           .country-search{padding-inline:16px}
           .country-search input{min-height:52px;font-size:16px}
@@ -414,8 +402,7 @@ const AuthPage: React.FC = () => {
           .auth-actions{grid-template-columns:minmax(0,1fr)}
         }
         @media(prefers-reduced-motion:reduce){
-          .auth-action,.phone-control,.code-control{transition:none}
-          .auth-action:hover:not(:disabled){transform:none;box-shadow:none}
+          .phone-control,.code-control{transition:none}
         }
         @media(max-height:600px) and (min-width:768px){
           .auth-card{padding-top:28px;padding-bottom:30px}
