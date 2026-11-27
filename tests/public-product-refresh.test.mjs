@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
@@ -58,11 +59,26 @@ test('generated public page manifest matches source', () => {
   execFileSync(process.execPath, ['scripts/generate-public-pages.js', '--check'], { stdio: 'pipe' });
 });
 
-test('retired product URLs do not use a meta refresh or a client redirect', () => {
+test('all missing and retired public pages navigate Home without republishing them', () => {
   const page = read('src/pages/404.tsx');
   assert.ok(!page.includes('httpEquiv="refresh"'));
-  assert.ok(page.includes('!RETIRED_PRODUCT_PATHS.has( path )'));
-  for (const [route] of retired) assert.ok(page.includes("'" + route + "'"));
+  assert.ok(!page.includes('RETIRED_PRODUCT_PATHS'));
+  assert.ok(page.includes('name="robots" content="noindex, follow"'));
+  assert.ok(page.includes('<Link href="/">'));
+  const effect = page.match(/useEffect\( \(\) => \{([\s\S]*?)\n  \}, \[\] \);/);
+  assert.ok(effect, 'shared 404 navigation effect');
+  for (const url of [
+    ...retired.flatMap(([route]) => [route, route + '/?utm_source=chatgpt.com']),
+    '/shop/niji-setu/', '/ritual-guru/', '/aastha/',
+    '/shop/ritual-guru-puja-guidance/', '/shop/ritual-guru-diy-puja-kit/',
+    '/shop/ritual-guru-ritva/', '/definitely-not-a-page/', '/unknown/nested/?x=1#section',
+    '/404/', '/',
+  ]) {
+    const redirects = [];
+    const pathname = new URL(url, 'https://wecare.digital').pathname;
+    runInNewContext(effect[1], { window: { location: { pathname, replace: target => redirects.push(target) } } });
+    assert.deepEqual(redirects, pathname === '/' ? [] : ['/'], url);
+  }
 });
 
 test('Home pause/play uses official Material Symbols, a stable accessible icon-only control and matching title-bar height', () => {
@@ -155,8 +171,7 @@ test('Niji Setu is a non-clickable family and both destinations use shared subme
   assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
   assert.ok(!header.includes("href: '/niji-setu/'"));
   assert.ok(header.includes('{ link.nested ? ('));
-  const notFound = read('src/pages/404.tsx');
-  assert.ok(notFound.includes("'/dispatch', '/niji-setu', '/shop/niji-setu'"));
+  assert.ok(!existsSync('src/pages/niji-setu/index.tsx'));
 });
 
 test('menu icons share a 24px viewport and stay visible at narrow widths', () => {
@@ -216,9 +231,10 @@ test('Panchang keeps the approved native product and variant in the cart fallbac
   assert.ok(shop.includes('SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter('));
   assert.ok(shop.includes('!RETIRED_SHOP_DETAIL_SLUGS.has( product.slug )'));
   assert.ok(detail.includes('paths: SHOP_DETAIL_PRODUCTS.map('));
-  const notFound = read('src/pages/404.tsx');
+  const retiredDetails = shop.match(/const RETIRED_SHOP_DETAIL_SLUGS\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/)?.[1];
+  assert.ok(retiredDetails, 'retired shop details remain excluded from export');
   for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
-    assert.ok(notFound.includes("'/shop/" + slug + "'"));
+    assert.ok(retiredDetails.includes("'" + slug + "'"));
   }
 });
 

@@ -2,19 +2,17 @@ import { buildPageTitle } from '../lib/page-title';
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
-
-// Owner-requested retirement: these former product paths must not redirect.
-const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat', '/dispatch', '/niji-setu', '/shop/niji-setu', '/ritual-guru', '/aastha', '/ritual-guru/ritva', '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/shop/ritual-guru-puja-guidance', '/shop/ritual-guru-diy-puja-kit', '/shop/ritual-guru-ritva' ] );
 
 const NotFound: React.FC = () => {
-  const router = useRouter();
   useEffect( () => {
-    const path = window.location.pathname.replace( /\/+$/, '' ) || '/';
-    if ( !RETIRED_PRODUCT_PATHS.has( path ) ) void router.replace( '/' );
-  }, [ router ] );
-  // A static export cannot distinguish a missing URL until JS runs. No meta refresh:
-  // retired paths must remain at their own 404, including without JavaScript.
+    // Every missing or retired public page hands visitors back to Home.
+    // Use a full document navigation: a static 404 may have no matching Next route.
+    // The root guard avoids a redirect loop if the homepage itself ever fails.
+    if ( window.location.pathname !== '/' ) window.location.replace( '/' );
+  }, [] );
+
+  // Amplify still serves this document with HTTP 404 for missing URLs.
+  // Keep the noindex and a working link for clients without JavaScript.
   return (
     <>
       <Head>
