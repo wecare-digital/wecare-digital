@@ -362,7 +362,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-search::placeholder{color:var(--public-muted)}
         .orm-search:focus-visible{
           border-block-end-color:var(--public-brand-green);
-          box-shadow:0 1px 0 0 var(--public-brand-lime);
+          box-shadow:inset 0 -2px 0 var(--public-brand-green);
         }
         .orm-section{display:flex;align-items:center;gap:9px;padding:6px 22px;min-height:var(--tap-min);box-sizing:border-box;
           font-family:inherit;font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading);letter-spacing:.025em;color:var(--public-brand-green);text-transform:uppercase}
@@ -392,14 +392,15 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         }
         .orm-icon-fill{fill:currentColor;stroke:none}
         .orm-icon path,.orm-section path,.orm-next path{vector-effect:non-scaling-stroke}
+        .orm-sub-icon{color:var(--public-nav-arrow)}
         .orm-sub-dots{fill:currentColor;stroke:none}
         :global([dir='rtl']) .orm-sub-icon{transform:scaleX(-1)}
         .orm-copy{min-inline-size:0;display:flex;flex:1;flex-direction:column;gap:1px}
         .orm-title{font-size:17px;line-height:1.25;font-weight:700;overflow-wrap:anywhere}
         .orm-sub{font-size:12px;line-height:1.35;font-weight:400;color:var(--public-muted)}
         .orm-next{
-          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:currentColor;
-          stroke:none;opacity:.65;
+          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:var(--public-nav-arrow);
+          stroke:none;
         }
         :global([dir='rtl']) .orm-next{transform:scaleX(-1)}
         .orm-family-title{font-size:18px;font-weight:700;cursor:default}
