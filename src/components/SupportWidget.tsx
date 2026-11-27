@@ -1160,7 +1160,7 @@ const SupportWidget: React.FC = () => {
             aria-expanded={ open }
             aria-haspopup="listbox"
             aria-controls="wc-lang-panel"
-            aria-label={ `Language: ${langs.find( lang => lang.code === current )?.name || 'English'}. Choose another.` }
+            aria-label={ `${chipLabel} — Language: ${langs.find( lang => lang.code === current )?.name || 'English'}. Choose another.` }
             onClick={ () => {
               // The refusal that `disabled` used to do for us, minus the focus loss.
               if ( busy ) return;

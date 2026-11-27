@@ -60,7 +60,10 @@ export interface RotatingPillProps {
 /** Visible, keyboard-accessible control outside the headline. */
 export function HeroRotationControl( { paused, onToggle, count }: { paused: boolean; onToggle: () => void; count: number } ) {
   const [ ready, setReady ] = useState( false );
-  useEffect( () => { setReady( true ); }, [] );
+  useEffect( () => {
+    const timer = window.setTimeout( () => setReady( true ), 0 );
+    return () => window.clearTimeout( timer );
+  }, [] );
   if ( count <= 1 ) return null;
   return (
     <>
