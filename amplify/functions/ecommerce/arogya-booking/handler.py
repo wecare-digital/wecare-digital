@@ -70,7 +70,8 @@ def handler(event, context):
             # newly signed-in customer. Authentication remains the sole owner
             # authority; this binding can only restrict, never choose the owner.
             claimed = body.get('accountKey')
-            if not isinstance(claimed, str) or not hmac.compare_digest(claimed, account_key):
+            if (not isinstance(claimed, str) or len(claimed) != 64 or not claimed.isascii()
+                    or not hmac.compare_digest(claimed, account_key)):
                 return _response(409, {'code': 'ACCOUNT_CHANGED',
                     'error': 'Your appointment account changed. Reopen the verified form.'})
             allowed = {'action', 'accountKey'}
