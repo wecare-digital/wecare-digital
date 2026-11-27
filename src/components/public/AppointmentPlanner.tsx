@@ -26,6 +26,9 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
   const heading = useRef<HTMLHeadingElement>( null );
   const previousStep = useRef( step );
   const [ catalogRetry, setCatalogRetry ] = useState( 0 );
+  const [ hospitalRevision, setHospitalRevision ] = useState( 0 );
+  const [ specialityRevision, setSpecialityRevision ] = useState( 0 );
+  const [ dateRevision, setDateRevision ] = useState( 0 );
   const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired );
   const hospitalId = plan.hospitalId || '';
   const specialityId = plan.specialityId || '';
@@ -33,12 +36,12 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
   const healthCheckId = plan.healthCheckId || '';
   const hospitalSelected = hospitals.options.some( item => item.id === hospitalId );
   const isHealthCheck = plan.appointmentType === 'Health Checks';
-  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && !isHealthCheck, catalogRetry, onSessionExpired );
+  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && !isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
   const specialitySelected = specialities.options.some( item => item.id === specialityId );
-  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, catalogRetry, onSessionExpired );
-  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && isHealthCheck, catalogRetry, onSessionExpired );
+  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, `${catalogRetry}:${specialityRevision}`, onSessionExpired );
+  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
   const dates = useApolloChoices( 'dates', { hospitalId, ...( isHealthCheck ? { healthCheckId } : { doctorId } ) },
-    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), catalogRetry, onSessionExpired );
+    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), `${catalogRetry}:${dateRevision}`, onSessionExpired );
   const catalogError = hospitals.error || specialities.error || doctors.error || healthChecks.error || dates.error;
 
   useEffect( () => { setToday( indiaDate() ); }, [] );
@@ -48,6 +51,8 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
   }, [ step ] );
 
   function update<K extends keyof AppointmentPlan> ( field: K, value: AppointmentPlan[K] ): void {
+    if ( field === 'hospital' || field === 'appointmentType' ) setHospitalRevision( value => value + 1 );
+    if ( field === 'hospital' || field === 'appointmentType' || field === 'speciality' ) setSpecialityRevision( value => value + 1 );
     setPlan( current => {
       const next = { ...current, [field]: value };
       if ( field === 'hospital' || field === 'appointmentType' ) {
@@ -76,6 +81,14 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       ? !healthChecks.options.some( item => item.id === healthCheckId )
       : !specialitySelected || !doctors.options.some( item => item.id === doctorId ) ) ) ) {
       setError( 'Choose current hospital and appointment options before continuing.' ); return;
+    }
+    if ( step === 1 ) {
+      const hospital = hospitals.options.find( option => option.id === hospitalId );
+      setPlan( current => ( { ...current, hospital: hospital?.label || '', city: hospital?.city || current.city,
+        ...( isHealthCheck ? { healthCheck: healthChecks.options.find( option => option.id === healthCheckId )?.label || '' }
+          : { speciality: specialities.options.find( option => option.id === specialityId )?.label || '',
+              professional: doctors.options.find( option => option.id === doctorId )?.label || '' } ) } ) );
+      setDateRevision( value => value + 1 );
     }
     if ( step === 2 && plan.appointmentType !== 'Admission' && !dates.options.some( item => item.id === plan.date ) ) {
       setError( 'Choose a currently available appointment date.' ); return;
@@ -138,7 +151,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
-      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 1 ); setError( '' ); } } />
+      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setCatalogRetry( value => value + 1 ); setStep( 1 ); setError( '' ); } } />
       { catalogError && <>
         <PublicNotice mode="inline" tone="error" message={ catalogError } />
         <div className={ styles.actions }><button type="button" onClick={ () => setCatalogRetry( value => value + 1 ) }>Retry live choices</button></div>
@@ -235,7 +248,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
             </div>
             { error && <PublicNotice mode="inline" tone="error" message={ error } /> }
             <div className={ styles.actions }>
-              { step > 1 && <button type="button" onClick={ () => { setError( '' ); setStep( value => value - 1 ); } }>Back</button> }
+              { step > 1 && <button type="button" onClick={ () => { setError( '' ); setCatalogRetry( value => value + 1 ); setStep( value => value - 1 ); } }>Back</button> }
               <button className={ styles.primary } type="submit">{ step === 3 ? 'Review request' : 'Continue' } →</button>
             </div>
           </form>
@@ -251,7 +264,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
           { plan.remarks && <p className={ styles.help }>Remarks: { plan.remarks }</p> }
           <PublicNotice mode="inline" message="Draft only. No request has been sent to Apollo, no payment taken and no appointment booked. Provider submission will be enabled after the connection is verified." />
           <div className={ styles.actions }>
-            <button type="button" onClick={ () => { setError( '' ); setCopied( false ); setStep( 1 ); } }>Edit request</button>
+            <button type="button" onClick={ () => { setError( '' ); setCopied( false ); setCatalogRetry( value => value + 1 ); setStep( 1 ); } }>Edit request</button>
             <button className={ styles.primary } type="button" onClick={ () => { void copySummary(); } }>Copy appointment summary</button>
             <button type="button" onClick={ () => { setPlan( EMPTY_PLAN ); setDraftVersion( value => value + 1 ); setError( '' ); setCopied( false ); setStep( 1 ); } }>Clear this form</button>
           </div>
