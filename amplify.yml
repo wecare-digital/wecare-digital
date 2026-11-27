@@ -12,8 +12,13 @@ frontend:
         # Establish the account-owned diagnostic destination BEFORE Node/npm setup.
         # Keep early failure logs private, per commit, and do not log environment variables.
         - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"; export BUILD_BOOTSTRAP_DIAGNOSTICS="$CUSTOMER_COMMERCE_DIAGNOSTICS/bootstrap/${AWS_COMMIT_ID:-unknown}"
-        # Use the same .nvmrc as GitHub CI. Node 24 is the last successful Amplify
-        # major; Node 26 must pass a separate preview deployment before promotion.
+        # Node 26 Linux binaries link libatomic.so.1, which this image lacks, and the build user is
+        # not root (jobs 779-786). scripts/fetch_libatomic.py downloads one pinned, SHA-256-checked
+        # Amazon Linux 2023 package and extracts only libatomic into a user directory; it is put on
+        # LD_LIBRARY_PATH for this shell, so nvm's node and everything it spawns can load it.
+        - if ! ldconfig -p 2>/dev/null | grep -q 'libatomic.so.1 '; then python3 scripts/fetch_libatomic.py "$HOME/.cache/wecare-libatomic" > /tmp/wecare-libatomic.log 2>&1 || { aws s3 cp /tmp/wecare-libatomic.log "$BUILD_BOOTSTRAP_DIAGNOSTICS/libatomic-failure.log" --only-show-errors || true; cat /tmp/wecare-libatomic.log; exit 1; }; export LD_LIBRARY_PATH="$HOME/.cache/wecare-libatomic${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; fi
+        # Use the same .nvmrc as GitHub CI. Node 26 passed a preview Amplify build with the
+        # libatomic step above before it was promoted here.
         # Skip nvm's large, unrelated default global package set.
         # Both bootstrap commands keep the single-line `cmd > log 2>&1 || { upload; tail; exit 1; }`
         # form that every other command in this file already runs on Amplify; this app has never
