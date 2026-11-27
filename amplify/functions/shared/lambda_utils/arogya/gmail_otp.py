@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from email.utils import getaddresses, parseaddr
+from html.parser import HTMLParser
 from typing import Callable, Mapping
 
 MAX_AGE_MS = 5 * 60 * 1000
@@ -80,6 +81,30 @@ class ChallengeCode:
     code: str = field(repr=False)
 
 
+class _MailText(HTMLParser):
+    """Extract displayed mail text without mistaking CSS colours for OTPs."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.ignored = 0
+        self.chunks = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('style', 'script'):
+            self.ignored += 1
+        elif not self.ignored:
+            self.chunks.append(' ')
+
+    def handle_endtag(self, tag):
+        if tag in ('style', 'script'):
+            self.ignored = max(0, self.ignored - 1)
+        elif not self.ignored:
+            self.chunks.append(' ')
+
+    def handle_data(self, data):
+        if not self.ignored:
+            self.chunks.append(data)
+
+
 def _text(part: Mapping) -> str:
     chunks = []
     mime = str(part.get("mimeType", ""))
@@ -87,7 +112,12 @@ def _text(part: Mapping) -> str:
         encoded = str((part.get("body") or {}).get("data") or "")
         if len(encoded) <= 100000:
             try:
-                chunks.append(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8", "replace"))
+                decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8", "replace")
+                if mime == 'text/html':
+                    parser = _MailText()
+                    parser.feed(decoded)
+                    decoded = ''.join(parser.chunks)
+                chunks.append(decoded)
             except (ValueError, UnicodeError):
                 pass
     # Depth and part count are bounded independently of provider-controlled MIME.

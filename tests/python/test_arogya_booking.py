@@ -119,6 +119,32 @@ def test_template_avoids_fixed_paid_addons_and_auto_scaling():
     assert 'ProvisionedConcurrencyConfig' not in resources['Function']['Properties']
 
 
+def test_native_operator_catalogue_check_cannot_be_reached_through_http(monkeypatch):
+    spec = importlib.util.spec_from_file_location('arogya_operator_handler', ROOT / 'amplify/functions/ecommerce/arogya-booking/handler.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    read = Mock(return_value={'options': [{'id': '1', 'label': 'Synthetic Hospital'}]})
+    monkeypatch.setattr(module.catalog, 'read_catalog', read)
+    auth = Mock(return_value=(None, {'statusCode': 401}))
+    monkeypatch.setattr(module, 'require_customer', auth)
+    request = {'internalAction': 'checkProviderCatalogue', 'catalogue': {'action': 'catalog', 'kind': 'hospitals'}}
+    assert module.handler(request, None)['statusCode'] == 200
+    auth.assert_not_called()
+    read.assert_called_once()
+    read.reset_mock()
+    # Both an HTTP envelope and a body containing the operator action still
+    # require the genuine customer authentication used by the public API.
+    http = {**request, 'requestContext': {'http': {'method': 'POST'}}, 'body': json.dumps(request)}
+    assert module.handler(http, None)['statusCode'] == 401
+    read.assert_not_called()
+    assert module.handler({**request, 'patientId': '1'}, None)['statusCode'] == 400
+    assert module.handler({**request, 'catalogue': 'hospitals'}, None)['statusCode'] == 400
+    # The shared reader enforces the endpoint/field allowlist before any
+    # provider call, even for an authorized operator.
+    monkeypatch.undo()
+    assert module.handler({**request, 'catalogue': {'action': 'save', 'kind': 'booking'}}, None)['statusCode'] == 400
+
+
 def test_ambiguous_save_replay_returns_original_revision_without_second_write():
     db = table()
     expected = store.validate_plan(plan(), now=NOW)
