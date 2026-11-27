@@ -170,3 +170,38 @@ def test_stale_401_cannot_invalidate_a_newly_renewed_session():
     assert invalidate_session(store, 'new-token', now=NOW)
     assert store.state['stage'] == 'expired'
     assert 'token' not in store.state
+
+
+@pytest.mark.parametrize('record', [
+    {'stage': 'awaiting_otp'},
+    {'stage': 'awaiting_otp', 'requestedAt': 'broken', 'userId': 12},
+    {'stage': 'ready', 'expiresAt': NOW + 1000},
+    {'stage': 'unknown'},
+])
+def test_malformed_saved_state_is_quarantined_without_a_crash_loop(record):
+    store, provider = Store(record), Provider()
+    with pytest.raises(ApolloAuthorizationRequired): advance(store, provider)
+    assert store.state['stage'] == 'blocked'
+    assert provider.calls == []
+    assert store.released == ['synthetic-lease']
+
+
+def test_profile_timeout_preserves_candidate_and_retries_no_other_auth_stage():
+    from lambda_utils.arogya.apollo_client import ApolloUnavailable
+    store, provider = Store(), Provider()
+    advance(store, provider)
+    original = provider.get_profile
+    attempts = []
+    def get_profile(access):
+        attempts.append(access)
+        if len(attempts) == 1: raise ApolloUnavailable('synthetic network failure')
+        return original(access)
+    provider.get_profile = get_profile
+    assert advance(store, provider, NOW + 3).status == 'renewing'
+    assert store.state['stage'] == 'awaiting_profile'
+    assert store.state['token'] == token()
+    assert advance(store, provider, NOW + 6).status == 'ready'
+    assert len(attempts) == 2
+    assert provider.calls.count('login') == 1
+    assert provider.calls.count('send') == 1
+    assert provider.calls.count('verify') == 1

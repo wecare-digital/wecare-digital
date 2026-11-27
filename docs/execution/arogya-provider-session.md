@@ -30,10 +30,14 @@ No such service binding is silently created by consent or by this change.
   VerifyOtp/GetProfile contracts, and bounded catalogue/schedule reads.
 - apollo_session.py advances one stage per request without sleeping or a
   scheduled keepalive. A cached valid session makes no new sign-in/Gmail call.
-- One renewal lease prevents concurrent challenges. Gmail polling is bounded;
+- A 90-second renewal lease prevents concurrent challenges; the owning Lambda
+  runtime timeout must be configured at no more than 60 seconds. Gmail polling is bounded;
   the same message is never used for another verification attempt. Three
   expired challenges or verification failures require administrator attention.
 - Account/password-update policies and profile mismatches stop automation.
+- Malformed persisted state is quarantined for administrator attention. A
+  candidate token is encrypted before profile verification, so a transient
+  profile read retries without consuming another OTP or repeating sign-in.
 - Ambiguous OTP sends retain the pending challenge instead of resending.
 - A stale provider 401 cannot invalidate a newer successfully renewed session.
 - SessionResult.public_status() omits the provider bearer token.

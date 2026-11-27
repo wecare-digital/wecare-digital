@@ -49,7 +49,7 @@ class EncryptedSessionStore:
         return self._decode(self._row())
 
     def claim(self, *, now: int, lease_seconds: int):
-        if not 5 <= lease_seconds <= 30:
+        if not 5 <= lease_seconds <= 120:
             raise ValueError('Renewal lease duration refused')
         lease = secrets.token_urlsafe(32)
         try:
