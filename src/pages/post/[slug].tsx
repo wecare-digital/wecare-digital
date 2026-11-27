@@ -514,14 +514,14 @@ export default function BlogPostPage ( {
         .post-search input{
           width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .post-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .post-search input::-webkit-search-cancel-button,.post-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .post-search input::-ms-clear{display:none}
         .post-search input::placeholder{color:var(--public-muted)}
-        .post-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
+        .post-search input:focus-visible{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow)}
         @media(prefers-reduced-motion:reduce){.post-search input{transition:none}}
         /* The RSS icon's row at the foot of the post, END-aligned (to the side, not centered)
            under the related section - owner instruction. The icon styles itself
