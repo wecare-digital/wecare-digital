@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { appointmentPlanError, appointmentPlanSummary, indiaDate, type AppointmentPlan } from '../../lib/appointmentPlan';
-import { APOLLO_HOSPITALS, GREAMS_GENERAL_SURGEONS, GREAMS_SPECIALITIES } from '../../content/apolloAppointmentCatalog';
+import { useApolloChoices } from '../../hooks/useApolloCatalog';
+import type { ApolloCatalogOption } from '../../lib/arogyaBooking';
 import PublicNotice from './PublicNotice';
 import SavedAppointmentDrafts from './SavedAppointmentDrafts';
 import styles from './AppointmentPlanner.module.css';
 
 const EMPTY_PLAN: AppointmentPlan = {
-  city: 'Chennai', hospital: '', professional: '', date: '',
+  city: '', hospital: '', professional: '', date: '', hospitalId: '', specialityId: '', doctorId: '', healthCheckId: '',
   patientMode: 'Telephone', appointmentType: 'Consultation', speciality: '', healthCheck: '', time: '',
   userType: '', salutation: '', patientName: '', age: '', gender: '', area: '', email: '', mobile: '', uhid: '', pickup: '', remarks: '',
   pickupFrom: '', vehicleNo: '', arrivalDate: '', arrivalTime: '', attendants: '', journeyRemarks: '',
@@ -24,8 +25,21 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
   const [ draftVersion, setDraftVersion ] = useState( 0 );
   const heading = useRef<HTMLHeadingElement>( null );
   const previousStep = useRef( step );
-  const isGreams = plan.hospital === APOLLO_HOSPITALS[0][1];
-  const hasDoctors = isGreams && plan.speciality === 'General Surgery';
+  const [ catalogRetry, setCatalogRetry ] = useState( 0 );
+  const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired );
+  const hospitalId = plan.hospitalId || '';
+  const specialityId = plan.specialityId || '';
+  const doctorId = plan.doctorId || '';
+  const healthCheckId = plan.healthCheckId || '';
+  const hospitalSelected = hospitals.options.some( item => item.id === hospitalId );
+  const isHealthCheck = plan.appointmentType === 'Health Checks';
+  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && !isHealthCheck, catalogRetry, onSessionExpired );
+  const specialitySelected = specialities.options.some( item => item.id === specialityId );
+  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, catalogRetry, onSessionExpired );
+  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && isHealthCheck, catalogRetry, onSessionExpired );
+  const dates = useApolloChoices( 'dates', { hospitalId, ...( isHealthCheck ? { healthCheckId } : { doctorId } ) },
+    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), catalogRetry, onSessionExpired );
+  const catalogError = hospitals.error || specialities.error || doctors.error || healthChecks.error || dates.error;
 
   useEffect( () => { setToday( indiaDate() ); }, [] );
   useEffect( () => {
@@ -37,10 +51,10 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
     setPlan( current => {
       const next = { ...current, [field]: value };
       if ( field === 'hospital' || field === 'appointmentType' ) {
-        next.speciality = ''; next.professional = ''; next.healthCheck = ''; next.date = ''; next.time = '';
+        next.speciality = ''; next.professional = ''; next.healthCheck = ''; next.specialityId = ''; next.doctorId = ''; next.healthCheckId = ''; next.date = ''; next.time = '';
         for ( const key of [ 'shiftingFrom', 'shiftingDate', 'shiftingTime', 'healthDescription', 'ambulancePickup', 'ambulanceFrom', 'ambulanceArea', 'ambulanceDate', 'ambulanceTime' ] as const ) next[key] = '';
       }
-      if ( field === 'speciality' ) { next.professional = ''; next.date = ''; next.time = ''; }
+      if ( field === 'speciality' ) { next.professional = ''; next.doctorId = ''; next.date = ''; next.time = ''; }
       if ( field === 'professional' || field === 'healthCheck' ) { next.date = ''; next.time = ''; }
       if ( field === 'date' ) next.time = '';
       if ( field === 'pickup' || field === 'pickupFrom' ) {
@@ -58,6 +72,14 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
 
   function advance ( event: React.FormEvent<HTMLFormElement> ): void {
     event.preventDefault();
+    if ( step === 1 && ( !hospitalSelected || !plan.city.trim() || ( isHealthCheck
+      ? !healthChecks.options.some( item => item.id === healthCheckId )
+      : !specialitySelected || !doctors.options.some( item => item.id === doctorId ) ) ) ) {
+      setError( 'Choose current hospital and appointment options before continuing.' ); return;
+    }
+    if ( step === 2 && plan.appointmentType !== 'Admission' && !dates.options.some( item => item.id === plan.date ) ) {
+      setError( 'Choose a currently available appointment date.' ); return;
+    }
     if ( step === 2 && plan.date < indiaDate() ) { setError( 'Choose today or a future date, using India Standard Time.' ); return; }
     if ( step === 3 ) {
       const message = appointmentPlanError( plan );
@@ -79,6 +101,26 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
     </label>
   );
 
+  const liveSelect = (
+    field: 'hospital' | 'speciality' | 'professional' | 'healthCheck',
+    idField: 'hospitalId' | 'specialityId' | 'doctorId' | 'healthCheckId',
+    label: string, options: ApolloCatalogOption[], loading: boolean,
+  ) => (
+    <label htmlFor={ `ay-${field}` }>{ label } *
+      <select id={ `ay-${field}` } required disabled={ loading || !options.length }
+        value={ options.some( item => item.id === plan[idField] ) ? plan[idField] || '' : '' }
+        onChange={ event => {
+          const option = options.find( item => item.id === event.target.value );
+          update( field, option?.label || '' );
+          setPlan( current => ( { ...current, [idField]: option?.id || '',
+            ...( field === 'hospital' ? { city: option?.city || '' } : {} ) } ) );
+        } }>
+        <option value="">{ loading ? 'Loading…' : options.length ? 'Select' : 'No live options available' }</option>
+        { options.map( option => <option key={ option.id } value={ option.id }>{ option.label }</option> ) }
+      </select>
+    </label>
+  );
+
   async function copySummary (): Promise<void> {
     try {
       // Deliberately exclude patient identifiers and contact details from the clipboard.
@@ -92,31 +134,45 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
       <p className={ styles.eyebrow }>Your next appointment</p>
       <h2 id="ay-title">Request an appointment</h2>
       <p>Choose your hospital, appointment and patient details. Review everything before continuing.</p>
-      <p className={ styles.help }>Prepare and review your request here. Apollo submission and live availability are not available yet. * Indicates mandatory fields.</p>
+      <p className={ styles.help }>Current hospital, doctor and date options are requested from Apollo. If the provider is unavailable, no saved snapshot will be shown. * Indicates mandatory fields.</p>
       <ol className={ styles.progress } aria-label="Appointment request progress">
         { STEPS.map( ( label, index ) => <li key={ label } aria-current={ step === index + 1 ? 'step' : undefined }><span aria-hidden="true">{ index + 1 }</span>{ label }</li> ) }
       </ol>
-      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 4 ); setError( '' ); } } />
-      <div className={ styles.panel }>
+      <SavedAppointmentDrafts onSessionExpired={ onSessionExpired } key={ draftVersion } plan={ plan } canSave={ step === 4 } onLoad={ saved => { setPlan( saved ); setStep( 1 ); setError( '' ); } } />
+      { catalogError && <>
+        <PublicNotice mode="inline" tone="error" message={ catalogError } />
+        <div className={ styles.actions }><button type="button" onClick={ () => setCatalogRetry( value => value + 1 ) }>Retry live choices</button></div>
+      </> }
+      { hospitals.loading && <p role="status">Loading live Apollo hospitals…</p> }
+      { !hospitals.loading && !hospitals.error && !hospitals.options.length && <p role="status">No hospitals are currently available.</p> }
+      { hospitals.options.length > 0 && <div className={ styles.panel }>
         <h3 ref={ heading } tabIndex={ -1 }>{ STEPS[step - 1] }</h3>
         { step < 4 ? (
           <form onSubmit={ advance }>
             <div className={ styles.fields }>
               { step === 1 && <>
-                { select( 'hospital', 'Hospital', APOLLO_HOSPITALS.map( ( [ , name ] ) => name ) ) }
+                { liveSelect( 'hospital', 'hospitalId', 'Hospital', hospitals.options, hospitals.loading ) }
+                { hospitalSelected && !hospitals.options.find( item => item.id === hospitalId )?.city && input( 'city', 'City', { required: true, maxLength: 80 } ) }
                 { select( 'patientMode', 'Patient mode', [ 'Telephone', 'Camp' ] ) }
                 { select( 'appointmentType', 'Appointment type', [ 'Consultation', 'Health Checks', 'Admission' ] ) }
-                { plan.appointmentType === 'Health Checks' ? input( 'healthCheck', 'Health check type', { required: true, placeholder: 'Enter the health check requested' } ) : <>
-                  { isGreams ? select( 'speciality', 'Speciality', GREAMS_SPECIALITIES ) : input( 'speciality', 'Speciality', { required: true } ) }
-                  { hasDoctors ? select( 'professional', 'Doctor', [ ...GREAMS_GENERAL_SURGEONS, 'Other' ] ) : input( 'professional', 'Doctor', { required: true } ) }
+                { isHealthCheck ? liveSelect( 'healthCheck', 'healthCheckId', 'Health check', healthChecks.options, healthChecks.loading ) : <>
+                  { liveSelect( 'speciality', 'specialityId', 'Speciality', specialities.options, specialities.loading ) }
+                  { liveSelect( 'professional', 'doctorId', 'Doctor', doctors.options, doctors.loading ) }
                 </> }
-                <p className={ styles.help }>Hospital and doctor choices need provider confirmation. A listed doctor does not indicate an available slot.</p>
+                <p className={ styles.help }>Hospital and doctor choices reflect the latest provider response. A listed doctor is not a confirmed appointment.</p>
               </> }
               { step === 2 && <>
-                <label htmlFor="ay-date">{ plan.appointmentType === 'Admission' ? 'Admission date' : 'Appointment date' } *
+                { plan.appointmentType === 'Admission' ? <label htmlFor="ay-date">Preferred admission date *
                   <input id="ay-date" type="date" required min={ today || undefined } value={ plan.date } onChange={ event => update( 'date', event.target.value ) } />
-                </label>
-                <fieldset><legend>{ plan.appointmentType === 'Admission' ? 'Admission time' : 'Slot time' } *</legend>
+                </label> : <label htmlFor="ay-date">Available appointment date *
+                  <select id="ay-date" required disabled={ dates.loading || !dates.options.length }
+                    value={ dates.options.some( item => item.id === plan.date ) ? plan.date : '' }
+                    onChange={ event => update( 'date', event.target.value ) }>
+                    <option value="">{ dates.loading ? 'Loading available dates…' : dates.options.length ? 'Select date' : 'No dates available' }</option>
+                    { dates.options.map( item => <option key={ item.id } value={ item.id }>{ item.label }</option> ) }
+                  </select>
+                </label> }
+                <fieldset><legend>{ plan.appointmentType === 'Admission' ? 'Preferred admission time' : 'Preferred appointment time' } *</legend>
                   <div className={ styles.time }>
                     <label htmlFor="ay-hour">Hour<select id="ay-hour" required value={ plan.time.split( ':' )[0] || '' } onChange={ event => update( 'time', `${event.target.value}:${plan.time.split( ':' )[1] || ''}` ) }>
                       <option value="">HH</option>{ Array.from( { length: 23 }, ( _, i ) => String( i + 1 ).padStart( 2, '0' ) ).map( hour => <option key={ hour }>{ hour }</option> ) }
@@ -126,7 +182,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
                     </select></label>
                   </div>
                 </fieldset>
-                <p className={ styles.help }>24-hour time, in India Standard Time. This is your requested time; the provider must confirm availability.</p>
+                <p className={ styles.help }>24-hour time, in India Standard Time. These times are preferences, not live slots. Apollo must confirm the selected time.</p>
               </> }
               { step === 3 && <>
                 <fieldset><legend>User type *</legend><div className={ styles.radios }>
@@ -202,7 +258,7 @@ export default function AppointmentPlanner ( { onSessionExpired }: { onSessionEx
           { copied && <PublicNotice mode="inline" tone="success" message="Appointment summary copied. Patient identifiers and contact details were excluded." /> }
           { error && <PublicNotice mode="inline" tone="error" message={ error } /> }
         </> }
-      </div>
+      </div> }
     </section>
   );
 }
