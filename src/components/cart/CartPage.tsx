@@ -74,7 +74,7 @@ const WEBSITE_FULL_CART_QUOTE_ENABLED =
   process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED !== 'false';
 
 /**
- * One directly linked commerce QA item. It is intentionally absent from
+ * Directly linked commerce QA items. It is intentionally absent from
  * catalogSnapshot, SHOP_PRODUCTS, SHOP_LISTINGS, /shop/ and Meta: those are
  * publication surfaces, not the ProductsTable payment authority.
  *
@@ -96,9 +96,19 @@ const COMMERCE_TEST_PRODUCT: ShopProduct = {
   variants: [ { id: COMMERCE_TEST_VARIANT_ID, label: 'Standard', inStock: true } ],
 };
 
+const COMMERCE_ONE_RUPEE_TEST_VARIANT_ID = 'WCTEST1R26';
+const COMMERCE_ONE_RUPEE_TEST_PRODUCT: ShopProduct = {
+  ...COMMERCE_TEST_PRODUCT,
+  id: 'native:commerce-test-1',
+  name: 'Commerce Test - Rs 1',
+  formattedPrice: '₹1.00', // Display only; live quote decides the payable amount.
+  price: '1.00',
+  variants: [ { id: COMMERCE_ONE_RUPEE_TEST_VARIANT_ID, label: 'Standard', inStock: true } ],
+};
+
 /**
  * A one-time direct cart-prefill link, not a payment link or a second checkout.
- * It is an allowlist of exactly one product/variant, not a caller-supplied
+ * It is an allowlist of fixed product/variant pairs, not a caller-supplied
  * product ID or price. A saved cart stays intact; an existing QA line is not
  * incremented on refresh, React StrictMode remount or link re-open.
  */
@@ -106,13 +116,17 @@ function cartFromDirectTestLink (): CartItem[] {
   const existing = readCart();
   if ( typeof window === 'undefined' ) return existing;
   const query = new URLSearchParams( window.location.search );
-  if ( query.get( 'test' ) !== COMMERCE_TEST_VARIANT_ID || query.has( 'basket' ) )
-    return existing;
+  const variantId = query.get( 'test' );
+  const product = variantId === COMMERCE_TEST_VARIANT_ID
+    ? COMMERCE_TEST_PRODUCT
+    : variantId === COMMERCE_ONE_RUPEE_TEST_VARIANT_ID
+      ? COMMERCE_ONE_RUPEE_TEST_PRODUCT
+      : null;
+  if ( !product || !variantId || query.has( 'basket' ) ) return existing;
 
   const present = existing.some( item =>
-    item.productId === COMMERCE_TEST_PRODUCT.id
-    && item.variantId === COMMERCE_TEST_VARIANT_ID );
-  const items = present ? existing : addItem( COMMERCE_TEST_PRODUCT, 1, COMMERCE_TEST_VARIANT_ID );
+    item.productId === product.id && item.variantId === variantId );
+  const items = present ? existing : addItem( product, 1, variantId );
 
   // The link is consumed once. A reload must never add a second unit.
   query.delete( 'test' );
