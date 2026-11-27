@@ -12,11 +12,9 @@ import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
 import { installHeroTrace, verifyHeroRotation } from './public_hero_audit.mjs';
+import { canonicalOrigin, qaOrigin, pathOf, verifyAuthGate } from './public_qa_origin.mjs';
 
-const origin = new URL(process.env.PUBLIC_QA_BASE || 'https://wecare.digital');
-if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/') {
-  throw new Error('Use an approved HTTPS origin, not a customer or session link.');
-}
+const {origin, snapshot} = qaOrigin();
 const engine = process.env.PUBLIC_QA_ENGINE || 'chromium';
 if (!['chromium', 'firefox', 'webkit'].includes(engine)) throw new Error('Unsupported engine');
 const profiles = {
@@ -34,8 +32,7 @@ if (!profile) throw new Error('Unknown viewport profile');
 const out = process.env.PUBLIC_QA_OUTPUT || join(tmpdir(), 'wecare-public-acceptance');
 await mkdir(out, { recursive: true });
 const { pages } = JSON.parse(await readFile(new URL('../config/public-pages.json', import.meta.url), 'utf8'));
-const pathOf = path => path === '/' ? '/' : path.replace(/\/+$/, '') + '/';
-const routes = pages.map(p => ({ path: pathOf(p.path), name: p.name, kind: p.path === '/orders' ? 'gated' : 'indexable' }));
+const routes = pages.map(p => ({ path: pathOf(p.path), name: p.name, kind: ['/orders/', '/elsewhere/arogya-yatra/'].includes(pathOf(p.path)) ? 'gated' : 'indexable' }));
 for (const path of ['/get-kosh/', '/udyam-bids/', '/auth/', '/checkout/', '/checkout/status/', '/checkout/success/']) {
   routes.push({ path, name: path, kind: 'noindex' });
 }
@@ -63,7 +60,7 @@ try {
   const urls = [...xml.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/g)].flatMap(match => {
     try {
       const u = new URL(match[1].trim());
-      return u.origin === origin.origin && !u.search && !u.hash ? [pathOf(u.pathname)] : [];
+      return u.origin === canonicalOrigin.origin && !u.search && !u.hash ? [pathOf(u.pathname)] : [];
     } catch { return []; }
   });
   for (const [name, pattern] of [
@@ -76,7 +73,7 @@ try {
     if (path) routes.push({ path, name, kind: 'indexable', sample: true });
     else if (name === 'Blog article' || name === 'Shop detail') inventoryIssues.push(name + ': no sample found in sitemap');
   }
-  for (const route of routes.filter(r => r.kind === 'indexable' && !r.sample)) {
+  for (const route of routes.filter(r => r.kind !== 'noindex' && !r.sample)) {
     if (!urls.includes(route.path)) inventoryIssues.push(route.path + ': missing from sitemap');
   }
 } catch (error) { inventoryIssues.push('Sitemap could not be read: ' + error.message); }
@@ -88,12 +85,13 @@ try {
 
 const browser = await playwright[engine].launch({ headless: true });
 const report = {
-  origin: origin.origin, engine, browser: browser.version(), profile: profileName, viewport: profile,
+  origin: origin.origin, mode: snapshot ? 'immutable-export' : 'live-observation', engine, browser: browser.version(), profile: profileName, viewport: profile,
   revisionLabel: process.env.PUBLIC_QA_REVISION || null, startFingerprint, endFingerprint: null, inventoryIssues, results: [],
   limitations: ['Anonymous public HTML only; protected routes need authorized fixtures.',
     'Writes blocked, service workers disabled, no user transactions.',
     'Axe automated rules do not certify WCAG; keyboard, native devices and screen readers require manual evidence.',
     'Lab LCP and CLS are not field p75; INP needs real interaction or field data.',
+    'Immutable export mode blocks external resources; it does not measure production latency or verify live integrations.',
     'Dynamic URLs are representative sitemap samples, not an exhaustive article crawl.'],
 };
 async function save() {
@@ -106,14 +104,23 @@ try {
     const context = await browser.newContext({
       viewport: { width: profile.width, height: profile.height },
       hasTouch: profile.hasTouch, reducedMotion: profile.reducedMotion || 'no-preference',
-      deviceScaleFactor: 1, serviceWorkers: 'block',
+      deviceScaleFactor: 1, serviceWorkers: 'block', ignoreHTTPSErrors: snapshot,
     });
     const page = await context.newPage();
     const result = { ...route, status: 'unverified', failures: [], notes: [], metrics: {}, words: [], samples: [] };
     report.results.push(result);
     try {
-      await page.route('**/*', request => {
-        return ['GET', 'HEAD', 'OPTIONS'].includes(request.request().method()) ? request.continue() : request.abort();
+      if (typeof context.routeWebSocket === 'function') await context.routeWebSocket('**/*', socket => socket.close());
+      await context.route('**/*', route => {
+        const req = route.request(), url = new URL(req.url());
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method())) return route.abort();
+        if (snapshot && url.origin !== origin.origin) return route.abort();
+        if (snapshot && url.pathname === '/auth/state') {
+          return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+            phase:'phone',csrf:'qa-csrf',message:'',website:true,returnPath:url.searchParams.get('return')||'/',clientName:'WECARE.DIGITAL'
+          })});
+        }
+        return route.continue();
       });
       await page.addInitScript(() => {
         const metrics = { lcpMs: null, cls: null, longTaskMs: null };
@@ -141,15 +148,26 @@ try {
         observe('longtask', entry => { metrics.longTaskMs += entry.duration; });
       });
       await installHeroTrace(page);
-      const response = await page.goto(new URL(route.path, origin).href, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const target = new URL(route.path, origin).href;
+      // In the gated case hydration may replace the document before the
+      // original navigation finishes. The expected URL is the evidence.
+      if (route.kind === 'gated') {
+        const signIn = verifyAuthGate(page, origin, route.path);
+        const load = page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await Promise.all([signIn, load.catch(error => {
+          if (!/ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation|frame was detached|cancelled/i.test(String(error.message))) throw error;
+        })]);
+        // Gate before evaluating the document; hydration intentionally changes
+        // the execution context. Require the exact same-origin return path.
+        result.status = 'gated';
+        result.notes.push('Expected sign-in redirect verified; protected content requires authenticated fixtures.');
+        await page.screenshot({path:join(out,route.path.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')+'-gate.png'),timeout:10000});
+        continue;
+      }
+      const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
       if (!response?.ok()) throw new Error('HTTP ' + (response?.status() || 'no response'));
       await page.waitForLoadState('load', { timeout: 12000 }).catch(() => result.notes.push('load event timed out'));
       await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 5000))]));
-      if (route.kind === 'gated') {
-        result.status = 'gated';
-        result.notes.push('Orders history requires an authorized fixture; anonymous redirect is not a coverage pass.');
-        continue;
-      }
       const actual = new URL(page.url());
       if (actual.origin !== origin.origin || pathOf(actual.pathname) !== route.path) throw new Error('Unexpected route redirect');
       const metadata = await page.evaluate(() => ({
@@ -188,7 +206,7 @@ try {
       } else {
         if (noindex) result.failures.push('Unexpected noindex');
         if (metadata.descriptions.length !== 1 || !metadata.descriptions[0]?.trim()) result.failures.push('Missing or duplicate description');
-        if (metadata.canonicals.length !== 1 || metadata.canonicals[0] !== new URL(route.path, origin).href) result.failures.push('Unexpected canonical');
+        if (metadata.canonicals.length !== 1 || metadata.canonicals[0] !== new URL(route.path, canonicalOrigin).href) result.failures.push('Unexpected canonical');
       }
       const hero = page.locator('h1.home-head, h1.rh-head');
       if (await hero.count() !== 1) throw new Error('Missing or duplicated shared hero');
@@ -231,7 +249,7 @@ try {
           const textFits = [...range.getClientRects()].filter(r => r.width > 0).every(r =>
             r.left >= Math.max(bounds.left, markBounds.left, 0) - 2
             && r.right <= Math.min(bounds.right, markBounds.right, document.documentElement.clientWidth) + 2
-            && r.top - shift >= bounds.top - 3 && r.bottom - shift <= bounds.bottom + 3);
+            && r.top - shift >= bounds.top - 1 && r.bottom - shift <= bounds.bottom + 1);
           const rects = [...range.getClientRects()].filter(r => r.width > 0);
           const clip = {
             left: Math.min(...rects.map(r => r.left - bounds.left)),

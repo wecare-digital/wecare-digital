@@ -10,13 +10,19 @@ on:
       - 'scripts/public_hero_audit.mjs'
       - 'scripts/verify_checkout_fixture.mjs'
       - 'scripts/verify_static_seo.mjs'
+      - 'scripts/public_qa_origin.mjs'
+      - 'scripts/serve_public_qa.mjs'
       - '.github/workflows/public-acceptance.yml'
   workflow_dispatch:
     inputs:
       production_revision:
-        description: 'Observed deployed commit (verify separately before and after)'
+        description: 'Observed deployed commit for live mode; otherwise label only'
         required: true
         type: string
+      live_observation:
+        description: 'Observe live production instead of the exact static export (may be invalidated by deployments)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,7 +31,8 @@ jobs:
   public-acceptance:
     name: Public acceptance (${{ matrix.engine }}, ${{ matrix.profile }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    needs: static-seo
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -40,14 +47,16 @@ jobs:
           - engine: chromium
             profile: wide
     env:
-      PUBLIC_QA_BASE: https://wecare.digital
+      PUBLIC_QA_BASE: ${{ inputs.live_observation && 'https://wecare.digital' || 'https://127.0.0.1:4173' }}
+      PUBLIC_QA_SNAPSHOT: ${{ inputs.live_observation && '0' || '1' }}
       PUBLIC_QA_ENGINE: ${{ matrix.engine }}
       PUBLIC_QA_PROFILE: ${{ matrix.profile }}
-      PUBLIC_QA_REVISION: ${{ github.event.pull_request.base.sha || inputs.production_revision }}
+      PUBLIC_QA_REVISION: ${{ inputs.live_observation && inputs.production_revision || github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -56,6 +65,24 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/public-qa-deps" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.1 @axe-core/playwright@4.14.1
           ln -s "$RUNNER_TEMP/public-qa-deps/node_modules" node_modules
           "$RUNNER_TEMP/public-qa-deps/node_modules/.bin/playwright" install --with-deps "$PUBLIC_QA_ENGINE"
+      - name: Download immutable export
+        if: ${{ !inputs.live_observation }}
+        uses: actions/download-artifact@v4
+        with:
+          name: exact-public-export
+          path: ${{ runner.temp }}/public-export
+      - name: Start TLS loopback snapshot
+        if: ${{ !inputs.live_observation }}
+        run: |
+          cd "$RUNNER_TEMP/public-export"
+          sha256sum -c export.sha256
+          test "$(cat revision.txt)" = "$PUBLIC_QA_REVISION"
+          tar -xzf export.tar.gz
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout "$RUNNER_TEMP/qa.key" -out "$RUNNER_TEMP/qa.crt" -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/qa.crt" >> "$GITHUB_ENV"
+          PUBLIC_QA_TLS_KEY="$RUNNER_TEMP/qa.key" PUBLIC_QA_TLS_CERT="$RUNNER_TEMP/qa.crt" node "$GITHUB_WORKSPACE/scripts/serve_public_qa.mjs" out > "$RUNNER_TEMP/qa-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl --fail --silent --cacert "$RUNNER_TEMP/qa.crt" https://127.0.0.1:4173/robots.txt >/dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/qa-server.log"; exit 1
       - name: Run public acceptance
         env:
           PUBLIC_QA_OUTPUT: ${{ runner.temp }}/public-acceptance
@@ -73,19 +100,22 @@ jobs:
   checkout-fixture:
     name: Synthetic checkout (${{ matrix.engine }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    needs: static-seo
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         engine: [chromium, firefox, webkit]
     env:
-      PUBLIC_QA_BASE: https://wecare.digital
+      PUBLIC_QA_BASE: ${{ inputs.live_observation && 'https://wecare.digital' || 'https://127.0.0.1:4173' }}
+      PUBLIC_QA_SNAPSHOT: ${{ inputs.live_observation && '0' || '1' }}
       PUBLIC_QA_ENGINE: ${{ matrix.engine }}
-      PUBLIC_QA_REVISION: ${{ github.event.pull_request.base.sha || inputs.production_revision }}
+      PUBLIC_QA_REVISION: ${{ inputs.live_observation && inputs.production_revision || github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -94,6 +124,24 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/public-qa-deps" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.1 @axe-core/playwright@4.14.1
           ln -s "$RUNNER_TEMP/public-qa-deps/node_modules" node_modules
           "$RUNNER_TEMP/public-qa-deps/node_modules/.bin/playwright" install --with-deps "$PUBLIC_QA_ENGINE"
+      - name: Download immutable export
+        if: ${{ !inputs.live_observation }}
+        uses: actions/download-artifact@v4
+        with:
+          name: exact-public-export
+          path: ${{ runner.temp }}/public-export
+      - name: Start TLS loopback snapshot
+        if: ${{ !inputs.live_observation }}
+        run: |
+          cd "$RUNNER_TEMP/public-export"
+          sha256sum -c export.sha256
+          test "$(cat revision.txt)" = "$PUBLIC_QA_REVISION"
+          tar -xzf export.tar.gz
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout "$RUNNER_TEMP/qa.key" -out "$RUNNER_TEMP/qa.crt" -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/qa.crt" >> "$GITHUB_ENV"
+          PUBLIC_QA_TLS_KEY="$RUNNER_TEMP/qa.key" PUBLIC_QA_TLS_CERT="$RUNNER_TEMP/qa.crt" node "$GITHUB_WORKSPACE/scripts/serve_public_qa.mjs" out > "$RUNNER_TEMP/qa-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl --fail --silent --cacert "$RUNNER_TEMP/qa.crt" https://127.0.0.1:4173/robots.txt >/dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/qa-server.log"; exit 1
       - name: Verify synthetic checkout
         env:
           PUBLIC_QA_OUTPUT: ${{ runner.temp }}/checkout-fixture
@@ -129,6 +177,21 @@ jobs:
         env:
           PUBLIC_SEO_REPORT: ${{ runner.temp }}/seo-report.json
         run: node scripts/verify_static_seo.mjs out
+      - name: Package exact public export
+        if: ${{ !inputs.live_observation }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/public-export"
+          git rev-parse HEAD > "$RUNNER_TEMP/public-export/revision.txt"
+          tar -czf "$RUNNER_TEMP/public-export/export.tar.gz" out
+          (cd "$RUNNER_TEMP/public-export" && sha256sum export.tar.gz > export.sha256)
+      - name: Retain immutable browser input
+        if: ${{ !inputs.live_observation }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-public-export
+          path: ${{ runner.temp }}/public-export
+          compression-level: 0
+          retention-days: 2
       - name: Retain SEO evidence
         if: always()
         uses: actions/upload-artifact@v4

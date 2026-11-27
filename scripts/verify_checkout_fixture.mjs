@@ -11,9 +11,10 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
+import { readFile } from 'node:fs/promises';
+import { canonicalOrigin, qaOrigin, verifyAuthGate } from './public_qa_origin.mjs';
 
-const origin = new URL(process.env.PUBLIC_QA_BASE || 'https://wecare.digital');
-assert.equal(origin.href, 'https://wecare.digital/', 'Only the approved public site is allowed');
+const {origin, snapshot} = qaOrigin();
 const engine = process.env.PUBLIC_QA_ENGINE || 'chromium';
 assert.ok(['chromium','firefox','webkit'].includes(engine));
 const out = process.env.PUBLIC_QA_OUTPUT || '/tmp/wecare-checkout-fixture';
@@ -39,15 +40,20 @@ const amount=30000, productId='24fa0f39-330b-5365-b7eb-9caf27ad37f1', variantId=
 const quote = delta => ({status:'QUOTE_READY',quote:{currency:'INR',items:[{name:'Contribution',quantity:1,unitPricePaise:23541,totalPaise:23541}],charges:{merchandisePaise:23541,supplyGstPaise:4237,discountPaise:138,deliveryPaise:1500,convenienceFeePaise:729+delta,convenienceGstPaise:131,totalPaise:amount+delta}}});
 const attempt='qa-attempt', order='WD-ORD-QA0001';
 const sdk = 'window.Razorpay=class{constructor(o){this.o=o;window.__qaRazorpayOptions={amount:o.amount,currency:o.currency};}on(){}open(){window.__qaRazorpayOpen=(window.__qaRazorpayOpen||0)+1;window.__qaDismiss=()=>this.o.modal.ondismiss();window.__qaCapture=()=>this.o.handler({razorpay_payment_id:"qa-payment",razorpay_order_id:"qa-order",razorpay_signature:"qa-signature"});}};';
-const staticPage = new Set(['/','/shop/','/checkout/','/checkout/status/','/checkout/success/','/auth','/auth/','/orders/']);
+const staticPage = new Set(['/','/shop/','/checkout/','/checkout/status/','/checkout/success/','/auth','/auth/','/orders/','/elsewhere/arogya-yatra/']);
 const allowedStatic = url => url.origin===origin.origin && (
   staticPage.has(url.pathname) || url.pathname.startsWith('/_next/static/') ||
-  /^\/_next\/data\/[^/]+\/(?:index|checkout(?:\/status|\/success)?|auth|orders|shop)\.json$/.test(url.pathname) ||
+  /^\/_next\/data\/[^/]+\/(?:index|checkout(?:\/status|\/success)?|auth|orders|shop|elsewhere\/arogya-yatra)\.json$/.test(url.pathname) ||
   /^\/(?:favicon\.ico|robots\.txt|manifest\.json|[^/]+\.(?:woff2?|png|svg|ico))$/.test(url.pathname)
 );
-const json = (route,data,status=200) => route.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':origin.origin,'cache-control':'no-store'},body:JSON.stringify(data)});
+const cors = {'access-control-allow-origin':origin.origin,'access-control-allow-methods':'GET, POST, OPTIONS','access-control-allow-headers':'authorization, content-type, x-customer-csrf','cache-control':'no-store'};
+const json = (route,data,status=200) => route.fulfill({status,contentType:'application/json',headers:cors,body:JSON.stringify(data)});
+const invoiceUrl = new URL('/qa-fixture/invoice?X-Amz-Signature=synthetic-only',origin).href;
+const bookingEndpoint = JSON.parse(await readFile(new URL('../src/content/arogyaBookingConfig.json',import.meta.url),'utf8')).endpoint;
+const apiPaths = new Set(['/api/ecommerce/customer-session','/api/ecommerce/prepare-checkout','/api/customer/profile','/api/ecommerce/verify-callback','/api/ecommerce/checkout/status','/api/ecommerce/my-orders','/api/ecommerce/my-invoice','/api/ecommerce/checkout']);
+const isFixtureApi = url => (url.origin===origin.origin||url.origin===canonicalOrigin.origin)&&apiPaths.has(url.pathname);
 async function scenario(width,mode) {
-  const context=await browser.newContext({viewport:{width,height:width>=768?900:844},hasTouch:width<768,reducedMotion:'reduce',serviceWorkers:'block',acceptDownloads:true});
+  const context=await browser.newContext({viewport:{width,height:width>=768?900:844},hasTouch:width<768,reducedMotion:'reduce',serviceWorkers:'block',acceptDownloads:true,ignoreHTTPSErrors:snapshot});
   const events=[];let prepare=0,verify=0,native=0,profileSaved=mode!=='profile',profileBootstrap=false,paid=false;
   try {
     if (typeof context.routeWebSocket === 'function') await context.routeWebSocket('**/*',socket=>socket.close());
@@ -59,7 +65,8 @@ async function scenario(width,mode) {
     await context.route('**/*',async route=>{
       const req=route.request(),url=new URL(req.url()),method=req.method();
       if (url.href==='https://checkout.razorpay.com/v1/checkout.js') return route.fulfill({status:200,contentType:'application/javascript',body:sdk});
-      if(url.origin!==origin.origin) return route.abort();
+      if (method==='OPTIONS' && isFixtureApi(url)) return route.fulfill({status:204,headers:cors});
+      if (url.origin!==origin.origin && !isFixtureApi(url)) return route.abort();
       if (url.pathname==='/auth/state' && method==='GET') return json(route,{phase:'code',csrf:'qa-csrf',message:'',website:true,returnPath:'/checkout/',clientName:'WECARE.DIGITAL',destination:'synthetic fixture'});
       if (url.pathname==='/auth/step' && method==='POST') {
         events.push('auth:mock-verify');
@@ -96,8 +103,13 @@ async function scenario(width,mode) {
         return json(route,{attempt:{status:paid?'PAYMENT_PAID':'PAYMENT_PENDING',orderNumber:paid?order:null,amountPaise:amount,currency:'INR'}});
       }
       if(url.pathname==='/api/ecommerce/my-orders'&&method==='POST') return json(route,{orders:paid?[{orderNumber:order,referenceId:'qa-order-ref',createdAt:1700000000,amountPaise:amount,currency:'INR',currencyUnexpected:false,status:'captured'}]:[],cursor:''});
-      if(url.pathname==='/api/ecommerce/my-invoice'&&method==='POST'){events.push('invoice:mock');return json(route,{available:true,url:'https://wecare.digital/qa-fixture/invoice?X-Amz-Signature=synthetic-only'});}
-      if(url.pathname==='/qa-fixture/invoice'&&url.search==='?X-Amz-Signature=synthetic-only'&&method==='GET') return route.fulfill({status:200,headers:{'content-type':'text/plain','content-disposition':'attachment; filename="synthetic-checkout-fixture.txt"'},body:'SYNTHETIC CHECKOUT QA ONLY - NOT AN INVOICE'});
+      if(url.pathname==='/api/ecommerce/my-invoice'&&method==='POST'){events.push('invoice:mock');return json(route,{available:true,url:invoiceUrl});}
+      if(url.href===invoiceUrl&&method==='GET') {
+        // Use real HTTPS response headers in the immutable snapshot. WebKit's
+        // intercepted attachment behavior is not evidence of a real download.
+        if(snapshot) return route.continue();
+        return route.fulfill({status:200,headers:{'content-type':'text/plain','content-disposition':'attachment; filename="synthetic-checkout-fixture.txt"'},body:'SYNTHETIC CHECKOUT QA ONLY - NOT AN INVOICE'});
+      }
       if(url.pathname==='/api/ecommerce/checkout'&&method==='POST'){native++;return json(route,{error:'TEST_BLOCKED'},400);}
       if(method==='GET'&&allowedStatic(url)&&req.resourceType()!=='fetch'&&req.resourceType()!=='xhr') return route.continue();
       // Next client navigation may read only its own generated static JSON.
@@ -105,7 +117,7 @@ async function scenario(width,mode) {
       return route.abort();
     });
     const page=await context.newPage();page.setDefaultTimeout(20000);
-    async function snapshot(label){
+    async function captureSnapshot(label){
       const geom=await page.evaluate(()=>{
         const width=document.documentElement.clientWidth,scroll=document.documentElement.scrollWidth;
         // Record geometry only, not page content or customer data. Include shared chrome.
@@ -125,38 +137,41 @@ async function scenario(width,mode) {
     }
     await page.goto(new URL('/checkout/?contribute=1',origin).href,{waitUntil:'domcontentloaded'});
     await page.locator('.cart-contribution-review').waitFor({state:'visible'});
-    await snapshot('review');
+    await captureSnapshot('review');
     assert.equal(prepare,0);
     await page.getByRole('button',{name:'Review contribution',exact:true}).click();
     await page.getByRole('link',{name:'Sign in to continue',exact:true}).waitFor({state:'visible'});
     assert.equal(await page.getByRole('button',{name:'Pay on WhatsApp',exact:true}).count(),0);
     assert.equal(await page.locator('.cart-pay-website').isDisabled(),true);
-    await snapshot('signed-out');
+    await captureSnapshot('signed-out');
     await page.getByRole('link',{name:'Sign in to continue',exact:true}).click();
     await page.locator('#auth-code').waitFor({state:'visible'});
-    await snapshot('auth');
+    await captureSnapshot('auth');
     await page.evaluate(()=>sessionStorage.setItem('qa-sign-in','yes'));
     await page.locator('#auth-code').fill('000000');
     await page.getByRole('button',{name:'Verify',exact:true}).click();
     await page.waitForURL('**/checkout/');
     if(mode==='profile'){
+      await page.getByRole('region',{name:'Checkout details'}).waitFor({state:'visible'});
       await page.getByLabel('Full name',{exact:true}).fill('Synthetic Customer');
-      await snapshot('name-only-profile');
+      await captureSnapshot('name-only-profile');
       await page.getByRole('button',{name:'Save & continue',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('.checkout-profile'));
       assert.ok(profileBootstrap&&profileSaved);
     }
     const pay=page.locator('.cart-pay-website');
     if(mode==='mismatch'){
-      await page.waitForFunction(()=>document.querySelector('.cart-pay-website') && !document.querySelector('.cart-quiet-refresh')?.disabled);
+      // Wait for the refusal produced by the mismatched authoritative quote,
+      // not a transient disabled button before hydration has sent a quote.
+      await page.getByText('Contributions cannot be taken right now. Nothing has been charged.',{exact:true}).waitFor({state:'visible'});
       assert.ok(events.includes('quote'),'A mismatched quote must actually have been requested');
       assert.ok(await pay.isDisabled(),'Wrong total must disable payment');
       assert.equal(prepare,0);
-      await snapshot('wrong-quote');
+      await captureSnapshot('wrong-quote');
       return;
     }
     await page.waitForFunction(()=>{const b=document.querySelector('.cart-pay-website');return b&&!b.disabled;});
-    await snapshot('quoted');
+    await captureSnapshot('quoted');
     assert.match(await page.locator('.receipt-total').innerText(),/300(?:\.00)?/);
     assert.equal(await page.getByRole('button',{name:'Pay on WhatsApp',exact:true}).count(),0);
     await pay.click();
@@ -166,13 +181,13 @@ async function scenario(width,mode) {
     assert.equal(prepare,1);
     await page.evaluate(()=>window.__qaDismiss());
     await page.waitForFunction(()=>{const b=document.querySelector('.cart-pay-website');return b&&!b.disabled;});
-    await snapshot('dismissed');
+    await captureSnapshot('dismissed');
     await pay.click();
     await page.waitForFunction(()=>window.__qaRazorpayOpen===2);
     await page.evaluate(()=>window.__qaCapture());
     await page.waitForURL('**/orders/**',{timeout:30000});
     await page.getByText(order,{exact:true}).waitFor({state:'visible'});
-    await snapshot('mock-paid-orders');
+    await captureSnapshot('mock-paid-orders');
     assert.equal(verify,1);
     assert.equal(native,0);
     assert.equal(await page.evaluate(()=>localStorage.getItem('wecare.cart.v1')),null);
@@ -186,10 +201,55 @@ async function scenario(width,mode) {
     const attachment=await downloaded;
     assert.equal(attachment.suggestedFilename(),'synthetic-checkout-fixture.txt');
     assert.ok(events.includes('invoice:mock'));
-    console.log(JSON.stringify({engine,width,mode,events,prepare,verify,native,syntheticOnly:true}));
+    console.log(JSON.stringify({engine,width,mode,events,prepare,verify,native,syntheticOnly:true,invoiceVerified:true}));
+  } finally {await context.close();}
+}
+// Separate synthetic appointment access scenario; no hospital, patient or
+// provider data is fabricated. Test the unavailable-provider recovery branch.
+async function verifyAppointmentGate(){
+  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,reducedMotion:'reduce',serviceWorkers:'block',ignoreHTTPSErrors:snapshot});
+  const accountKey='a'.repeat(64);let accesses=0,catalogues=0;
+  try{
+    if(typeof context.routeWebSocket==='function') await context.routeWebSocket('**/*',socket=>socket.close());
+    await context.route('**/*',route=>{
+      const req=route.request(),url=new URL(req.url()),method=req.method();
+      if(method==='OPTIONS'&&(url.href===bookingEndpoint||isFixtureApi(url))) return route.fulfill({status:204,headers:cors});
+      if(url.origin===origin.origin&&url.pathname==='/auth/state'&&method==='GET') return json(route,{phase:'phone',csrf:'qa-csrf',message:'',website:true,returnPath:'/elsewhere/arogya-yatra/',clientName:'WECARE.DIGITAL'});
+      if(isFixtureApi(url)&&url.pathname==='/api/ecommerce/customer-session'&&method==='POST') return json(route,{accessToken:'qa-appointment-token',expiresAt:Date.now()+3600000});
+      if(url.href===bookingEndpoint&&method==='POST'){
+        const body=req.postDataJSON();
+        assert.equal(req.headers().authorization,'Bearer qa-appointment-token');
+        if(body.action==='access'){accesses++;return json(route,{phoneVerified:true,accountKey});}
+        if(body.action==='catalog'){assert.equal(body.kind,'hospitals');catalogues++;return json(route,{error:'PROVIDER_DISABLED'},503);}
+        return json(route,{error:'FIXTURE_REFUSED'},400);
+      }
+      if(method==='GET'&&allowedStatic(url)) return route.continue();
+      return route.abort();
+    });
+    const page=await context.newPage();
+    await page.goto(new URL('/elsewhere/arogya-yatra/',origin).href,{waitUntil:'domcontentloaded'});
+    await verifyAuthGate(page,origin,'/elsewhere/arogya-yatra/');
+    assert.equal(accesses,0);
+    assert.equal(catalogues,0);
+    await page.evaluate(()=>localStorage.setItem('wecare.customer.sessionHint',JSON.stringify({csrfToken:'qa-arogya',expiresAt:Date.now()+3600000,persistent:false})));
+    await page.goto(new URL('/elsewhere/arogya-yatra/',origin).href,{waitUntil:'domcontentloaded'});
+    const retry=page.getByRole('button',{name:'Retry live choices',exact:true});
+    await retry.waitFor({state:'visible',timeout:20000});
+    assert.ok(accesses>0&&catalogues>0);
+    const prior=catalogues;
+    await retry.click();
+    await retry.waitFor({state:'visible',timeout:20000});
+    assert.ok(catalogues>prior);
+    assert.equal(await page.locator('a[href*="apollohospitals.com/book-doctor-appointment"]').count(),0);
+    assert.equal(await page.locator('input[name="patientName"]').count(),0);
+    await page.screenshot({path:join(out,engine+'-arogya-disabled-provider.png')});
+    console.log(JSON.stringify({engine,appointmentGate:true,providerDisabledRecovery:true,syntheticOnly:true}));
   } finally {await context.close();}
 }
 try {
+  if(snapshot){
+    try{await verifyAppointmentGate();}catch(e){failures.push(engine+' appointment fixture: '+String(e.message).slice(0,500));}
+  }
   for(const width of [390,768,1440,280,160]) {
     for(const mode of width===390?['profile','mismatch','ready']:['ready']) {
       try {await scenario(width,mode);} catch(e){failures.push(engine+' '+width+' '+mode+': '+String(e.message).slice(0,500));}
@@ -201,7 +261,7 @@ try {
     endFingerprint = await deploymentFingerprint();
     if (JSON.stringify(startFingerprint) !== JSON.stringify(endFingerprint)) failures.push('Deployment changed during checkout fixture; do not accept mixed revisions');
   } catch (error) { failures.push('Final deployment fingerprint unavailable: ' + error.message); }
-  await writeFile(join(out,'checkout-fixture.json'),JSON.stringify({engine,revision:process.env.PUBLIC_QA_REVISION,startFingerprint,endFingerprint,syntheticOnly:true,failures,evidence},null,2));
+  await writeFile(join(out,'checkout-fixture.json'),JSON.stringify({engine,revision:process.env.PUBLIC_QA_REVISION,mode:snapshot?'immutable-export':'live-observation',startFingerprint,endFingerprint,syntheticOnly:true,failures,evidence},null,2));
 }
 console.log('Checkout fixture summary: '+JSON.stringify({engine,failures,scenes:evidence.length,syntheticOnly:true}));
 assert.equal(failures.length,0,failures.join('\n'));

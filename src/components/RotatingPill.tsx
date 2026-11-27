@@ -168,7 +168,9 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
         .rp-cycle{
           position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr);
           width:max-content;max-width:100%;min-width:0;height:auto;min-height:1.06em;
-          line-height:1.1;overflow:hidden;
+          /* Reserve the font's ascender/descender overhang, not just its line box.
+             This keeps the settled glyph range inside the animation clip. */
+          box-sizing:border-box;padding-block:.10em;line-height:1.1;overflow:hidden;
         }
         .rp-cyc-word{
           grid-area:1/1;position:relative;display:block;min-width:0;align-self:center;
