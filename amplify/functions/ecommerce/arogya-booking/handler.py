@@ -54,8 +54,13 @@ def handler(event, context):
     try:
         if action == 'catalog':
             return _response(200, catalog.read_catalog(body, now=now))
-        if action == 'quote':
+        if action == 'access' and set(body) == {'action'}:
+            return _response(200, {'phoneVerified': True, 'appointmentConfirmed': False})
+        if action == 'quote' and set(body) == {'action'}:
+            # Formula preview only; live ProductsTable, provider and paid-order
+            # binding are not yet activated. Never present this as payable quote.
             return _response(200, {'pricing': price_components(55000), 'currency': 'INR',
+                'estimateOnly': True, 'checkoutAvailable': False,
                 'providerFeesIncluded': False, 'appointmentConfirmed': False})
         if action == 'save':
             draft = store.save_draft(_table(), identity.subject, body.get('draftId'),
