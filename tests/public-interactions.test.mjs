@@ -61,7 +61,7 @@ test('the seven public search surfaces opt into the same non-overlapping layout'
   assert.ok(read('src/pages/_app.tsx').includes("import '../styles/public-interactions.css';"));
   for(const path of ['src/components/Header.tsx','src/components/BlogSearch.tsx','src/components/BlogIndexView.tsx','src/components/ProductBlogPanel.tsx','src/components/LegalDocument.tsx','src/pages/post/[slug].tsx','src/components/orders/OrderActionsMenu.tsx']){
     const source=read(path);
-    for(const token of ['data-public-search-field=','--public-search-end-padding','--public-search-underline','--public-search-focus-shadow','nativeEvent.isComposing','<SearchClearButton','<VoiceSearchMic']) assert.ok(source.includes(token),path+' '+token);
+    for(const token of ['data-public-search-field=','--public-search-end-padding','--public-search-underline','--public-search-focus-shadow','--public-hover-radius','nativeEvent.isComposing','<SearchClearButton','<VoiceSearchMic']) assert.ok(source.includes(token),path+' '+token);
   }
   assert.ok(read('scripts/verify_public_browser.mjs').includes('assertSharedSearchGeometry'));
 });
@@ -98,10 +98,13 @@ test('public searches and primary pills share Home lime and retain contrast', ()
   const tokens = read('src/styles/tokens.css');
   assert.ok(tokens.includes('--public-search-underline: var(--public-brand-lime)'));
   assert.ok(tokens.includes('--public-search-focus-shadow: inset 0 -3px 0 var(--public-search-underline), inset 0 -5px 0 var(--public-brand-green)'));
-  assert.ok(tokens.includes('--public-button-hover: var(--lime-hover)'));
+  assert.ok(tokens.includes('--public-button-hover: var(--public-hover-surface)'));
+  assert.ok(tokens.includes('--public-hover-radius: 13px'));
+  assert.ok(tokens.includes('--public-hover-surface: #f2f9de'));
+  assert.ok(tokens.includes('--public-nav-hover: var(--public-hover-surface)'));
   const css = read('src/styles/public-interactions.css');
   assert.ok(css.includes('@media (hover: hover) and (pointer: fine)'));
-  assert.ok(css.includes('background-color: var(--public-nav-hover)'));
+  assert.ok(css.includes('background-color: var(--public-hover-surface)'));
   for (const path of ['src/components/PillButton.tsx','src/components/public/ClosingBand.tsx','src/components/orders/OrderActionsMenu.tsx']) {
     assert.ok(read(path).includes('background:var(--public-button-hover)'), path);
   }

@@ -125,7 +125,7 @@ const Pager: React.FC<PagerProps> = ( {
           color:var(--public-brand-green);font-size:20px;line-height:1;text-decoration:none;
           transition:background-color .2s,border-color .2s,opacity .2s;
         }
-        .pager :global(.pager-arrow:hover){background:var(--public-brand-lime)}
+        .pager :global(.pager-arrow:hover){background:var(--public-hover-surface)}
         .pager :global(.pager-arrow:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:2px}
         /* The end of the run: faint, not announced. Same intentional contrast carve-out the
            numbered pager documented - an inactive control has no WCAG 1.4.3 contrast floor, and

@@ -3961,12 +3961,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-world-place{display:flex;min-width:0;flex-direction:column;gap:4px}
         .vl-live-world-place>span{color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-utility-search{position:relative;min-width:0;height:52px;margin-top:2px}
-        .vl-live-utility-search>input{width:100%;height:52px;min-width:0;padding-block:0;padding-inline:2px 44px;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;color:#1a1a1a;font-size:var(--vl-data-size);font-weight:400;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-utility-search>input{width:100%;height:52px;min-width:0;padding-block:0;padding-inline:2px 44px;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;color:#1a1a1a;font-size:var(--vl-data-size);font-weight:400;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-utility-search>input:not(:placeholder-shown){padding-inline-end:90px}
         .vl-live-utility-search>input::placeholder{color:var(--public-muted);font-weight:400}
         .vl-live-utility-search>input::-webkit-search-cancel-button,.vl-live-utility-search>input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-utility-search>input::-ms-clear{display:none;width:0;height:0}
-        .vl-live-utility-search>input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .vl-live-utility-search>input:focus{outline:none;border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow)}
+        @media (hover:hover) and (pointer:fine){.vl-live-utility-search>input:hover{background:var(--public-hover-surface)}}
+        @media (forced-colors:active){.vl-live-utility-search>input:focus{outline:2px solid Highlight;outline-offset:-2px}}
         .vl-live-utility-results{position:absolute;z-index:34;top:calc(100% + 7px);inset-inline:0;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff;box-shadow:none}
         .vl-live-utility-results li{display:flex;flex-direction:column;gap:2px;padding:10px 11px;border-radius:var(--radius-md,10px);cursor:pointer}
         .vl-live-utility-results li.is-active,.vl-live-utility-results li:hover{background:var(--lime-tint)}
@@ -4339,7 +4341,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* Exact Header.tsx .nav-search INPUT treatment, with one optional voice action floated
            inside the right edge. The mic does not change the hairline/search-box geometry. */
         .vl-live-search-field{position:relative;display:block;height:52px;padding:0;background:transparent;border-radius:0}
-        .vl-live-search-field input{width:100%;height:52px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding-block:0;padding-inline:2px 44px;font-size:var(--vl-data-size);font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input{width:100%;height:52px;box-sizing:border-box;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;padding-block:0;padding-inline:2px 44px;font-size:var(--vl-data-size);font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-search-field input:not(:placeholder-shown){padding-inline-end:90px}
         .vl-live-search-field input::placeholder{color:var(--public-muted)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
@@ -4347,13 +4349,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* LIGHT, MINIMAL FOCUS. No heavy rectangular outline around the whole field - just a
            thin dark-green bottom border with a subtle lime accent line, matching the site's
            modern search treatment. Keyboard focus stays clearly visible. */
-        .vl-live-search-field input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 var(--lime)}
+        .vl-live-search-field input:focus{outline:none;border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow)}
+        @media (hover:hover) and (pointer:fine){.vl-live-search-field input:hover{background:var(--public-hover-surface)}}
+        @media (forced-colors:active){.vl-live-search-field input:focus{outline:2px solid Highlight;outline-offset:-2px}}
         .vl-live-search-results{position:absolute;top:calc(100% + 8px);inset-inline:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none}
         /* RESULT ROWS: clear hover + keyboard-selected states with a soft lime background and a
            smooth 140ms transition. A small location glyph leads each row, matching the air card's
            icon idiom; no heavy shadow, no oversized card. */
         .vl-live-search-results li{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:var(--radius-md,10px);cursor:pointer;transition:background-color .14s ease}
-        .vl-live-search-results li:hover,.vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        .vl-live-search-results li:hover{background:var(--public-hover-surface)}
+        .vl-live-search-results li[aria-selected="true"]{background:var(--public-brand-lime)}
         .vl-live-search-results li[aria-selected="true"]{box-shadow:inset 2px 0 0 var(--lime)}
         .vl-live-search-result-icon{flex:0 0 16px;width:16px;height:16px;margin-top:2px;fill:var(--green);opacity:.72}
         .vl-live-search-result-text{min-width:0}

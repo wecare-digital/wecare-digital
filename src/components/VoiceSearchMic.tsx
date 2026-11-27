@@ -197,9 +197,9 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
         .voice-search-mic{
           position:absolute;inset-inline-end:-2px;bottom:0;top:auto;z-index:2;
           display:inline-grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;
-          border:0;border-radius:0;background:transparent;color:#3da35a;
+          border:0;border-radius:var(--public-hover-radius);background:transparent;color:var(--public-brand-green);
           transform:none;cursor:pointer;
-          transition:color .14s ease,transform .14s ease,opacity .14s ease;
+          transition:background-color .14s ease,color .14s ease,transform .14s ease,opacity .14s ease;
         }
         /* The shared search field uses normal-flow controls; legacy fields
            retain their existing positioning. Only actual failures occupy a row. */
@@ -208,7 +208,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
         .voice-search-status.is-visible{position:static;display:block;flex:0 0 100%;inline-size:100%;block-size:auto;margin:4px 0 0;padding:6px 2px;clip:auto;overflow:visible;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.4 var(--font-sans)}
         .voice-search-mic svg{width:23px;height:23px;display:block;overflow:visible}
         .voice-search-mic-glyph{fill:currentColor}
-        .voice-search-mic:not(:disabled):hover{color:#2f9e44}
+        @media (hover:hover) and (pointer:fine){.voice-search-mic:not(:disabled):not(.is-unavailable):hover{background:var(--public-hover-surface);color:var(--public-brand-green)}}
         .voice-search-mic:not(:disabled):active{transform:scale(.94)}
         .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
         .voice-search-mic.is-unavailable{color:#8a9288;opacity:.72;cursor:not-allowed}

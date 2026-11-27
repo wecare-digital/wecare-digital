@@ -54,7 +54,7 @@ test('legal scroll tracking and search retain native fragment navigation and ful
   assert.ok(legal.includes('setSectionQuery( value.slice( 0, 120 ) )'));
   assert.ok(legal.indexOf('<input id={ searchId }') < legal.indexOf('<details className="lgd-contents"'));
   assert.ok(legal.includes('onFocus={ () => { if ( tocRef.current ) tocRef.current.open = true; } }'));
-  assert.ok(legal.includes('border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent'));
+  assert.ok(legal.includes('border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent'));
   assert.ok(legal.includes('font-size:var(--public-body-size);font-weight:var(--public-body-weight)'));
   assert.ok(legal.includes('background:var(--public-accent-blue-tint)'));
   assert.ok(legal.includes('aria-label="Open legal section search"'));

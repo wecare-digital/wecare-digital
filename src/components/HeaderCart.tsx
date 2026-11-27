@@ -149,7 +149,7 @@ const HeaderCart: React.FC = () => {
            No border is added. The owner removed this control's border outright ("only cart icon no
            text or boder"); the instruction here names the colour, so the 2px dark edge .nav-trigger
            grows on hover is deliberately NOT copied. */
-        .hdr-cart:hover{background:var(--public-brand-lime)}
+        .hdr-cart:hover{background:var(--public-hover-surface);border-radius:var(--public-hover-radius)}
         /* The focus ring STAYS. It is not decoration - removing the border is a visual request,
            and a keyboard user still has to see where they are (WCAG 2.4.7, and 1.4.11 for the
            indicator's own contrast). */

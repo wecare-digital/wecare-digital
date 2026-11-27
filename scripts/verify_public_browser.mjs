@@ -100,10 +100,11 @@ async function assertSharedSearchGeometry(field, name, withFeedback = false) {
     const style = getComputedStyle(el);
     return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,hasFeedback:!!feedback,marked:parent.hasAttribute('data-public-search-field'),
       focused:el === document.activeElement, forcedColors:matchMedia('(forced-colors: active)').matches,
-      outlineStyle:style.outlineStyle, outlineWidth:style.outlineWidth, focusShadow:style.boxShadow, underlineColor:style.borderBottomColor};
+      outlineStyle:style.outlineStyle, outlineWidth:style.outlineWidth, focusShadow:style.boxShadow, underlineColor:style.borderBottomColor, radius:style.borderTopLeftRadius};
   }, withFeedback);
   if (withFeedback) assert.ok(geometry.hasFeedback, name + ': failure did not render a visible status row');
   assert.ok(geometry.marked, name + ': missing shared search layout');
+  assert.equal(geometry.radius, '13px', name + ': shared search corner radius');
   if (geometry.focused && !geometry.forcedColors) {
     assert.ok(geometry.outlineStyle === 'none' || parseFloat(geometry.outlineWidth) === 0, name + ': extra rectangular search focus box');
     assert.equal(geometry.underlineColor, 'rgb(209, 244, 112)', name + ': search underline uses Home lime');

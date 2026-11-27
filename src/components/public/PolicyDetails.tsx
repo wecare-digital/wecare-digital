@@ -51,7 +51,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         display:inline-flex;align-items:center;
         inline-size:max-content;max-inline-size:100%;
         min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;
-        padding:6px 12px;border-radius:9px;cursor:pointer;
+        padding:6px 12px;border-radius:var(--public-hover-radius);cursor:pointer;
         color:var(--public-brand-green);background:var(--public-lime-tint);
         font-family:inherit;font-size:var(--public-responsive-cta-size);
         font-weight:var(--public-cta-font-weight);line-height:1.4;
@@ -63,7 +63,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       }
       .wc-policy summary::-webkit-details-marker{display:none}
       .wc-policy summary:hover{
-        background:var(--public-brand-lime);
+        background:var(--public-hover-surface);
         text-decoration-color:transparent;
         transform:translateY(-1px);
         box-shadow:0 5px 14px rgba(26,58,42,.1);
