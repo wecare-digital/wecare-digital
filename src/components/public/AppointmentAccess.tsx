@@ -18,6 +18,9 @@ export default function AppointmentAccess (): React.ReactElement {
     setReady( false );
     window.location.replace( APPOINTMENT_AUTH_URL );
   }, [] );
+  const accountChanged = useCallback( () => {
+    setReady( false ); setAccountKey( '' ); setAttempt( value => value + 1 );
+  }, [] );
   const sessionExpired = useCallback( () => {
     clearSession();
     signIn();
@@ -58,17 +61,20 @@ export default function AppointmentAccess (): React.ReactElement {
     };
     void check();
     window.addEventListener( 'focus', verifyOnReturn );
-    window.addEventListener( 'storage', verifyOnReturn );
+    const storageChanged = ( event: StorageEvent ) => {
+      if ( event.key === 'wecare.customer.sessionHint' || event.key === null ) accountChanged();
+    };
+    window.addEventListener( 'storage', storageChanged );
     document.addEventListener( 'visibilitychange', verifyOnReturn );
     return () => {
       active = false; if ( expiry ) clearTimeout( expiry );
       window.removeEventListener( 'focus', verifyOnReturn );
-      window.removeEventListener( 'storage', verifyOnReturn );
+      window.removeEventListener( 'storage', storageChanged );
       document.removeEventListener( 'visibilitychange', verifyOnReturn );
     };
-  }, [ attempt, signIn, sessionExpired ] );
+  }, [ attempt, signIn, sessionExpired, accountChanged ] );
 
-  if ( ready ) return <AppointmentPlanner key={ accountKey } onSessionExpired={ sessionExpired } />;
+  if ( ready ) return <AppointmentPlanner key={ accountKey } accountKey={ accountKey } onAccountChanged={ accountChanged } onSessionExpired={ sessionExpired } />;
   return <section className={ styles.planner } aria-label="Appointment access">
     <h2>Request an appointment</h2>
     { error ? <>
