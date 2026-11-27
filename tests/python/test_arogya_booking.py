@@ -72,7 +72,7 @@ def test_dynamodb_numbers_return_as_json_numbers_and_list_has_no_patient_details
         'expiresAt': Decimal(NOW + 300), 'plan': plan()}
     assert type(store.public_draft(row)['revision']) is int
     db = table()
-    db.query.return_value = {'Items': [row, {**row, 'expiresAt': NOW}]}
+    db.query.return_value = {'Items': [row, {**row, 'expiresAt': NOW}, {**row, 'expiresAt': 'invalid'}]}
     result = store.list_drafts(db, 'owner', now=NOW)
     assert len(result) == 1 and 'plan' not in result[0]
     assert db.query.call_args.kwargs['ExpressionAttributeValues'] == {':owner': 'owner'}

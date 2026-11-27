@@ -97,9 +97,16 @@ def _key(owner, reference):
     return {'customerId': owner, 'draftId': draft_id(reference)}
 
 
+def _unexpired(row, now):
+    try:
+        return bool(row) and int(row.get('expiresAt', 0)) > now
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+
 def get_draft(table, owner, reference, *, now):
     row = table.get_item(Key=_key(owner, reference), ConsistentRead=True).get('Item')
-    if not row or int(row.get('expiresAt', 0)) <= now:
+    if not _unexpired(row, now):
         return None
     return public_draft(row)
 
@@ -138,7 +145,7 @@ def list_drafts(table, owner, *, now):
     # Explicit bound; no scan, automatic pagination or PII in list responses.
     page = table.query(KeyConditionExpression='customerId = :owner',
         ExpressionAttributeValues={':owner': owner}, Limit=20, ConsistentRead=True)
-    return [public_draft(row, details=False) for row in page.get('Items', []) if int(row.get('expiresAt', 0)) > now]
+    return [public_draft(row, details=False) for row in page.get('Items', []) if _unexpired(row, now)]
 
 
 def delete_draft(table, owner, reference):
