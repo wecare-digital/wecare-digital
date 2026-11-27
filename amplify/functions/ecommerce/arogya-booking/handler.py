@@ -72,6 +72,8 @@ def handler(event, context):
         return _response(400, {'error': 'Unknown appointment action.'})
     except catalog.InvalidCatalogueRequest as error:
         return _response(400, {'error': str(error)})
+    except catalog.CatalogueRenewing as pending:
+        return _response(202, {'status': 'renewing', 'retryAfter': pending.retry_after})
     except catalog.CatalogueUnavailable:
         return _response(503, {'error': 'Live Apollo availability is temporarily unavailable.'})
     except store.InvalidPlan as error:
