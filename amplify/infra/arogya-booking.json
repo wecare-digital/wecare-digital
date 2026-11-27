@@ -1,11 +1,11 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Arogya Yatra customer-owned appointment drafts; free-tier-sized fixed capacity, no always-on compute.",
+  "Description": "Arogya Yatra owned drafts and explicitly authorized read-only Apollo catalogue; no always-on compute.",
   "Metadata": {
     "AWSToolsMetrics": {
       "AWSAgentToolkit": "aws-cloudformation@3"
     },
-    "com.aws.cloudformation.Context": "Dedicated customer-owned drafts. Function URL authenticates customer Cognito tokens in handler. No provider submission, payment capture, scheduled jobs, autoscaling, new KMS key, backup subscription or custom metrics. Five provisioned RCU/WCU within current account allowance, not an unconditional zero-bill guarantee."
+    "com.aws.cloudformation.Context": "Customer Cognito-authenticated drafts and opt-in provider catalogue reads. Provider permissions are absent unless explicitly enabled with exact registry, KMS, verified grant owner and credential ARNs. No booking submission, payment capture, scheduler or new secret/key/table."
   },
   "Parameters": {
     "CodeBucket": {
@@ -23,6 +23,34 @@
       "Type": "String",
       "Default": "",
       "AllowedPattern": "^$|^arn:aws:kms:us-east-1:775261844268:key/[a-f0-9-]{36}$"
+    },
+    "ApolloAutomationEnabled": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "false",
+        "true"
+      ],
+      "Description": "Enable only after provider-approved service automation and explicit administrator delegation."
+    },
+    "ApolloGmailGrantOwner": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[a-f0-9]{64}$",
+      "NoEcho": true,
+      "Description": "Exact verified staff OAuth owner hash, selected by an authorized administrator."
+    },
+    "ApolloCredentialSecretArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-credentials-[A-Za-z0-9]+$",
+      "Description": "Exact dedicated Apollo service credential secret ARN. No plaintext parameters."
+    },
+    "ApolloGoogleOAuthSecretArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-[A-Za-z0-9]+$",
+      "Description": "Existing approved workspace Google OAuth client secret ARN."
     }
   },
   "Resources": {
@@ -136,7 +164,8 @@
                     {
                       "Effect": "Allow",
                       "Action": [
-                        "dynamodb:GetItem"
+                        "dynamodb:GetItem",
+                        "dynamodb:UpdateItem"
                       ],
                       "Resource": {
                         "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApolloRegistryTableName}"
@@ -144,8 +173,14 @@
                       "Condition": {
                         "ForAllValues:StringEquals": {
                           "dynamodb:LeadingKeys": [
-                            "arogya:provider:apollo"
+                            "arogya:provider:apollo",
+                            {
+                              "Fn::Sub": "connection:${ApolloGmailGrantOwner}:google-gmail-apollo"
+                            }
                           ]
+                        },
+                        "Null": {
+                          "dynamodb:LeadingKeys": "false"
                         }
                       }
                     },
@@ -160,6 +195,7 @@
                     {
                       "Effect": "Allow",
                       "Action": [
+                        "kms:Encrypt",
                         "kms:Decrypt"
                       ],
                       "Resource": {
@@ -171,6 +207,55 @@
                           "kms:EncryptionContext:record": "arogya:provider:apollo"
                         }
                       }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "kms:Encrypt",
+                        "kms:Decrypt"
+                      ],
+                      "Resource": {
+                        "Ref": "ApolloTokenKeyArn"
+                      },
+                      "Condition": {
+                        "StringEquals": {
+                          "kms:EncryptionContext:purpose": "workspace-mcp",
+                          "kms:EncryptionContext:provider": "google-gmail-apollo",
+                          "kms:EncryptionContext:owner": {
+                            "Ref": "ApolloGmailGrantOwner"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "ApolloReadEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "secretsmanager:GetSecretValue"
+                      ],
+                      "Resource": [
+                        {
+                          "Ref": "ApolloCredentialSecretArn"
+                        },
+                        {
+                          "Ref": "ApolloGoogleOAuthSecretArn"
+                        }
+                      ]
                     },
                     {
                       "Ref": "AWS::NoValue"
@@ -194,7 +279,13 @@
         ],
         "Handler": "handler.handler",
         "MemorySize": 128,
-        "Timeout": 15,
+        "Timeout": {
+          "Fn::If": [
+            "ApolloReadEnabled",
+            60,
+            15
+          ]
+        },
         "ReservedConcurrentExecutions": 2,
         "Role": {
           "Fn::GetAtt": [
@@ -230,6 +321,42 @@
                 "ApolloReadEnabled",
                 {
                   "Ref": "ApolloTokenKeyArn"
+                },
+                ""
+              ]
+            },
+            "APOLLO_AUTOMATION_ENABLED": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloAutomationEnabled"
+                },
+                "false"
+              ]
+            },
+            "APOLLO_GMAIL_GRANT_OWNER": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloGmailGrantOwner"
+                },
+                ""
+              ]
+            },
+            "APOLLO_CREDENTIAL_SECRET_ARN": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloCredentialSecretArn"
+                },
+                ""
+              ]
+            },
+            "APOLLO_GOOGLE_OAUTH_SECRET_ARN": {
+              "Fn::If": [
+                "ApolloReadEnabled",
+                {
+                  "Ref": "ApolloGoogleOAuthSecretArn"
                 },
                 ""
               ]
@@ -311,6 +438,14 @@
     "ApolloReadEnabled": {
       "Fn::And": [
         {
+          "Fn::Equals": [
+            {
+              "Ref": "ApolloAutomationEnabled"
+            },
+            "true"
+          ]
+        },
+        {
           "Fn::Not": [
             {
               "Fn::Equals": [
@@ -333,6 +468,123 @@
               ]
             }
           ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloGmailGrantOwner"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloCredentialSecretArn"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "ApolloGoogleOAuthSecretArn"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Rules": {
+    "ApolloActivationRequiresBinding": {
+      "RuleCondition": {
+        "Fn::Equals": [
+          {
+            "Ref": "ApolloAutomationEnabled"
+          },
+          "true"
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::And": [
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloRegistryTableName"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloTokenKeyArn"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloGmailGrantOwner"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloCredentialSecretArn"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "ApolloGoogleOAuthSecretArn"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "All five provider and authorization inputs are mandatory when automation is enabled."
         }
       ]
     }
