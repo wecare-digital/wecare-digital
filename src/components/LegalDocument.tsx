@@ -389,8 +389,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-toc-search input{
           display:block;min-width:0;width:100%;margin:0;min-height:max(var(--tap-min),var(--public-search-compact-height));box-sizing:border-box;
           appearance:none;-webkit-appearance:none;
-          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent;
-          padding:0 2px;padding-inline-end:46px;padding-inline-end:var(--public-search-end-padding,46px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:var(--public-hover-radius);background:transparent;
+          padding:0 10px;padding-inline-end:46px;padding-inline-end:var(--public-search-end-padding,46px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
           font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;
         }
         .lgd-toc-search input::-webkit-search-cancel-button,.lgd-toc-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
@@ -492,7 +492,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-p:last-child{margin-bottom:0}
 
         .lgd-inline-link{color:var(--public-brand-green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
-        .lgd-inline-link:hover{background:var(--public-lime-tint)}
+        .lgd-inline-link:hover{background:var(--public-hover-surface);border-radius:var(--public-hover-radius)}
 
         @media(max-width:767px){
           .lgd-toc{--lgd-toc-pad-block:8px;--lgd-toc-pad-inline:10px;margin-bottom:36px}

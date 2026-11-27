@@ -323,7 +323,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           box-sizing:border-box;inline-size:44px;min-inline-size:44px;
           block-size:44px;min-block-size:44px;display:inline-flex;
           align-items:center;justify-content:center;padding:0;
-          border:0;border-radius:10px;background:var(--public-brand-lime);
+          border:0;border-radius:var(--public-hover-radius);background:var(--public-brand-lime);
           color:var(--public-brand-green);cursor:pointer;
           transition:background-color .18s ease;
         }
@@ -350,8 +350,8 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-search{
           width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;
           border:0;border-block-end:2px solid var(--public-search-underline);
-          border-radius:0;background:transparent;
-          padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
+          border-radius:var(--public-hover-radius);background:transparent;
+          padding-block:0;padding-inline:10px var(--public-search-end-padding,44px);
           font-size:16px;font-weight:400;line-height:1.3;
           color:var(--public-body);font-family:inherit;outline:none;
           transition:border-color .2s,box-shadow .2s;

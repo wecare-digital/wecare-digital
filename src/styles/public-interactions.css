@@ -15,6 +15,8 @@
   flex: 1 1 96px;
   min-width: 0;
   max-width: 100%;
+  border-radius: var(--public-hover-radius);
+  transition: background-color .18s, border-color .18s, box-shadow .18s;
 }
 [data-public-search-field] > button.public-search-clear,
 [data-public-search-field] > button.voice-search-mic {
@@ -30,19 +32,20 @@
  * controls retain their normal keyboard focus outline. */
 [data-public-search-field] > input[type="search"]:focus {
   outline: none;
-  border-radius: 0;
+  border-radius: var(--public-hover-radius);
   border-block-end-color: var(--public-search-underline);
   box-shadow: var(--public-search-focus-shadow);
 }
 /* Hover is a quiet lime tint, without a new border or layout shift. */
 @media (hover: hover) and (pointer: fine) {
   [data-public-search-field] > input[type="search"]:not(:disabled):hover {
-    background-color: var(--public-lime-tint);
+    background-color: var(--public-hover-surface);
+    border-radius: var(--public-hover-radius);
   }
   [data-public-search-field] > button.public-search-clear:not(:disabled):hover,
   [data-public-search-field] > button.voice-search-mic:not(:disabled):not(.is-unavailable):hover {
-    background-color: var(--public-nav-hover);
-    border-radius: var(--public-nav-radius);
+    background-color: var(--public-hover-surface);
+    border-radius: var(--public-hover-radius);
     color: var(--public-brand-green);
   }
 }
