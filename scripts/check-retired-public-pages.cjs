@@ -12,49 +12,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const retired = [
-  '/dispatch',
-  '/grahak-os',
-  '/vayulok',
-  '/sehat',
-  '/atmos',
-  '/niji-setu',
-  '/ritual-guru',
-  '/aastha',
-  '/ritual-guru/ritva',
-  '/ritual-guru/puja-guidance',
-  '/ritual-guru/diy-puja-kit',
-  '/bharat-rx',
-  '/submit-request',
-  '/request-amendment',
-  '/drop-docs',
-  '/request-pickup',
-  '/shipments/track',
-  '/shop/shipments-track',
-  '/leave-review',
-  '/subscribe',
-  '/get', // Legacy customer-file signpost; /get/<*> media stays active.
-  '/checkout/whatsapp', // Inactive payment-channel placeholder removed by owner.
-  '/cart', // Retired browser-only redirect; canonical basket checkout is /checkout/.
-];
-// Owner-approved permanent removal: redirect-only Workspace bookmark pages.
-// Nested active routes (Inbox, Channels, My WhatsApp Account, etc.) are NOT
-// included. Never remove customer Vault or verified payment-return pages.
-const retiredWorkspaceRoutes = [
-  '/workspace/admin',
-  '/workspace/contacts',
-  '/workspace/dashboard/waba-usernames',
-  '/workspace/docs',
-  '/workspace/engage',
-  '/workspace/engage/service-ops',
-  '/workspace/engage/whatsapp',
-  '/workspace/engage/whatsapp/settings',
-  '/workspace/forms',
-  '/workspace/link',
-  '/workspace/pay',
-  '/workspace/seo',
-  '/workspace/settings/platform',
-];
+const history = JSON.parse(fs.readFileSync(path.join(root, 'config/historical-route-paths.json'), 'utf8'));
+const retired = history.publicPaths;
+const retiredWorkspaceRoutes = history.workspacePaths;
+const infrastructureAdjacent = new Set(history.infrastructureAdjacent);
+// Historical public names are not reserved. Workspace aliases remain protected.
 const deadModules = [
   'src/content/customerservice.ts',
   'src/content/shipments.ts',
@@ -89,7 +51,7 @@ for (const route of retired) {
     base + '/index.tsx', base + '/index.ts', base + '/index.jsx', base + '/index.js',
   ];
   const registered = approvedPublicRoutes.has(route) && catalogueRoutes.has(route);
-  if (registered && route !== '/get') {
+  if (registered && !infrastructureAdjacent.has(route)) {
     if (!candidates.some(exists)) failures.push('Reassigned public page has no source: ' + route);
     continue;
   }
