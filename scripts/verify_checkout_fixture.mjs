@@ -81,7 +81,8 @@ async function scenario(width,mode) {
         return json(route,{attempt:{status:paid?'PAYMENT_PAID':'PAYMENT_PENDING',orderNumber:paid?order:null,amountPaise:amount,currency:'INR'}});
       }
       if(url.pathname==='/api/ecommerce/my-orders'&&method==='POST') return json(route,{orders:paid?[{orderNumber:order,referenceId:'qa-order-ref',createdAt:1700000000,amountPaise:amount,currency:'INR',currencyUnexpected:false,status:'captured'}]:[],cursor:''});
-      if(url.pathname==='/api/ecommerce/my-invoice'&&method==='POST'){events.push('invoice:mock');return json(route,{available:false});}
+      if(url.pathname==='/api/ecommerce/my-invoice'&&method==='POST'){events.push('invoice:mock');return json(route,{available:true,url:'https://wecare.digital/qa-fixture/invoice?X-Amz-Signature=synthetic-only'});}
+      if(url.pathname==='/qa-fixture/invoice'&&url.search==='?X-Amz-Signature=synthetic-only'&&method==='GET') return route.fulfill({status:200,headers:{'content-type':'text/plain','content-disposition':'attachment; filename="synthetic-checkout-fixture.txt"'},body:'SYNTHETIC CHECKOUT QA ONLY - NOT AN INVOICE'});
       if(url.pathname==='/api/ecommerce/checkout'&&method==='POST'){native++;return json(route,{error:'TEST_BLOCKED'},400);}
       if(method==='GET'&&allowedStatic(url)&&req.resourceType()!=='fetch'&&req.resourceType()!=='xhr') return route.continue();
       // Next client navigation may read only its own generated static JSON.
@@ -123,8 +124,8 @@ async function scenario(width,mode) {
     }
     const pay=page.locator('.cart-pay-website');
     if(mode==='mismatch'){
-      await page.getByText(/contribution.*(?:available|payable|price)|price.*contribution/i).first().waitFor({state:'visible'}).catch(()=>{});
-      await page.waitForFunction(()=>!document.querySelector('.cart-quiet-refresh')?.disabled);
+      await page.waitForFunction(()=>document.querySelector('.cart-pay-website') && !document.querySelector('.cart-quiet-refresh')?.disabled);
+      assert.ok(events.includes('quote'),'A mismatched quote must actually have been requested');
       assert.ok(await pay.isDisabled(),'Wrong total must disable payment');
       assert.equal(prepare,0);
       await snapshot('wrong-quote');
@@ -152,11 +153,15 @@ async function scenario(width,mode) {
     assert.equal(native,0);
     assert.equal(await page.evaluate(()=>localStorage.getItem('wecare.cart.v1')),null);
     const invoice=page.getByRole('button',{name:'Download invoice',exact:true});
-    if(await invoice.count()===1&&await invoice.isEnabled()){
-      await invoice.click();
-      await page.waitForTimeout(500);
-      assert.ok(events.includes('invoice:mock'));
-    }
+    assert.equal(await invoice.count(),1,'Paid row must expose invoice action');
+    assert.ok(await invoice.isEnabled(),'Paid row must enable invoice action');
+    // Exercise the signed-link client contract with an intercepted attachment.
+    // The file is a fixture marker, not a generated invoice or real bearer URL.
+    const downloaded=page.waitForEvent('download',{timeout:15000});
+    await invoice.click();
+    const attachment=await downloaded;
+    assert.equal(attachment.suggestedFilename(),'synthetic-checkout-fixture.txt');
+    assert.ok(events.includes('invoice:mock'));
     console.log(JSON.stringify({engine,width,mode,events,prepare,verify,native,syntheticOnly:true}));
   } finally {await context.close();}
 }
