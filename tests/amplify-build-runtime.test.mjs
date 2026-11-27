@@ -20,14 +20,16 @@ test('Amplify and GitHub CI select the same Node major', () => {
   assert.match(registry, new RegExp("name: 'Node\\.js',\\s*configured: '" + major + "'"));
   assert.ok(ci.includes("node-version-file: '.nvmrc'"));
 
-  // Amplify does not read .nvmrc, so every Node major it names must equal it.
-  const pins = [
-    ...commands.matchAll(/nvm install --skip-default-packages (\d+)/g),
-    ...commands.matchAll(/nvm use (\d+)/g),
-    ...commands.matchAll(/if \(m < (\d+)\)/g),
-  ].map(match => match[1]);
-  assert.equal(pins.length, 3, 'expected nvm install, nvm use and the Node major floor');
-  assert.deepEqual([...new Set(pins)], [major], 'amplify.yml Node major must equal .nvmrc');
+  // Amplify does not read .nvmrc by itself, so the bootstrap reads it, installs and selects that
+  // major, and fails unless the running Node has exactly that major.
+  assert.ok(commands.includes('export BUILD_NODE_MAJOR="$(cat .nvmrc)"'));
+  assert.ok(commands.includes('nvm install --skip-default-packages "$BUILD_NODE_MAJOR"'));
+  assert.ok(commands.includes('nvm use "$BUILD_NODE_MAJOR"'));
+  assert.ok(commands.includes('!== process.env.BUILD_NODE_MAJOR'));
+  // A hard-coded major next to it would let amplify.yml and .nvmrc drift apart again.
+  for (const pinned of [/nvm install --skip-default-packages \d/, /nvm use \d/, /if \(m < \d+\)/]) {
+    assert.doesNotMatch(commands, pinned, 'amplify.yml must take the Node major from .nvmrc');
+  }
 });
 
 test('Amplify build does not install OS packages', () => {
@@ -44,4 +46,16 @@ test('Amplify keeps the exact npm pin and the production release gates', () => {
   assert.ok(commands.indexOf('npm install --global "npm@$PINNED_NPM"') < commands.indexOf('npm ci --cache .npm'));
   assert.ok(commands.includes('scripts/require_release_ci.py --commit "$AWS_COMMIT_ID"'));
   assert.ok(commands.includes('scripts/verify_public_bundle_secrets.py'));
+});
+
+test('Amplify stores early Node and npm bootstrap failures in the private diagnostics bucket', () => {
+  const commands = amplifyCommands();
+  const destination = commands.indexOf('export BUILD_BOOTSTRAP_DIAGNOSTICS=');
+  assert.ok(destination >= 0, 'BUILD_BOOTSTRAP_DIAGNOSTICS must be defined');
+  assert.ok(
+    destination < commands.indexOf('nvm install --skip-default-packages'),
+    'the diagnostics destination must exist before Node setup can fail',
+  );
+  assert.ok(commands.includes('"$BUILD_BOOTSTRAP_DIAGNOSTICS/node-failure.log"'));
+  assert.ok(commands.includes('"$BUILD_BOOTSTRAP_DIAGNOSTICS/npm-failure.log"'));
 });
