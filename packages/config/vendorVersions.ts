@@ -256,21 +256,23 @@ export const FRONTEND_FRAMEWORK: VendorVersion = {
   rederive: 'npm view next version',
 } as const;
 
-/** TypeScript. A full major behind, which is worth surfacing rather than burying. */
+/**
+ * TypeScript 7 (native compiler) for `tsc`, with the 6.0 API alongside it.
+ *
+ * TypeScript 7.0 ships no programmatic API (7.1 is expected to), so typescript-eslint and Next.js
+ * still need `typescript` to resolve to the 6.0 API. package.json therefore aliases
+ * `typescript` to `@typescript/typescript6` and installs the real 7.0.2 as `@typescript/native`;
+ * `npx tsc` runs 7.0.2. Once typescript-eslint supports TS >= 7.1, drop the alias.
+ */
 export const TYPESCRIPT: VendorVersion = {
   name: 'TypeScript',
-  configured: '6.0.3',
+  configured: '7.0.2',
   verifiedLatest: '7.0.2',
   verifiedOn: '2026-11-27',
   evidence: 'LIVE',
-  drift: 'lag-allowed-with-reason',
-  upgradeBlockedReason:
-    'TypeScript 7.0.2 typechecks this repo cleanly, but typescript-eslint (via eslint-config-next) ' +
-    'refuses to load on it ("does not support TS 7.0"; support for TS >=7.1 is tracked upstream in ' +
-    'typescript-eslint issue 10940), which fails the lint gate. Move when typescript-eslint supports it.',
+  drift: 'must-be-latest',
   rederive: 'npm view typescript version',
 } as const;
-
 export const AWS_CDK: VendorVersion = {
   name: 'aws-cdk-lib',
   configured: '2.278.0',
