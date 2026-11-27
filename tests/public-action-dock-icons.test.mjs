@@ -9,7 +9,7 @@ test('shared action dock is independent of icon fonts and retains accessible nam
   assert.match(source,/aria-label="Subscribe on WhatsApp"/);
   assert.match(source,/aria-label=\{ label === 'Share' \? 'Share this page' : label \}/);
   assert.match(source,/href=\{ CUSTOMER_MENU_HREFS\.contribute \}/);
-  assert.match(source,/Review, then pay on website/);
+  assert.match(source,/A gesture of appreciation/);
   assert.match(source,/\.ps-tip\{[^}]*visibility:hidden/);
   assert.match(source,/\.ps-kicker\{min-width:0;box-sizing:border-box;padding-inline:8px;overflow-wrap:anywhere\}/);
 });
