@@ -1494,7 +1494,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
     # All customer items except Contribute use ONE GST-exclusive pricing policy.
     # Server-owned ProductsTable line amounts are bases; unified_pricing adds 18%
     # supply GST before Delight, Rs25 Vault / Rs45 other Express once, and convenience + fee GST.
-    # The unlisted Rs2 internal QA item preserves its original low-cost quote.
+    # Unlisted internal QA items preserve the existing low-cost quote.
     from lambda_utils.ecommerce import (
         default_coupon, service_requests, express_policy, unified_pricing)
     service_line = service_requests.service_line(line_items)
@@ -1503,7 +1503,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         return _vault_dropdocs_quote(identity, ephemeral_cart, reader, now)
 
     internal_qa = express_policy.is_internal_qa_cart(canonical)
-    if (not internal_qa and any(pid == express_policy.INTERNAL_QA_PRODUCT_ID
+    if (not internal_qa and any(pid in express_policy.INTERNAL_QA_VARIANTS
                                 for pid, _, _ in canonical)):
         raise ValueError("internal QA item cannot be mixed into customer checkout")
     # Base snapshot is intentionally unadjusted for customers. A native
