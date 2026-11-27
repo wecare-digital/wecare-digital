@@ -100,8 +100,11 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
 
   useEffect( () => {
     mounted.current = true;
-    void checkStatus( true );
-    return () => { mounted.current = false; };
+    const initial = window.setTimeout( () => { void checkStatus( true ); }, 0 );
+    return () => {
+      window.clearTimeout( initial );
+      mounted.current = false;
+    };
   }, [ checkStatus ] );
 
   useEffect( () => {
