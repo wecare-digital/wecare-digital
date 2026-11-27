@@ -26,7 +26,7 @@ import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
   readCart, addItem, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
-  needsVariantSelection, setVariant,
+  needsVariantSelection, setVariant, setContribution, isContributionItem,
   basketFingerprint, cartRequiresDelivery,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
@@ -42,7 +42,7 @@ import {
   basketTokenFromUrl, claimBasket, claimMessage, rememberBasketToken, stripBasketParam,
   CLAIM_NOT_SHOWN_MESSAGE,
 } from '../../lib/whatsappBasket';
-import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
+import { CONTRIBUTION_AMOUNT_LABEL, CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
 import { colors } from '../../lib/design-tokens';
 /**
  * THE OPAQUE SQUARE MARK, and it has to be that one. Razorpay composites this logo onto its own
@@ -483,6 +483,8 @@ interface CartPageProps {
 export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
+  const [ contributionReview, setContributionReview ] = useState( false );
+  const [ contributionReviewError, setContributionReviewError ] = useState( '' );
   const [ quote, setQuote ] = useState<CheckoutQuote | null>( null );
   const [ quoteFor, setQuoteFor ] = useState( '' );
   const [ quoteLoading, setQuoteLoading ] = useState( false );
@@ -572,6 +574,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
   useEffect( () => {
     setItems( cartFromDirectTestLink() );
+    const query = new URLSearchParams( window.location.search );
+    setContributionReview( query.get( 'contribute' ) === '1' && !query.has( 'basket' ) && !query.has( 'test' ) );
     setReady( true );
 
     // ASK THE READINESS QUESTION ONCE, ON ARRIVAL, so a returning customer is shown what we
@@ -593,6 +597,41 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     } )();
     return () => { live = false; };
   }, [] );
+
+  // A deliberate review choice uses the existing single-contribution cart writer.
+  // Navigation alone never replaces an existing cart or initiates payment.
+  const finishContributionReview = ( select: boolean ): void => {
+    if ( proceedInFlightRef.current || busy || railTerminalRef.current ) return;
+    try {
+      if ( select ) {
+        const choice = CONTRIBUTION_CHOICES[0];
+        if ( !choice || choice.paise !== 30000 ) {
+          setContributionReviewError( 'Contributions are not available right now.' );
+          return;
+        }
+        const next = setContribution( choice.variantId );
+        if ( next.length !== 1 || !isContributionItem( next[0] ) || next[0].variantId !== choice.variantId ) {
+          setContributionReviewError( 'Could not prepare your contribution. Try again.' );
+          return;
+        }
+        setItems( next );
+        setQuote( null );
+        setQuoteFor( '' );
+        setQuoteRevision( previous => previous + 1 );
+        setNotice( { kind: 'none' } );
+        setPaymentBlocked( false );
+        setCartResetOffered( false );
+      }
+      const query = new URLSearchParams( window.location.search );
+      query.delete( 'contribute' );
+      const remaining = query.toString();
+      window.history?.replaceState?.( null, '', window.location.pathname + ( remaining ? '?' + remaining : '' ) + window.location.hash );
+      setContributionReview( false );
+      setContributionReviewError( '' );
+    } catch {
+      setContributionReviewError( 'Could not update your cart. Check browser storage and try again.' );
+    }
+  };
 
   // A read-only ProductsTable quote is mandatory before the website can start
   // Razorpay. Profile, delivery or cart edits trigger an independent fresh quote.
@@ -1419,6 +1458,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         publicActionText( 'blocked' ) } );
       return;
     }
+    if ( contributionReview ) return;
     const chosenChannel: CheckoutChannel = channel === 'whatsapp' ? 'whatsapp' : 'website';
     void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
@@ -1556,6 +1596,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
+    // Reject even stale WhatsApp clicks for contribution baskets.
+    if ( chosenChannel === 'whatsapp' && currentItems.some( isContributionItem ) ) {
+      setItems( currentItems );
+      setNotice( { kind: 'quiet', message: 'Please pay for contributions on the website.' } );
+      return;
+    }
     // A full website basket is allowed; the server checks every line/quantity.
     const unresolved = currentItems.find( needsVariantSelection );
     if ( unresolved )
@@ -1586,6 +1632,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       return;
     }
     const expectedTotalPaise = quote.charges.totalPaise;
+    if ( currentItems.length === 1 && isContributionItem( currentItems[0] ) && expectedTotalPaise !== CONTRIBUTION_CHOICES[0]?.paise ) {
+      setNotice( { kind: 'error', message: CONTRIBUTION_NOT_PAYABLE_MESSAGE } );
+      return;
+    }
 
     // Payment is initiated from this reviewed one-product cart, without a second chooser page.
     // The two existing server actions, their idempotency key, and verification remain unchanged.
@@ -1667,7 +1717,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading ] );
+  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading, contributionReview ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
@@ -1737,17 +1787,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     takePendingAction();
   }, [] );
 
-  const isEmpty = ready && items.length === 0;
+  const isEmpty = ready && !contributionReview && items.length === 0;
+  const hasContribution = items.some( isContributionItem );
+  const contributionOnly = items.length === 1 && hasContribution;
+  const contributionQuoteMismatch = Boolean( contributionOnly && quote && quote.charges.totalPaise !== CONTRIBUTION_CHOICES[0]?.paise );
   const reviewedBasketFingerprint = ( (): string => {
     try { return basketFingerprint( toLineItems( items ) ); }
     catch { return ''; }
   } )();
   const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
     && quoteFor && quoteFor === reviewedBasketFingerprint
-    && !items.some( needsVariantSelection ) );
+    && !contributionReview && !contributionQuoteMismatch && !items.some( needsVariantSelection ) );
   // Native WhatsApp checkout is currently provider-gated to one line, quantity one.
   // Do not show an enabled button for a basket the backend will refuse.
-  const whatsappEligible = items.length === 1 && items[ 0 ].quantity === 1
+  const whatsappEligible = !hasContribution && items.length === 1 && items[ 0 ].quantity === 1
     && !items.some( needsVariantSelection );
 
   /**
@@ -1795,9 +1848,27 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             <span aria-current="step"><b aria-hidden="true">2</b> Checkout</span>
             <span><b aria-hidden="true">3</b> Payment</span>
           </nav>
-          <h1 className="cart-heading">Checkout breakdown</h1>
+          <h2 className="cart-heading">Checkout breakdown</h2>
           <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
           {!ready && <p className="cart-body">Loading your cart…</p>}
+          { ready && contributionReview && (
+            <section className="cart-contribution-review" aria-labelledby="contribution-review-title">
+              <h3 className="cart-subheading" id="contribution-review-title">Contribute { CONTRIBUTION_AMOUNT_LABEL }</h3>
+              <p className="cart-body">Review the server-confirmed total and pay securely on the website. Nothing is charged until you choose to pay.</p>
+              { items.some( item => !isContributionItem( item ) ) && (
+                <p className="cart-status">Your current cart contains other items. Choosing this contribution replaces those items in the current cart. You can keep your current cart instead.</p>
+              ) }
+              { contributionReviewError && <PublicNotice mode="inline" tone="error" message={ contributionReviewError } /> }
+              <div className="cart-actions">
+                <button type="button" className="cart-auth-action cart-auth-primary" onClick={ () => finishContributionReview( true ) }>
+                  { items.some( item => !isContributionItem( item ) ) ? 'Replace cart and review contribution' : 'Review contribution' }
+                </button>
+                <button type="button" className="cart-auth-action" onClick={ () => finishContributionReview( false ) }>
+                  { items.length ? 'Keep current cart' : 'Cancel' }
+                </button>
+              </div>
+            </section>
+          ) }
 
           {isEmpty && (
             <div className="cart-empty">
@@ -1806,7 +1877,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             </div>
           )}
 
-          {ready && items.length > 0 && (
+          {ready && !contributionReview && items.length > 0 && (
             <>
               <div className="cart-review-grid">
               <div className="cart-details-panel">
@@ -1962,9 +2033,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     Sign in on WhatsApp
                   </Link>
                 ) }
+                { contributionQuoteMismatch && <PublicNotice mode="inline" tone="error" message={ CONTRIBUTION_NOT_PAYABLE_MESSAGE } /> }
                 { quoteReady && quote && <CheckoutReceipt quote={ quote } /> }
                 <p className="cart-price-note">The total comes from the live server quotation.
-                  Website and WhatsApp payment both use the same server-priced basket.
+                  { hasContribution ? ' Contributions are paid on the website.' : ' Website and WhatsApp payment both use the same server-priced basket.' }
                   No payment is completed until the provider confirms capture.</p>
               </section>
               </div>
@@ -2019,18 +2091,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
                     </button>
-                    <button
-                      className="cart-auth-action cart-pay-whatsapp"
-                      type="button"
-                      onClick={ () => { void proceed( 'whatsapp' ); } }
-                      disabled={ busy || !quoteReady || !whatsappEligible }
-                      aria-busy={ busy ? 'true' : undefined }
-                    >
-                      Pay on WhatsApp
-                    </button>
+                    { !hasContribution && (
+                      <button
+                        className="cart-auth-action cart-pay-whatsapp"
+                        type="button"
+                        onClick={ () => { void proceed( 'whatsapp' ); } }
+                        disabled={ busy || !quoteReady || !whatsappEligible }
+                        aria-busy={ busy ? 'true' : undefined }
+                      >
+                        Pay on WhatsApp
+                      </button>
+                    ) }
                   </> }
               </div>
-              { !railTerminal && !whatsappEligible && (
+              { !railTerminal && !hasContribution && !whatsappEligible && (
                 <p className="cart-price-note" role="status">
                   WhatsApp Review and Pay currently supports one item, quantity one.
                   For larger carts use Pay on Website, or review one item at a time.
@@ -2059,6 +2133,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-progress span{display:flex;align-items:center;gap:8px}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
           .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel{min-width:0;display:grid;gap:20px}.cart-customer-summary,.cart-order-summary{min-width:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}.cart-panel-heading{margin:0 0 12px;padding:10px 12px;background:var(--public-lime-tint);border-radius:8px;font-size:17px;font-weight:750;color:var(--public-heading)}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
           @media(max-width:800px){.cart-review-grid{grid-template-columns:minmax(0,1fr)}.cart-progress{font-size:12px;gap:8px}.cart-progress span{gap:5px}}
+          .cart-contribution-review{min-width:0;overflow-wrap:anywhere;padding:clamp(12px,4vw,24px);border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}
+          .cart-contribution-review .cart-actions{display:flex;flex-wrap:wrap;gap:10px}
           .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
           .cart-intro{margin-bottom:24px}
           .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}

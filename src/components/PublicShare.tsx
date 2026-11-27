@@ -11,10 +11,9 @@ import { symbol } from '../config/materialSymbols';
  *
  * _app renders this once for every public HTML surface, including Home.
  * Preserve the owner-approved Stay connected layout and Contribute dropdown.
- * Checkout uses the same one-time authenticated Orders action handoff as Subscribe.
- * The Orders server hook currently fails closed until the exact native payment
- * price and invoice policy is aligned; this control does not charge or send itself.
- * Opening /orders/ or refreshing it never creates a send intent.
+ * Contribute enters the existing server-priced website checkout. Only the
+ * explicit checkout review/payment controls can modify a cart or initiate payment.
+ * Subscribe and sharing retain their existing WhatsApp behavior.
  */
 export interface PublicShareProps {
   /** Override the shared URL. Defaults to the clean current URL after hydration. */
@@ -208,11 +207,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
             <a
               href={ CUSTOMER_MENU_HREFS.contribute }
               className="ps-menu-item"
-              onClick={ event => {
-                // Queue only on the deliberate click; Orders owns authentication
-                // and consumes this intent once after the /auth/ round-trip.
-                if ( isPrimaryMenuActivation( event ) ) stashCustomerMenuAction( 'contribute' );
-              } }
               aria-label="Checkout contribution"
             >
               <span className="ps-menu-icon" aria-hidden="true">
@@ -220,7 +214,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Checkout</span>
-                <span className="ps-menu-note">Review, then pay on WhatsApp</span>
+                <span className="ps-menu-note">Review, then pay on website</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </a>

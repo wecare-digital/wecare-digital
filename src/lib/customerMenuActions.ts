@@ -7,7 +7,7 @@
  * in the same tab, then is consumed BEFORE an API call so refresh/back never resends.
  * The server chooses the verified phone from the authenticated session, never the URL.
  */
-import { CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_CHOICES } from '../config/contribution';
+import { CONTRIBUTE_CTA_HREF } from '../config/contribution';
 
 export type CustomerMenuAction = 'subscribe' | 'leave-review' | 'referral' | 'contribute';
 
@@ -15,7 +15,7 @@ export const CUSTOMER_MENU_HREFS: Readonly<Record<CustomerMenuAction, string>> =
   subscribe: '/orders/',
   'leave-review': '/orders/',
   referral: '/orders/',
-  contribute: '/orders/',
+  contribute: CONTRIBUTE_CTA_HREF,
 };
 
 const PENDING_KEY = 'wecare.customer.pendingServiceAction';
@@ -39,7 +39,7 @@ export function isPrimaryMenuActivation ( event: {
 }
 
 export function stashCustomerMenuAction ( action: CustomerMenuAction ): void {
-  if ( typeof window === 'undefined' ) return;
+  if ( typeof window === 'undefined' || action === 'contribute' ) return;
   try {
     window.sessionStorage.setItem( PENDING_KEY, JSON.stringify( { action, at: Date.now() } ) );
   } catch {
@@ -57,7 +57,7 @@ export function takeCustomerMenuAction (): CustomerMenuAction | null {
     if ( !Number.isFinite( parsed.at ) || !parsed.at
       || Date.now() < parsed.at || Date.now() - parsed.at > MAX_PENDING_AGE_MS ) return null;
     return parsed.action === 'subscribe' || parsed.action === 'leave-review'
-      || parsed.action === 'referral' || parsed.action === 'contribute'
+      || parsed.action === 'referral'
       ? parsed.action : null;
   } catch {
     return null;
@@ -72,52 +72,9 @@ export async function sendCustomerMenuAction ( action: CustomerMenuAction, acces
   const backendAction = action === 'subscribe' ? 'sendProfileUpdate'
     : action === 'referral' ? 'sendReferral' : 'sendLeaveReview';
   try {
-    // The original one-use menu intent has already been consumed by OrdersPage.
-    // Contribute is a PAYMENT, not a free-form invitation: send the exact catalog
-    // SKU through the existing authenticated Commerce/ORDER_DETAILS rail.
-    if ( action === 'contribute' ) {
-      const choice = CONTRIBUTION_CHOICES[0];
-      if ( !choice || choice.paise !== 30000 || typeof window === 'undefined'
-        || typeof window.crypto?.randomUUID !== 'function' ) return { kind: 'failed' };
-      const response = await fetch(
-        `${ process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api' }/ecommerce/checkout`, {
-          method: 'POST',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: `Bearer ${ accessToken }`,
-          },
-          body: JSON.stringify( {
-            action: 'create',
-            requestKey: window.crypto.randomUUID(),
-            lineItems: [ {
-              catalogReference: {
-                catalogItemId: CONTRIBUTION_PRODUCT_ID,
-                options: { variantId: choice.variantId },
-              },
-              quantity: 1,
-            } ],
-          } ),
-        },
-      );
-      if ( response.status === 401 ) return { kind: 'expired' };
-      const data = await response.json().catch( () => ( {} ) ) as {
-        status?: string; amountPaise?: number; currency?: string; paymentAttemptId?: string;
-        error?: string;
-      };
-      if ( response.ok && data.status === 'PAYMENT_REQUEST_SENT'
-        && data.amountPaise === 30000 && data.currency === 'INR'
-        && typeof data.paymentAttemptId === 'string' && data.paymentAttemptId )
-        return { kind: 'accepted', messageId: '' };
-      // A 409 / release refusal creates no payable request. Never fall back to
-      // a generic template or trigger a second attempt after a timeout.
-      if ( response.status === 409 && (
-        data.error === 'AMOUNT_NOT_SETTLED'
-        || data.error === 'CONTRIBUTION_TAXABLE_NOT_RELEASED'
-      ) ) return { kind: 'blocked' };
-      return { kind: 'failed' };
-    }
+    // Retire the legacy website-to-WhatsApp payment request. Old callers or
+    // sessionStorage entries must fail closed and never initiate payment.
+    if ( action === 'contribute' ) return { kind: 'blocked' };
     const response = await fetch( PROFILE_URL, {
       method: 'POST',
       cache: 'no-store',
