@@ -53,9 +53,19 @@ def test_schedule_is_an_explicit_read_operation_even_though_provider_uses_post()
     assert json.loads(request.data) == {'hospitalId': 2, 'doctorId': 1785652, 'isAngularRequest': True}
 
 
-def test_provider_errors_do_not_echo_secrets_or_patient_data():
+def test_provider_errors_do_not_echo_secrets_or_patient_data(caplog):
     error = urllib.error.HTTPError(ORIGIN, 401, 'synthetic-private-message', {}, io.BytesIO(b'synthetic-private-body'))
     api = client(error=error)
     with pytest.raises(ApolloSessionExpired) as raised: api.get_profile('synthetic-session')
     assert str(raised.value) == 'Provider authorization required'
     assert 'synthetic' not in str(raised.value)
+    assert 'resource=GetProfile status=401' in caplog.text
+    assert 'synthetic' not in caplog.text
+
+
+def test_transport_diagnostics_do_not_log_error_reasons_or_request_credentials(caplog):
+    api = client(error=urllib.error.URLError('synthetic-private-reason'))
+    with pytest.raises(ApolloUnavailable):
+        api.login({'userName': 'synthetic-user', 'password': 'synthetic-password'})
+    assert 'resource=Login category=URLError' in caplog.text
+    assert 'synthetic' not in caplog.text
