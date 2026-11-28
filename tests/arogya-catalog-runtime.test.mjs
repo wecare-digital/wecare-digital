@@ -45,10 +45,10 @@ test('ordinary Arogya checkout stays disabled until an owned appointment intent 
 test('appointment planner does not redirect customers to external provider pages', () => {
   const planner = readFileSync(new URL('../src/components/public/AppointmentPlanner.tsx', import.meta.url), 'utf8');
   const access = readFileSync(new URL('../src/components/public/AppointmentAccess.tsx', import.meta.url), 'utf8');
-  assert.match(access, /if \( ready \) return <AppointmentPlanner/);
-  assert.match(access, /window\.location\.replace\( APPOINTMENT_AUTH_URL \)/);
+  assert.match(access, /return <AppointmentPlanner \/>/);
+  assert.doesNotMatch(access, /window\.location|restoreSession/);
   assert.doesNotMatch(planner, /https?:\/\/(?:[^/'"\s]+\.)?(?:apollohospitals\.com|askapollo\.com|apollo247\.com)/i);
-  assert.doesNotMatch(planner, /target="_blank"|window\.open\(|window\.location\./);
+  assert.doesNotMatch(planner, /window\.open\(|window\.location\./);
   assert.doesNotMatch(planner, /directoryHandoff|directoryPrimary|opens Apollo/);
   assert.doesNotMatch(planner, /useApolloChoices|appointmentCatalogAction|Retry live choices/);
   assert.match(planner, /action: 'submitRequest'/);

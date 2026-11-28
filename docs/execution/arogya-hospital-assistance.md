@@ -5,9 +5,14 @@ one preference, alongside another named hospital and help choosing. This flow
 makes no provider catalogue, login, OTP, patient-lookup or booking-write call.
 The existing provider adapter remains inactive and independent of request intake.
 
-Service information is available before sign-in. Patient fields mount only after
-the existing shared WhatsApp/Cognito customer session passes the API access check.
-The form preserves the account binding on every submission and history read.
+The full form and service information are visible without signing in. The existing
+shared WhatsApp/Cognito customer session is checked only when Submit request or
+View my submitted requests is pressed. A signed-out customer keeps the form open
+while completing shared /auth in a separate tab, then returns and submits again.
+Form details remain in component memory, not browser storage or URL parameters.
+The server still requires a verified customer and account binding for every write
+and history read. A changed authenticated owner cannot submit an earlier account’s
+frozen request. No anonymous backend intake or inline OTP flow is introduced.
 No payment is collected on submission. Existing Arogya checkout guards remain.
 
 ## Intake and review
@@ -56,6 +61,6 @@ appointment. Provider and travel charges remain separate from the WECARE fee.
 Run focused assistance/ownership Python tests, the public Arogya Node contracts,
 typecheck, lint and the production build. Deploy the verified merged Lambda bundle
 before the matching website release, preserving ApolloAutomationEnabled=false.
-Check native IAM queue access, unsigned HTTP rejection, public service information
-and the shared WhatsApp sign-in. A genuine customer OTP is needed to exercise a
+Check native IAM queue access, unsigned HTTP rejection, the public form, service
+information and submission-triggered shared WhatsApp sign-in. A genuine customer OTP is needed to exercise a
 real customer submission; never fabricate a production customer identity.
