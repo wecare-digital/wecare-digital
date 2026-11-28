@@ -78,8 +78,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # DELETES media from Meta. Anonymous, destructive, and irreversible.
     # The legitimate callers are the schedule and the dashboard: a scheduled or
     # internal invoke carries no API Gateway context, so require_auth passes it
-    # through untouched and only the public route is gated.
-    auth_failure = require_auth(event)
+    # through untouched and only the public route is gated. Deleting media is Admin-only.
+    auth_failure = require_auth(event, required_role='Admin')
     if auth_failure is not None:
         return auth_failure
 

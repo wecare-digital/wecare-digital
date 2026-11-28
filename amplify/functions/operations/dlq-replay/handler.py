@@ -87,7 +87,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    # A replay re-runs inbound processing or a bulk send, so it is Admin-only.
+    _auth = require_auth(event, required_role='Admin' if http_method == 'POST' else 'Viewer')
     if _auth is not None:
         return _auth
 
@@ -147,8 +148,10 @@ def _list_dlq_messages(request_id: str) -> Dict[str, Any]:
 
 def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, Any]:
     """Replay messages from DLQ."""
+    actor = _actor(event)
     logger.info(json.dumps({
         'event': 'dlq_replay_start',
+        'actor': actor,
         'requestId': request_id
     }))
     
@@ -261,6 +264,7 @@ def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, An
             'event': 'dlq_replay_complete',
             'queueName': queue_name,
             'stats': stats,
+            'actor': actor,
             'requestId': request_id
         }))
         
@@ -282,6 +286,12 @@ def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, An
             'requestId': request_id
         }))
         return _error_response(500, 'Internal server error')
+
+
+def _actor(event: Dict[str, Any]) -> str:
+    """The caller's username (else Cognito sub) from the verified token; 'internal' without one."""
+    auth = event.get('_auth') or {}
+    return str(auth.get('username') or (auth.get('attributes') or {}).get('sub') or 'internal')
 
 
 def _receive_messages(queue_url: str, batch_size: int) -> List[Dict]:
