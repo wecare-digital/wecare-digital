@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Nano Climate: design mock (sample data)</title>
+<!--
+  DESIGN DIRECTION: "Field ledger".
+  Air quality pages usually look like dashboards that blur every number into one score.
+  This mock treats each number as an entry in a ledger: every card has a source-type
+  stamp (shape + text, never colour alone), a freshness line and an attribution line, so
+  a modelled value can never be mistaken for a ground reading. Warm paper background,
+  ink-dark text, one deep-teal accent, and a distinct hue + glyph per source type.
+  Layout is mobile-first: one column, then a 12-column grid from 900px.
+  Accessibility: AA contrast, visible 3px focus rings, 44px touch targets, tabs with
+  arrow-key support, prefers-reduced-motion respected, no content depends on colour.
+  Everything here is SAMPLE data. No network requests, no frameworks, no build step.
+-->
+<style>
+:root{
+  --paper:#f6f2ea; --card:#fffdf8; --ink:#1c2420; --muted:#4f5a54; --line:#d9d2c3;
+  --accent:#0b5d57; --accent-ink:#ffffff; --accent-soft:#dcefeb;
+  --live:#0b5d57; --station:#1f4fa3; --research:#6b3fa0; --regional:#8a5200; --sat:#4a5560;
+  --warn-bg:#fff1d6; --warn:#7a4a00; --err-bg:#fde4e1; --err:#8f1d12; --info-bg:#e6edf8; --info:#1f3f7a;
+  --radius:14px; --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--font)}
+:focus-visible{outline:3px solid #ffb000;outline-offset:2px;box-shadow:0 0 0 5px #1c2420}
+a{color:var(--accent)}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:#fff;padding:8px 12px;border-radius:8px;z-index:10}
+.skip:focus{left:8px}
+.banner{background:var(--ink);color:#fff;font:600 13px/1.4 var(--mono);text-align:center;padding:8px 12px;letter-spacing:.02em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.top{padding:20px 0 8px}
+h1{font-size:clamp(1.9rem,6vw,3rem);line-height:1.05;margin:0 0 6px;letter-spacing:-.02em}
+h1 small{display:block;font:600 .8rem/1.4 var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}
+.lede{margin:0;color:var(--muted);max-width:60ch}
+h2{font-size:1.15rem;margin:0}
+h3{font-size:1rem;margin:0}
+.grid{display:grid;gap:16px;margin:16px 0 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;position:relative}
+.card.flat{background:transparent;border-style:dashed}
+.card-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.meta{font:12.5px/1.45 var(--mono);color:var(--muted);margin:10px 0 0;padding-top:10px;border-top:1px dashed var(--line)}
+.meta b{color:var(--ink);font-weight:600}
+.muted{color:var(--muted)}
+
+/* source-type stamps: glyph + text + colour */
+.stamp{display:inline-flex;align-items:center;gap:6px;font:700 11.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;
+  padding:6px 9px;border-radius:6px;border:1.5px solid currentColor;background:#fff;white-space:nowrap}
+.stamp::before{content:"";width:10px;height:10px;background:currentColor;flex:none}
+.s-live{color:var(--live)} .s-live::before{border-radius:50%}
+.s-station{color:var(--station)} .s-station::before{clip-path:polygon(50% 0,100% 100%,0 100%)}
+.s-research{color:var(--research)} .s-research::before{transform:rotate(45deg) scale(.8)}
+.s-regional{color:var(--regional)} .s-regional::before{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.s-sat{color:var(--sat)} .s-sat::before{border-radius:2px;background:repeating-linear-gradient(90deg,currentColor 0 2px,transparent 2px 4px)}
+.state{display:inline-block;font:700 11.5px/1 var(--mono);padding:6px 9px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+.state.off{background:#ece8de;color:var(--muted)}
+
+/* search + toggle */
+.toolbar{display:grid;gap:12px}
+.search{display:flex;gap:8px}
+.search label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+input[type=search]{flex:1;min-width:0;min-height:48px;border:2px solid var(--ink);border-radius:12px;padding:0 14px;font:inherit;background:#fff;color:var(--ink)}
+button,.btn{font:inherit;min-height:44px;cursor:pointer}
+.btn{border:2px solid var(--ink);background:var(--ink);color:#fff;border-radius:12px;padding:0 18px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:0 14px;min-height:44px;color:var(--ink)}
+.chip[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+.seg{display:inline-grid;grid-auto-flow:column;background:#ece8de;border-radius:12px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:0 20px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed=true],.seg button[aria-selected=true]{background:var(--ink);color:#fff}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:0 16px;font-weight:600;color:var(--ink)}
+.tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* map placeholder */
+.map{min-height:240px;border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--line);
+  background:
+   radial-gradient(circle at 62% 44%,rgba(11,93,87,.22) 0 14%,transparent 15%),
+   repeating-linear-gradient(0deg,transparent 0 31px,rgba(28,36,32,.07) 31px 32px),
+   repeating-linear-gradient(90deg,transparent 0 31px,rgba(28,36,32,.07) 31px 32px),#e9e4d6}
+.pin{position:absolute;left:62%;top:44%;width:22px;height:22px;margin:-11px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--ink);border:3px solid #fff}
+.pin.st{left:36%;top:60%;background:var(--station);border-radius:3px;transform:none;width:16px;height:16px;margin:-8px}
+.map-note{position:absolute;left:10px;bottom:10px;right:10px;font:12px/1.4 var(--mono);background:rgba(255,253,248,.94);padding:6px 8px;border-radius:8px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:10px}
+
+/* readings */
+.aqi{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.aqi-num{font:800 clamp(3.2rem,12vw,4.8rem)/1 var(--font);letter-spacing:-.04em}
+.aqi-band{font-weight:700;padding:4px 10px;border-radius:8px;background:#f3d9a8;color:#4b3000;display:inline-block}
+.bar{height:12px;border-radius:6px;background:linear-gradient(90deg,#2f7d4f 0 20%,#b8a400 20% 40%,#d98200 40% 60%,#c43d2c 60% 80%,#7d2a63 80%);position:relative;margin:14px 0 4px}
+.bar i{position:absolute;top:-5px;width:4px;height:22px;background:var(--ink);border:2px solid #fff;border-radius:2px;left:44%}
+.poll{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0 0;padding:0;list-style:none}
+.poll li{background:#f1ede3;border-radius:10px;padding:10px 12px}
+.poll b{display:block;font-size:1.4rem;line-height:1.2}
+.poll span{font-size:13px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{font:600 12px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:14px;background:repeating-linear-gradient(135deg,transparent 0 10px,rgba(28,36,32,.035) 10px 20px)}
+.empty strong{display:block;margin-bottom:2px}
+.big{font:800 2rem/1.1 var(--font)}
+.spark{width:100%;height:80px;display:block;margin-top:8px}
+.range{display:flex;gap:8px;margin:12px 0 0;font-size:13px;color:var(--muted)}
+.range div{flex:1;background:#f1ede3;border-radius:10px;padding:10px}
+.range b{display:block;color:var(--ink);font-size:1.15rem}
+.note{border-radius:10px;padding:10px 12px;font-size:14px;margin:12px 0 0}
+.note.warn{background:var(--warn-bg);color:var(--warn)}
+.note.err{background:var(--err-bg);color:var(--err)}
+.note.info{background:var(--info-bg);color:var(--info)}
+
+/* states gallery */
+.states{display:grid;gap:12px}
+.st-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
+.st-card h3{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.st-card .demo{margin-top:8px}
+.lbl-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.lbl-list li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.lbl-list span.d{font-size:14px;color:var(--muted);flex:1 1 220px}
+footer{border-top:1px solid var(--line);padding:20px 0 40px;font-size:13px;color:var(--muted)}
+[hidden]{display:none!important}
+
+@media (min-width:900px){
+  .grid{grid-template-columns:repeat(12,1fr);gap:20px}
+  .c-map{grid-column:span 7}.c-model{grid-column:span 5}
+  .c-st{grid-column:span 6}.c-sol{grid-column:span 6}
+  .c-res{grid-column:span 5}.c-hist{grid-column:span 7}
+  .c-fut1,.c-fut2{grid-column:span 6}
+  .c-labels{grid-column:span 5}.c-states{grid-column:span 7}
+  .toolbar{grid-template-columns:1fr auto;align-items:start}
+  .states{grid-template-columns:1fr 1fr}
+  .map{min-height:340px}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="banner" role="note">Design mock: sample data. Not live readings.</div>
+
+<div class="wrap">
+<header class="top">
+  <h1><small>VayuLok / Nano Climate</small>Know where each number comes from.</h1>
+  <p class="lede">Air and weather for one place, with every reading stamped by its source: a model, a ground station, historical research, a regional estimate or a satellite.</p>
+</header>
+
+<main id="main">
+  <section aria-label="Place and view" class="toolbar">
+    <div>
+      <form class="search" role="search" onsubmit="return false">
+        <label for="q">Search a place</label>
+        <input id="q" type="search" placeholder="Search a city, pincode or address" value="Sample Place, Sample State">
+        <button class="btn" type="submit">Search</button>
+      </form>
+      <div class="chips" style="margin-top:10px" role="group" aria-label="Recent places (sample)">
+        <button class="chip" aria-pressed="true" data-place="ok">Sample Place</button>
+        <button class="chip" aria-pressed="false" data-place="unsupported">Sample Ocean Point</button>
+        <button class="chip" aria-pressed="false" data-place="stale">Sample Hill Town</button>
+        <button class="chip" aria-pressed="false" data-place="useloc">Use my location</button>
+      </div>
+    </div>
+    <div class="seg" role="group" aria-label="Topic">
+      <button id="t-air" aria-pressed="true">Air</button>
+      <button id="t-wx" aria-pressed="false">Weather</button>
+    </div>
+  </section>
+
+  <div id="place-banner" class="note warn" role="status" hidden></div>
+
+  <div class="grid">
+    <!-- MAP -->
+    <section class="card c-map" aria-labelledby="h-map">
+      <div class="card-head"><h2 id="h-map">Map</h2><span class="state off">Static placeholder</span></div>
+      <div class="map" role="img" aria-label="Placeholder map showing a selected place pin and one ground station pin to the south west">
+        <span class="pin"></span><span class="pin st"></span>
+        <div class="map-note">No real map is loaded in this mock. Positions are illustrative.</div>
+      </div>
+      <div class="legend"><span><span class="stamp s-live">Selected place</span></span><span><span class="stamp s-station">Station (sample)</span></span></div>
+    </section>
+
+    <!-- MODELLED AQI -->
+    <section class="card c-model" aria-labelledby="h-model" data-panel="air">
+      <div class="card-head"><h2 id="h-model">Modelled air quality</h2><span class="stamp s-live">Live model</span></div>
+      <div class="aqi">
+        <div class="aqi-num" aria-label="Sample AQI 112">112</div>
+        <div><span class="aqi-band">Unhealthy for sensitive groups</span><div class="muted" style="font-size:14px;margin-top:6px">Sample Universal AQI · dominant: PM2.5</div></div>
+      </div>
+      <div class="bar" aria-hidden="true"><i></i></div>
+      <ul class="poll" aria-label="Pollutants (sample)">
+        <li><b>41 <small>µg/m³</small></b><span>PM2.5 (fine particles)</span></li>
+        <li><b>78 <small>µg/m³</small></b><span>PM10 (coarse particles)</span></li>
+      </ul>
+      <p class="meta"><b>Freshness:</b> model hour 14:00 (sample), refreshed hourly<br><b>Attribution:</b> Google Air Quality API (modelled, not measured at this spot)</p>
+    </section>
+
+    <!-- CPCB -->
+    <section class="card c-st" aria-labelledby="h-cpcb" data-panel="air">
+      <div class="card-head"><h2 id="h-cpcb">Ground station readings</h2><span class="stamp s-station">Ground station</span></div>
+      <div class="empty">
+        <span class="state off">Not yet enabled</span>
+        <strong style="margin-top:8px">CPCB readings are not switched on for this site.</strong>
+        <span class="muted">When enabled they appear here, separate from the modelled AQI above, and are never blended with it.</span>
+      </div>
+      <p class="muted" style="font-size:13px;margin:12px 0 6px">Preview of the layout (empty sample cells, not data):</p>
+      <table>
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Distance</th><th scope="col" class="num">PM2.5</th><th scope="col">Observed</th></tr></thead>
+        <tbody><tr><td>Sample Station A</td><td class="num">– km</td><td class="num">– µg/m³</td><td>– IST</td></tr></tbody>
+      </table>
+      <p class="meta"><b>Freshness:</b> shown as observation timestamp per station<br><b>Attribution:</b> Central Pollution Control Board (CPCB), when enabled</p>
+    </section>
+
+    <!-- PVGIS -->
+    <section class="card c-sol" aria-labelledby="h-sol" data-panel="wx">
+      <div class="card-head"><h2 id="h-sol">Solar potential</h2><span class="stamp s-regional">Regional estimate</span></div>
+      <div class="big">≈ 4,300 <small style="font-size:1rem;font-weight:600">kWh / year</small></div>
+      <p class="muted" style="margin:4px 0 0">Sample figure for a <b>3 kWp</b> rooftop system. A regional estimate, not a measurement of your roof.</p>
+      <p class="note info">Assumes 3 kWp, 14% system losses and a south-facing tilt equal to latitude (sample assumptions). Shade and roof shape are not modelled.</p>
+      <p class="meta"><b>Freshness:</b> multi-year climatological average, not updated daily<br><b>Attribution:</b> EU Joint Research Centre, PVGIS</p>
+    </section>
+
+    <!-- SPARTAN -->
+    <section class="card c-res" aria-labelledby="h-sp" data-panel="air">
+      <div class="card-head"><h2 id="h-sp">Research observations</h2><span class="stamp s-research">Historical research</span></div>
+      <p class="note warn" style="margin-top:0"><b>Historical, not live.</b> Do not use for today's decisions.</p>
+      <table>
+        <thead><tr><th scope="col">Sampling dates</th><th scope="col" class="num">PM2.5</th></tr></thead>
+        <tbody>
+          <tr><td>2019-01-04 to 2019-01-18 (sample)</td><td class="num">62 µg/m³</td></tr>
+          <tr><td>2019-07-02 to 2019-07-16 (sample)</td><td class="num">24 µg/m³</td></tr>
+        </tbody>
+      </table>
+      <p class="meta"><b>Freshness:</b> latest sample ended 2019 (sample)<br><b>Attribution:</b> SPARTAN network, filter-based research sampling</p>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="card c-hist" aria-labelledby="h-hist" data-panel="wx">
+      <div class="card-head"><h2 id="h-hist">Historical weather</h2><span class="stamp s-regional">Regional estimate</span></div>
+      <div class="tabs" role="tablist" aria-label="History range" id="range-tabs">
+        <button role="tab" id="r-30" aria-selected="true" aria-controls="range-panel" tabindex="0" data-r="30">30 days</button>
+        <button role="tab" id="r-1y" aria-selected="false" aria-controls="range-panel" tabindex="-1" data-r="1y">1 year</button>
+        <button role="tab" id="r-5y" aria-selected="false" aria-controls="range-panel" tabindex="-1" data-r="5y">5 years</button>
+      </div>
+      <div id="range-panel" role="tabpanel" aria-labelledby="r-30" tabindex="0">
+        <svg class="spark" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Sample temperature trend line">
+          <polyline id="spark" fill="none" stroke="#0b5d57" stroke-width="2.5" points="0,50 20,44 40,48 60,36 80,40 100,30 120,34 140,26 160,38 180,32 200,22 220,30 240,24 260,34 280,28 300,36"/>
+        </svg>
+        <div class="range">
+          <div>Mean temp<b id="v-t">27.4 °C</b></div>
+          <div>Rain<b id="v-r">62 mm</b></div>
+          <div>Hottest day<b id="v-h">36.1 °C</b></div>
+        </div>
+        <p class="note info" id="cov">Coverage: 30 of 30 days present (sample).</p>
+      </div>
+      <p class="meta"><b>Freshness:</b> archive lags real time by about 2 days (sample)<br><b>Attribution:</b> Reanalysis archive (sample label). Values are gridded estimates, not a local gauge.</p>
+    </section>
+
+    <!-- FUTURE -->
+    <section class="card flat c-fut1" aria-labelledby="h-wn">
+      <div class="card-head"><h2 id="h-wn">Probabilistic forecast</h2><span class="stamp s-live">Live model</span></div>
+      <span class="state off">Unavailable: not connected yet</span>
+      <p style="margin:10px 0 8px"><b>WeatherNext 3</b> will show a range of likely outcomes instead of one number.</p>
+      <table aria-label="Forecast layout preview, no data">
+        <thead><tr><th scope="col">Next 24 h</th><th scope="col" class="num">P10</th><th scope="col" class="num">P50</th><th scope="col" class="num">P90</th></tr></thead>
+        <tbody><tr><td>Temperature</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr></tbody>
+      </table>
+      <p class="muted" style="font-size:13px;margin:8px 0 0">P10 / P50 / P90: a 1-in-10 low, the median, and a 1-in-10 high.</p>
+    </section>
+
+    <section class="card flat c-fut2" aria-labelledby="h-s5">
+      <div class="card-head"><h2 id="h-s5">Satellite columns</h2><span class="stamp s-sat">Satellite column</span></div>
+      <span class="state off">Unavailable: not connected yet</span>
+      <p style="margin:10px 0 8px"><b>Sentinel-5P</b> measures gas in the whole air column above you.</p>
+      <p class="note warn" style="margin-top:0"><b>Not ground-level.</b> It cannot tell you what you breathe at street height, so it will never be shown as an AQI.</p>
+      <p class="muted" style="font-size:13px;margin:8px 0 0">Attribution when enabled: Copernicus Sentinel-5P / ESA.</p>
+    </section>
+
+    <!-- LABELS -->
+    <section class="card c-labels" aria-labelledby="h-lbl">
+      <div class="card-head"><h2 id="h-lbl">Source labels</h2></div>
+      <ul class="lbl-list">
+        <li><span class="stamp s-live">Live model</span><span class="d">Computed now from data and physics. Not measured at your spot.</span></li>
+        <li><span class="stamp s-station">Ground station</span><span class="d">A real instrument at a named place. Shows distance and time.</span></li>
+        <li><span class="stamp s-research">Historical research</span><span class="d">Past lab-analysed samples. Never live.</span></li>
+        <li><span class="stamp s-regional">Regional estimate</span><span class="d">Averaged over an area or a long period.</span></li>
+        <li><span class="stamp s-sat">Satellite column</span><span class="d">Whole-atmosphere total. Not ground-level.</span></li>
+      </ul>
+    </section>
+
+    <!-- STATES -->
+    <section class="card c-states" aria-labelledby="h-states">
+      <div class="card-head"><h2 id="h-states">Graceful states</h2><span class="muted" style="font-size:13px">All shown at once for review</span></div>
+      <div class="states">
+        <div class="st-card"><h3>Unsupported location</h3>
+          <div class="note info demo" role="status">We have no air or weather coverage for this point. Try a nearby town or search again.</div></div>
+        <div class="st-card"><h3>Stale data</h3>
+          <div class="note warn demo" role="status">Last updated 9 hours ago (sample). Values may no longer match the air outside.</div></div>
+        <div class="st-card"><h3>Quota exhausted</h3>
+          <div class="note warn demo" role="status">Live lookups are paused for now because today's limit is used up. Showing the last saved view. Resets at 00:00 UTC (sample).</div></div>
+        <div class="st-card"><h3>Provider failure</h3>
+          <div class="note err demo" role="alert">The air quality provider did not respond. Other sections are unaffected. <button class="btn ghost" style="min-height:36px;margin-left:6px">Retry</button></div></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <p>Design mock: sample data. All values, places, stations and dates are placeholders for layout review. Real implementation would replace them with live provider responses and keep each source's attribution.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  var $=function(s,r){return(r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  // Air / Weather toggle: on narrow screens show only the chosen topic; from 900px everything stays visible. Add #all to the URL to show every card on narrow screens.
+  var air=$('#t-air'), wx=$('#t-wx');
+  function topic(t){
+    air.setAttribute('aria-pressed',t==='air'); wx.setAttribute('aria-pressed',t==='wx');
+    var narrow=window.matchMedia('(max-width:899px)').matches && location.hash!=='#all';
+    $$('[data-panel]').forEach(function(p){p.hidden=narrow&&p.getAttribute('data-panel')!==t});
+  }
+  window.matchMedia('(max-width:899px)').addEventListener('change',function(){topic(air.getAttribute('aria-pressed')==='true'?'air':'wx')});
+  air.onclick=function(){topic('air')}; wx.onclick=function(){topic('wx')}; topic('air');
+
+  // Place chips drive the banner state.
+  var msgs={
+    unsupported:['info','Unsupported location: no coverage here. Model, station and solar sections would show "not available" instead of values.'],
+    stale:['warn','Stale data: the newest reading for this place is 9 hours old (sample).'],
+    useloc:['info','Location permission is requested only when you press this chip. Nothing is sent in this mock.']
+  };
+  var banner=$('#place-banner');
+  $$('.chip').forEach(function(c){c.onclick=function(){
+    $$('.chip').forEach(function(x){x.setAttribute('aria-pressed',x===c)});
+    var m=msgs[c.dataset.place];
+    if(!m){banner.hidden=true;return}
+    banner.className='note '+m[0]; banner.textContent=m[1]; banner.hidden=false;
+  }});
+
+  // History tabs (roving tabindex, arrow keys).
+  var data={
+    '30':{t:'27.4 °C',r:'62 mm',h:'36.1 °C',c:'Coverage: 30 of 30 days present (sample).',n:'info',p:'0,50 20,44 40,48 60,36 80,40 100,30 120,34 140,26 160,38 180,32 200,22 220,30 240,24 260,34 280,28 300,36'},
+    '1y':{t:'25.9 °C',r:'1,140 mm',h:'41.3 °C',c:'Coverage: 351 of 365 days present (sample). 14 missing days are skipped, not filled in.',n:'warn',p:'0,60 30,48 60,30 90,14 120,20 150,34 180,30 210,38 240,46 270,56 300,62'},
+    '5y':{t:'25.6 °C',r:'5,480 mm',h:'42.0 °C',c:'Coverage: 1,742 of 1,826 days present (sample). Long-range means are smoothed.',n:'warn',p:'0,46 60,40 120,44 180,36 240,38 300,32'}
+  };
+  var tabs=$$('#range-tabs [role=tab]');
+  function pick(t,focus){
+    tabs.forEach(function(x){var on=x===t;x.setAttribute('aria-selected',on);x.tabIndex=on?0:-1});
+    $('#range-panel').setAttribute('aria-labelledby',t.id);
+    var d=data[t.dataset.r];
+    $('#v-t').textContent=d.t;$('#v-r').textContent=d.r;$('#v-h').textContent=d.h;
+    $('#spark').setAttribute('points',d.p);
+    var c=$('#cov');c.textContent=d.c;c.className='note '+d.n;
+    if(focus)t.focus();
+  }
+  tabs.forEach(function(t,i){
+    t.onclick=function(){pick(t)};
+    t.onkeydown=function(e){
+      var j=e.key==='ArrowRight'?i+1:e.key==='ArrowLeft'?i-1:e.key==='Home'?0:e.key==='End'?tabs.length-1:null;
+      if(j===null)return; e.preventDefault(); pick(tabs[(j+tabs.length)%tabs.length],true);
+    };
+  });
+})();
+</script>
+</body>
+</html>
