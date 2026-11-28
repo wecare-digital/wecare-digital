@@ -2393,20 +2393,40 @@ def _handle_payment_pending(event_data: Dict, request_id: str) -> None:
 
 
 def _handle_payment_failed(event_data: Dict, request_id: str) -> None:
-    """Handle payment.failed — payment attempt failed. Update linked invoice status."""
+    """Handle payment.failed — payment attempt failed. Update linked invoice status.
+
+    Confirmed with `GET /payments/{id}` first; unreachable Razorpay writes nothing and raises.
+    """
     payment = event_data.get('payment', {}).get('entity', {})
     payment_id = payment.get('id', '')
     error_code = payment.get('error_code', '')
     error_desc = payment.get('error_description', '')
-    # Razorpay serialises EMPTY notes as `[]`; `.get` on it raised AttributeError, turning every
-    # notes-less `payment.failed` into a 500 that Razorpay retries. Same guard as the capture path.
-    notes = payment.get('notes')
-    if not isinstance(notes, dict):
-        notes = {}
     logger.warning(json.dumps({
         'event': 'payment_failed', 'paymentId': payment_id,
         'errorCode': error_code, 'errorDesc': error_desc, 'requestId': request_id,
     }))
+    if not payment_id:
+        return
+    # The body is a trigger. Razorpay must say the payment failed before anything records it,
+    # and the record (including the reference whose invoice is marked failed) is Razorpay's.
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        payment = razorpay_verify.payment_entity(str(payment_id))
+    except Exception as exc:  # noqa: BLE001 - nothing is written; Razorpay retries the 500
+        logger.error(json.dumps({'event': 'payment_failed_unverified',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'error': type(exc).__name__, 'requestId': request_id}))
+        raise RuntimeError('payment.failed could not be confirmed with Razorpay') from None
+    if str(payment.get('status') or '') != 'failed':
+        logger.error(json.dumps({'event': 'payment_failed_not_confirmed',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'providerStatus': str(payment.get('status') or ''),
+                                 'requestId': request_id}))
+        return
+    # Razorpay serialises EMPTY notes as `[]`; anything that is not an object carries no notes.
+    notes = payment.get('notes')
+    if not isinstance(notes, dict):
+        notes = {}
     _store_payment_record(payment, 'failed', request_id)
 
     # Update linked invoice status to payment_failed (if referenceId exists)
@@ -3655,41 +3675,156 @@ def _handle_refund(event_type: str, event_data: Dict, request_id: str) -> None:
         'amountPaise': refund_paise, 'status': status, 'requestId': request_id,
     }))
 
-    # Update payment record status if refund processed
-    if event_type == 'refund.processed' and payment_id and refund_paise is not None:
+    # Only a processed refund changes state, and only after Razorpay confirms it.
+    if event_type == 'refund.processed' and refund_id:
+        _record_verified_refund(str(refund_id), str(payment_id or ''), request_id)
+
+
+#: Refund vocabulary on payment, invoice and order rows (`refundStatus`).
+_REFUND_FULL = payment_status.REFUNDED
+_REFUND_PARTIAL = 'partially_refunded'
+
+
+def _record_verified_refund(refund_id: str, event_payment_id: str, request_id: str) -> None:
+    """Record a refund Razorpay confirms, with the payment's SUMMED refunded amount.
+
+    `GET /refunds/{id}` must say processed, and `GET /payments/{id}` supplies `amount_refunded`
+    (every processed refund so far). A full refund moves the payment to `refunded`; a partial one
+    leaves it captured and records `partially_refunded`. Unreachable Razorpay writes nothing and
+    raises, so the event is retried.
+    """
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        refund = razorpay_verify.refund_entity(refund_id)
+        payment_id = str(refund.get('payment_id') or '')
+        payment = razorpay_verify.payment_entity(payment_id) if payment_id else {}
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'refund_unverified', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id, 'error': type(exc).__name__,
+                                 'requestId': request_id}))
+        raise RuntimeError('refund could not be confirmed with Razorpay') from None
+    if (str(refund.get('status') or '') != 'processed' or not payment_id
+            or (event_payment_id and event_payment_id != payment_id)):
+        logger.error(json.dumps({'event': 'refund_not_confirmed', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id,
+                                 'providerStatus': str(refund.get('status') or ''),
+                                 'requestId': request_id}))
+        return
+    try:
+        captured_paise = payment_status.paise(payment.get('amount'))
+        refunded_paise = payment_status.paise(payment.get('amount_refunded'))
+    except ValueError:
+        refunded_paise = 0
+    if refunded_paise <= 0:
+        logger.error(json.dumps({'event': 'refund_amount_unusable', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id, 'paymentId': payment_id,
+                                 'requestId': request_id}))
+        return
+    full = (refunded_paise >= captured_paise
+            or str(payment.get('refund_status') or '') == 'full')
+    refund_state = _REFUND_FULL if full else _REFUND_PARTIAL
+    now = Decimal(str(int(time.time())))
+
+    # The payment row. Monotonic in the summed amount, so a late or replayed event for an
+    # earlier, smaller refund never rewinds it. Only a full refund moves the status rank.
+    names = {'#refundId': 'refundId', '#refundAmount': 'refundAmountPaise',
+             '#refundStatus': 'refundStatus', '#ua': 'updatedAt'}
+    values = {':rid': refund_id, ':sum': Decimal(refunded_paise), ':rs': refund_state,
+              ':now': now, ':rids': {refund_id}}
+    sets = ['#refundId = :rid', '#refundAmount = :sum', '#refundStatus = :rs', '#ua = :now']
+    condition = 'attribute_not_exists(#refundAmount) OR #refundAmount < :sum'
+    if full:
+        names.update({'#st': 'status', '#rank': payment_status.RANK_ATTRIBUTE})
+        values.update({':st': payment_status.REFUNDED,
+                       ':rank': payment_status.rank(payment_status.REFUNDED)})
+        sets += ['#st = :st', '#rank = :rank']
+        condition = f'(attribute_not_exists(#rank) OR #rank <= :rank) AND ({condition})'
+    expression = 'SET ' + ', '.join(sets) + ' ADD refundIds :rids'
+    try:
+        dynamodb.Table(PAYMENTS_TABLE).update_item(
+            Key={'id': payment_id}, UpdateExpression=expression, ConditionExpression=condition,
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+    except Exception as e:  # noqa: BLE001
+        if not order_keys.is_conditional_failure(e):
+            raise
+        logger.info(json.dumps({'event': 'refund_status_not_applied', 'paymentId': payment_id,
+                                'refundId': refund_id,
+                                'reason': 'a refund total at least this large is recorded',
+                                'requestId': request_id}))
+
+    _record_on_payment_records(
+        payment_id, request_id, kind='refund',
+        fields={'refundStatus': refund_state, 'refundAmountPaise': refunded_paise,
+                'lastRefundId': refund_id, 'refundUpdatedAt': int(now),
+                **({'paymentStatus': payment_status.REFUNDED} if full else {})},
+        monotonic=True)
+    logger.warning(json.dumps({'event': 'refund_recorded', 'paymentId': payment_id,
+                               'refundId': refund_id, 'refundStatus': refund_state,
+                               'refundedPaise': refunded_paise, 'requestId': request_id}))
+
+
+def _payment_records(payment_id: str) -> tuple[list, str]:
+    """The invoice ids and the order id this payment settled, from OUR claim rows."""
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    claim = order_keys.resolve_order_for_provider_payment(keys, payment_id) or {}
+    order_id = str(claim.get('orderIdRef') or '')
+    if claim.get('invoiceIdRef'):  # a legacy invoice payment claim names its invoice
+        return [str(claim['invoiceIdRef'])], order_id
+    reference_id = str(claim.get('referenceId') or '')
+    invoice_ids = []
+    if reference_id:
+        query = {'IndexName': 'referenceId-index', 'KeyConditionExpression': 'referenceId = :ref',
+                 'ExpressionAttributeValues': {':ref': reference_id}}
+        while True:
+            page = dynamodb.Table(INVOICES_TABLE).query(**query)
+            invoice_ids.extend(str(row.get('invoiceId') or '') for row in page.get('Items') or []
+                               if payment_id in (row.get('paymentId'), row.get('providerPaymentId')))
+            if 'LastEvaluatedKey' not in page:
+                break
+            query['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    return [invoice_id for invoice_id in invoice_ids if invoice_id], order_id
+
+
+def _record_on_payment_records(payment_id: str, request_id: str, *, kind: str,
+                               fields: Dict[str, Any], monotonic: bool = False) -> None:
+    """SET `fields` on the invoice(s) and order this payment settled. Never raises.
+
+    Each write is conditional on the row naming this payment; a refund write also only moves
+    the refunded total forward.
+    """
+    from lambda_utils import shared_tables
+    try:
+        invoice_ids, order_id = _payment_records(payment_id)
+    except Exception as error:  # noqa: BLE001
+        logger.error(json.dumps({'event': f'{kind}_records_lookup_failed',
+                                 'paymentId': payment_id, 'error': type(error).__name__,
+                                 'requestId': request_id}))
+        return
+    names = {f'#f{i}': name for i, name in enumerate(fields)}
+    values = {f':v{i}': value for i, value in enumerate(fields.values())}
+    values[':pid'] = payment_id
+    expression = 'SET ' + ', '.join(f'#f{i} = :v{i}' for i in range(len(fields)))
+    forward = ''
+    if monotonic:
+        # `fields` carries refundAmountPaise; reuse its placeholders in the condition.
+        index = list(fields).index('refundAmountPaise')
+        forward = (f' AND (attribute_not_exists(#f{index}) OR #f{index} < :v{index})')
+    targets = [(INVOICES_TABLE, {'invoiceId': invoice_id},
+                '(paymentId = :pid OR providerPaymentId = :pid)' + forward)
+               for invoice_id in invoice_ids]
+    if order_id:
+        targets.append((shared_tables.orders_table_name(), {'orderId': order_id},
+                        'providerPaymentId = :pid' + forward))
+    for table_name, key, condition in targets:
         try:
-            table = dynamodb.Table(PAYMENTS_TABLE)
-            import time as _time
-            # Monotonic, like the capture write. `refunded` outranks `captured`, so this
-            # applies over a captured payment and is then itself protected from any later
-            # redelivered payment.* event.
-            refunded_rank = payment_status.rank(payment_status.REFUNDED)
-            table.update_item(
-                Key={'id': payment_id},
-                UpdateExpression=('SET #st = :st, #refundId = :rid, #refundAmount = :ra, '
-                                  f'#rank = :rank, #ua = :now'),
-                ConditionExpression=payment_status.condition_expression('#rank'),
-                ExpressionAttributeNames={
-                    '#st': 'status', '#refundId': 'refundId',
-                    '#refundAmount': 'refundAmountPaise',
-                    '#rank': payment_status.RANK_ATTRIBUTE, '#ua': 'updatedAt',
-                },
-                ExpressionAttributeValues={
-                    ':st': payment_status.REFUNDED, ':rid': refund_id,
-                    ':ra': Decimal(str(refund_paise)), ':rank': refunded_rank,
-                    ':now': Decimal(str(int(_time.time()))),
-                },
-            )
-        except Exception as e:
-            if order_keys.is_conditional_failure(e):
-                logger.info(json.dumps({
-                    'event': 'refund_status_not_applied', 'paymentId': payment_id,
-                    'refundId': refund_id,
-                    'reason': 'stored rank already at or beyond refunded',
-                    'requestId': request_id,
-                }))
-                return
-            logger.error(json.dumps({'event': 'refund_update_error', 'error': str(e), 'requestId': request_id}))
+            dynamodb.Table(table_name).update_item(
+                Key=key, UpdateExpression=expression, ConditionExpression=condition,
+                ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+        except Exception as error:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(error):
+                logger.error(json.dumps({'event': f'{kind}_record_update_failed',
+                                         'paymentId': payment_id, 'error': type(error).__name__,
+                                         'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -3704,14 +3839,60 @@ def _handle_dispute(event_type: str, event_data: Dict, request_id: str) -> None:
     so unlike downtime the fault was never exercised - but it would have logged an empty
     dispute for a contested payment, which is the worst possible moment to have no detail.
 
-    Still log-only. Writing `disputed` onto the payment row is a behaviour change and a
-    separate decision; the rank exists in `payment_status` for when it is made.
+    The dispute is confirmed with `GET /disputes/{id}` and recorded in its own attributes
+    (`disputeId`, `disputeStatus`, ...) on the payment, invoice and order rows, with an alert.
+    The payment's status rank is not moved and Vault access is not touched.
     """
     logger.warning(json.dumps({
         'event': event_type,
         **payment_status.entity_summary(event_data),
         'requestId': request_id,
     }))
+    _, dispute = payment_status.extract_entity(event_data)
+    dispute_id = str(dispute.get('id') or '')
+    if not dispute_id:
+        return
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        verified = razorpay_verify.dispute_entity(dispute_id)
+    except Exception as exc:  # noqa: BLE001 - nothing is written; Razorpay retries the 500
+        logger.error(json.dumps({'event': 'dispute_unverified', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'disputeId': dispute_id, 'error': type(exc).__name__,
+                                 'requestId': request_id}))
+        raise RuntimeError('dispute could not be confirmed with Razorpay') from None
+    payment_id = str(verified.get('payment_id') or '')
+    if not payment_id:
+        return
+    amounts = {}
+    for field, source in (('disputeAmountPaise', 'amount'),
+                          ('disputeAmountDeductedPaise', 'amount_deducted')):
+        try:
+            amounts[field] = payment_status.paise(verified.get(source))
+        except ValueError:
+            pass
+    fields = {'disputeId': dispute_id, 'disputeStatus': str(verified.get('status') or ''),
+              'disputePhase': str(verified.get('phase') or ''),
+              'disputeUpdatedAt': int(time.time()), **amounts}
+    names = {f'#d{i}': name for i, name in enumerate(fields)}
+    values = {f':d{i}': value for i, value in enumerate(fields.values())}
+    try:
+        dynamodb.Table(PAYMENTS_TABLE).update_item(
+            Key={'id': payment_id},
+            UpdateExpression='SET ' + ', '.join(f'#d{i} = :d{i}' for i in range(len(fields))),
+            ConditionExpression='attribute_exists(id)',
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+    except Exception as e:  # noqa: BLE001
+        if not order_keys.is_conditional_failure(e):
+            raise
+    _record_on_payment_records(payment_id, request_id, kind='dispute',
+                               fields={key: fields[key] for key in
+                                       ('disputeId', 'disputeStatus', 'disputeUpdatedAt')})
+    logger.error(json.dumps({'event': 'payment_dispute_recorded', 'alert': 'PAYMENT_DISPUTED',
+                             'eventType': event_type, 'disputeId': dispute_id,
+                             'paymentId': payment_id, 'status': fields['disputeStatus'],
+                             'phase': fields['disputePhase'],
+                             'amountPaise': amounts.get('disputeAmountPaise'),
+                             'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════

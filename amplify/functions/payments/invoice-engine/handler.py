@@ -5226,15 +5226,11 @@ def _resolve_refund_context(invoice_id: str, body: Dict, auth: Optional[Dict]
         })
 
     payment_state = pay_status.canonical(payment.get('status'))
-    # SINGLE REFUND PER PAYMENT (by design). razorpay-webhook._handle_refund marks the payment
-    # REFUNDED (a monotonic rank that then blocks any later refund.* write) and SETs — does not
-    # sum — refundAmountPaise on the FIRST processed refund. So once any refund (full or the
-    # first partial) has settled, this branch reports the idempotent success and no second
-    # partial can proceed: in practice a payment receives one refund. The cap arithmetic below
-    # (captured − already_refunded) is the server authority within that single refund and fails
-    # safe — it can only block or under-refund, never over-refund. Supporting multiple partials
-    # per payment would require revisiting the webhook's refunded-state/accumulation semantics,
-    # which stays the sole authoritative setter and is deliberately out of scope here.
+    # razorpay-webhook records refunds from Razorpay's readback: a FULL refund moves the payment
+    # to REFUNDED (reported here as the idempotent success), while a partial one leaves it
+    # CAPTURED with refundAmountPaise = the SUM Razorpay reports as refunded. The cap arithmetic
+    # below (captured − already_refunded) is therefore the remaining refundable amount, and it
+    # fails safe: it can only block or under-refund, never over-refund.
     if payment_state == pay_status.REFUNDED and str(payment.get('refundId') or '').strip():
         return None, _resp(200, {
             'submitted': True,
@@ -5573,14 +5569,19 @@ def _resolve_refund_evidence(*, invoice: Dict, body: Dict, request_id: str) -> O
         }))
         return None
 
-    if str(payment.get('refundId', '') or '').strip() != refund_id:
+    # The webhook keeps the latest refund in `refundId` and every processed one in `refundIds`.
+    recorded = {str(value).strip() for value in (payment.get('refundIds') or ())}
+    recorded.add(str(payment.get('refundId', '') or '').strip())
+    if refund_id not in recorded:
         logger.warning(json.dumps({
             'event': 'refund_evidence_not_on_record', 'paymentId': payment_id,
             'requestId': request_id,
         }))
         return None
 
-    if pay_status.canonical(payment.get('status', '')) != pay_status.REFUNDED:
+    # A partial refund leaves the payment captured and says so in `refundStatus`.
+    if (pay_status.canonical(payment.get('status', '')) != pay_status.REFUNDED
+            and str(payment.get('refundStatus') or '') != 'partially_refunded'):
         logger.warning(json.dumps({
             'event': 'refund_evidence_payment_not_refunded', 'paymentId': payment_id,
             'storedStatus': pay_status.canonical(payment.get('status', '')),
