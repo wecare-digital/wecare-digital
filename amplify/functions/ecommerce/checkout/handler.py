@@ -344,13 +344,29 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
+#: A readiness verdict is reused per warm container, so a burst of creates does not each cost a
+#: business-API invoke and a Meta read. A blocking verdict is kept only briefly so a recovery is
+#: seen quickly.
+_READINESS_READY_TTL_SECONDS = 60
+_READINESS_BLOCKED_TTL_SECONDS = 10
+_readiness_cache: Dict[str, Any] = {}
+
+
 def _readiness() -> payment_readiness.PaymentReadiness:
-    return payment_readiness.evaluate(
+    now = time.time()
+    cached = _readiness_cache.get("verdict")
+    if cached is not None and now < _readiness_cache.get("until", 0):
+        return cached
+    verdict = payment_readiness.evaluate(
         expected_waba_id=PAYMENT_WABA_ID,
         expected_configuration_name=EXPECTED_CONFIGURATION_NAME,
         expected_provider_mid=EXPECTED_PROVIDER_MID,
         fetch_configurations=_fetch_payment_configurations,
     )
+    _readiness_cache["verdict"] = verdict
+    _readiness_cache["until"] = now + (_READINESS_READY_TTL_SECONDS if verdict.ready
+                                       else _READINESS_BLOCKED_TTL_SECONDS)
+    return verdict
 
 
 
@@ -903,6 +919,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return cors_response(409, {
                     "error": "CONTRIBUTION_WEBSITE_ONLY",
                     "message": "Please pay for contributions on the website.",
+                }, origin)
+            # `_create` runs its dedup, one-live-payment and cross-rail guards only for a
+            # request key, and every caller (the cart page, the commerce MCP) sends one. A
+            # create without it is refused rather than allowed past those guards.
+            request_key = body.get("requestKey")
+            if not isinstance(request_key, str) or not request_key.strip():
+                return cors_response(400, {
+                    "error": "REQUEST_KEY_REQUIRED",
+                    "message": "Please refresh the page and try again.",
                 }, origin)
             return _create(identity, body, origin)
         # Unknown operations must never fall through into a payable action.

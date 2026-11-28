@@ -984,6 +984,68 @@ def claim_topup_credit(table: Any,
     return _claim_row(table, key_attr, TOPUP_CREDIT_PREFIX + payment_id, item)
 
 
+def bind_topup_payment_link(table: Any,
+                            *,
+                            reference_id: str,
+                            payment_link_id: str,
+                            key_attr: str = "orderId") -> bool:
+    """Record the Razorpay payment link created for a top-up intent. Once; True when bound.
+
+    The webhook credits only a capture that Razorpay lists as a payment of THIS link, so an
+    intent with no link id can never be credited.
+    """
+    if not reference_id or not payment_link_id:
+        raise ValueError("reference_id and payment_link_id are required")
+    try:
+        table.update_item(
+            Key={key_attr: TOPUP_INTENT_PREFIX + reference_id},
+            UpdateExpression="SET paymentLinkId = :link, paymentLinkBoundAt = :now",
+            ConditionExpression=("attribute_exists(%s) AND attribute_not_exists(paymentLinkId)"
+                                 % key_attr),
+            ExpressionAttributeValues={":link": payment_link_id, ":now": int(time.time())},
+        )
+        return True
+    except Exception as error:  # noqa: BLE001 - re-raised below unless it is a lost condition
+        if _is_conditional_failure(error):
+            existing = resolve_topup_intent(table, reference_id, key_attr=key_attr) or {}
+            return existing.get("paymentLinkId") == payment_link_id
+        raise OrderIdentityUnavailable(
+            "could not bind the top-up link for %r: %s" % (reference_id, type(error).__name__)
+        ) from error
+
+
+def mark_topup_intent_credited(table: Any,
+                               *,
+                               reference_id: str,
+                               payment_id: str,
+                               key_attr: str = "orderId") -> Tuple[bool, str]:
+    """Flip a top-up intent to credited for one payment, conditionally. One intent credits once.
+
+    Returns `(won, credited_payment_id)`. `won` is True only for the call that flipped it; a
+    later call gets False and the payment id that did.
+    """
+    if not reference_id or not payment_id:
+        raise ValueError("reference_id and payment_id are required")
+    try:
+        table.update_item(
+            Key={key_attr: TOPUP_INTENT_PREFIX + reference_id},
+            UpdateExpression=("SET creditStatus = :credited, creditedPaymentId = :pid, "
+                              "creditedAt = :now"),
+            ConditionExpression=("attribute_exists(%s) AND attribute_not_exists(creditedPaymentId)"
+                                 % key_attr),
+            ExpressionAttributeValues={":credited": "CREDITED", ":pid": payment_id,
+                                       ":now": int(time.time())},
+        )
+        return True, payment_id
+    except Exception as error:  # noqa: BLE001 - re-raised below unless it is a lost condition
+        if _is_conditional_failure(error):
+            existing = resolve_topup_intent(table, reference_id, key_attr=key_attr) or {}
+            return False, str(existing.get("creditedPaymentId") or "")
+        raise OrderIdentityUnavailable(
+            "could not mark the top-up %r credited: %s" % (reference_id, type(error).__name__)
+        ) from error
+
+
 # ── website Standard Checkout: request key + gateway-order binding (section 8) ──
 #: A customer-scoped, intent-fingerprinted request key reserved BEFORE the external order-create
 #: call. Two rapid clicks on "Pay" with the SAME intent must coordinate onto ONE gateway order,
@@ -1925,6 +1987,8 @@ __all__ = [
     "reserve_topup_intent",
     "resolve_topup_intent",
     "claim_topup_credit",
+    "bind_topup_payment_link",
+    "mark_topup_intent_credited",
     "REQUEST_KEY_PREFIX",
     "GATEWAY_ORDER_PREFIX",
     "INVOICE_COLLECT_PREFIX",

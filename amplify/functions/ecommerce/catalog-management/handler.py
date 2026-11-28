@@ -13,6 +13,7 @@ Uses Meta Graph API: /{catalog_id}/products, /{waba_id}/product_catalogs
 """
 
 import os
+import re
 import json
 import time
 import uuid
@@ -45,6 +46,9 @@ WABA2_IDS = {WABA2_ID}
 
 _token_cache = {}
 origin = ''
+
+#: Graph node ids are digits. Anything else in a path segment could name another node or edge.
+_GRAPH_ID = re.compile(r'\d{1,32}')
 
 
 def _load_secrets():
@@ -110,7 +114,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _resp(200, {'ok': True})
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    # Every route acts on Meta with the system-user token, so only an Admin may call it.
+    _auth = require_auth(event, required_role='Admin')
     if _auth is not None:
         return _auth
 
@@ -121,12 +126,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     waba_id = params.get('wabaId') or body.get('wabaId') or WABA1_ID
     catalog_id = params.get('catalogId') or body.get('catalogId', '')
+    product_id = params.get('productId') or body.get('productId', '')
+    if any(value and not _GRAPH_ID.fullmatch(str(value))
+           for value in (waba_id, catalog_id, product_id)):
+        return _resp(400, {'error': 'wabaId, catalogId and productId must be numeric Graph ids'})
 
     try:
         if '/sync' in path:
             return _sync_catalog(catalog_id, waba_id, request_id)
         elif '/products' in path:
-            product_id = params.get('productId') or body.get('productId', '')
             if method == 'GET':
                 return _list_products(catalog_id, params)
             elif method == 'POST':

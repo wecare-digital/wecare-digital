@@ -276,6 +276,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
     logger.info(json.dumps({'event': 'razorpay_webhook_received', 'requestId': request_id}))
 
+    # Bound before the try so the error path knows whether this delivery holds a lease.
+    lease = None
+    razorpay_event_id = ''
+    event_type = ''
     try:
         headers = event.get('headers', {})
         body = event.get('body', '')
@@ -326,8 +330,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         logger.info(json.dumps({'event': 'razorpay_event_received', 'eventType': event_type, 'razorpayEventId': razorpay_event_id, 'requestId': request_id}))
 
-        # Idempotency check — skip if this event was already processed
-        if _is_duplicate_event(razorpay_event_id, request_id):
+        # Idempotency check. Only a COMPLETED (or legacy permanent) event is answered 200. A lease
+        # held by an unfinished attempt gets 409, so Razorpay keeps retrying instead of treating
+        # the event as done: the holder may still be running, or may have died.
+        lease = _claim_event(razorpay_event_id, request_id)
+        if lease is not None and not lease.claimed:
+            from lambda_utils.webhook_dedup import LEASE_IN_PROGRESS
+            if lease.state == LEASE_IN_PROGRESS:
+                lease = None  # not ours to release
+                logger.info(json.dumps({'event': 'webhook_duplicate_deferred',
+                                        'reason': 'lease_held',
+                                        'razorpayEventId': razorpay_event_id,
+                                        'requestId': request_id}))
+                return _response(409, {'status': 'in_progress'})
             logger.info(json.dumps({'event': 'webhook_duplicate_skipped', 'razorpayEventId': razorpay_event_id, 'requestId': request_id}))
             return _response(200, {'status': 'already_processed'})
 
@@ -463,13 +478,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return _response(200, {'status': 'ok', 'event': event_type})
 
-    except json.JSONDecodeError as e:
-        logger.error(json.dumps({'event': 'webhook_parse_error', 'error': str(e), 'requestId': request_id}))
-        return _response(400, {'error': 'Invalid JSON'})
     except Exception as e:
-        # The lease is deliberately NOT completed here. Letting it lapse is what allows Razorpay's
-        # retry to be processed instead of dismissed as a duplicate, which is the entire fix.
-        logger.error(json.dumps({'event': 'webhook_error', 'error': str(e), 'requestId': request_id}))
+        if isinstance(e, json.JSONDecodeError) and lease is None:
+            logger.error(json.dumps({'event': 'webhook_parse_error', 'error': str(e), 'requestId': request_id}))
+            return _response(400, {'error': 'Invalid JSON'})
+        # The lease is NOT completed, and it is RELEASED so Razorpay's next retry can claim it
+        # at once rather than being answered 409 until the lease lapses.
+        _release_event(razorpay_event_id, lease, request_id)
+        logger.error(json.dumps({
+            'event': 'webhook_error',
+            # A captured payment whose processing failed needs reconciliation; any other event
+            # failing is still worth an alarm.
+            'alert': ('NEEDS_RECONCILIATION' if event_type == 'payment.captured'
+                      else 'RAZORPAY_WEBHOOK_FAILED'),
+            'eventType': event_type or None,
+            'error': str(e), 'requestId': request_id}))
         return _response(500, {'error': 'Internal server error'})
 
 
@@ -514,6 +537,21 @@ def _verify_signature(body: str, signature: str) -> bool:
 # WEBHOOK AUDIT LOG
 # ═══════════════════════════════════════════════════════════════════
 
+#: Well under DynamoDB's 400 KB item limit. Razorpay payloads are a few KB.
+_AUDIT_PAYLOAD_MAX_CHARS = 300_000
+
+
+def _audit_payload(event_data: Dict, container: str, entity: Dict) -> str:
+    """The event payload as JSON for the audit row, reduced to its entity only if oversized."""
+    raw = json.dumps(event_data, default=str)
+    if len(raw) <= _AUDIT_PAYLOAD_MAX_CHARS:
+        return raw
+    kept = {key: entity.get(key) for key in (
+        'id', 'entity', 'order_id', 'payment_id', 'status', 'amount', 'currency', 'notes',
+        'method', 'captured', 'description', 'created_at') if key in entity}
+    return json.dumps({container or 'payment': {'entity': kept}}, default=str)
+
+
 def _log_webhook_event(event_type: str, event_data: Dict, request_id: str, razorpay_event_id: str = '') -> None:
     """Log every webhook event to DynamoDB for audit trail with idempotency key."""
     import time, uuid
@@ -542,7 +580,9 @@ def _log_webhook_event(event_type: str, event_data: Dict, request_id: str, razor
             'status': _entity.get('status', event_type.split('.')[-1] if '.' in event_type else ''),
             'entityKey': _container,
             'entityId': _entity.get('id', ''),
-            'rawPayload': json.dumps(event_data, default=str)[:4000],  # Truncate large payloads
+            # Whole and parseable: `redriveQuarantinedCapture` replays this payload, and a cut
+            # string is not JSON. Only an oversized one is reduced, to its entity, still as JSON.
+            'rawPayload': _audit_payload(event_data, _container, _entity),
             'processedAt': now,
             'createdAt': now,
             'expiresAt': now + 180 * 24 * 60 * 60,  # TTL: 180 days
@@ -567,10 +607,13 @@ def _log_webhook_event(event_type: str, event_data: Dict, request_id: str, razor
         logger.warning(json.dumps({'event': 'webhook_log_failed', 'error': str(e), 'requestId': request_id}))
 
 
-def _is_duplicate_event(razorpay_event_id: str, request_id: str) -> bool:
+def _claim_event(razorpay_event_id: str, request_id: str):
     """Idempotency via the shared WebhookDedup table, as a LEASE rather than a permanent claim.
 
-    Returns True if this event was already processed (caller should skip).
+    Returns the `webhook_dedup.LeaseClaim`, or None when the event has no key or the check
+    itself failed (both mean: process it). A claim that is not `claimed` is either a finished
+    event (COMPLETED / PERMANENT) or a lease another attempt still holds (IN_PROGRESS); the
+    caller answers those differently.
 
     It used to call `claim_event`, which claims permanently. That has an invisible and expensive
     failure mode on a payment path:
@@ -589,14 +632,28 @@ def _is_duplicate_event(razorpay_event_id: str, request_id: str) -> bool:
     conditional markers in `lambda_utils/ecommerce/order_keys`, so processing an event twice
     converges on one order rather than making two."""
     if not razorpay_event_id:
-        return False
+        return None
     try:
-        from lambda_utils.webhook_dedup import claim_event_with_lease
-        # Returns True when newly claimed (process); duplicate = not claimed.
-        return not claim_event_with_lease(razorpay_event_id, source='razorpay')
+        from lambda_utils.webhook_dedup import claim_event_lease
+        return claim_event_lease(razorpay_event_id, source='razorpay')
     except Exception as e:
         logger.warning(json.dumps({'event': 'idempotency_check_failed', 'error': str(e), 'requestId': request_id}))
-        return False  # Fail open on check errors — better to process twice than miss
+        return None  # Fail open on check errors — better to process twice than miss
+
+
+def _release_event(razorpay_event_id: str, lease: Any, request_id: str) -> None:
+    """Hand back a lease this delivery holds after it failed. Never raises."""
+    if not razorpay_event_id or lease is None or not getattr(lease, 'claimed', False):
+        return
+    try:
+        from lambda_utils.webhook_dedup import release_event_lease
+        if release_event_lease(razorpay_event_id, lease.lease_expires_at):
+            logger.info(json.dumps({'event': 'webhook_lease_released',
+                                    'razorpayEventId': razorpay_event_id,
+                                    'requestId': request_id}))
+    except Exception as e:  # noqa: BLE001 - an unreleased lease still lapses on its own
+        logger.warning(json.dumps({'event': 'webhook_lease_release_failed',
+                                   'error': type(e).__name__, 'requestId': request_id}))
 
 
 def _complete_event(razorpay_event_id: str, request_id: str) -> None:
@@ -725,12 +782,18 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
                 'currency': row.get('currency', ''),
             }
 
+        # The verifier leaves the payment entity it read from Razorpay here, so the ledger row and
+        # the invoice are built from that readback rather than from this event body.
+        verified: Dict[str, Any] = {}
         outcome = order_creation.reconcile_payment(
             table=table,
             reference_id=reference_id,
             verify_payment=razorpay_verify.verifier_for_event(
-                payment_id=payment_id, order_id=order_id, load_attempt=_load_attempt),
+                payment_id=payment_id, order_id=order_id, load_attempt=_load_attempt,
+                capture=verified),
             load_attempt=_load_attempt,
+            # An existing order only resumes for the payment already bound to it.
+            event_payment_id=payment_id,
         )
 
         logger.info(json.dumps({
@@ -924,6 +987,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         # every render site. `customer_uuid.from_contact` is reused here as the validator - it
         # re-checks the stored value and never raises - so a junk or uuid7 value cannot reach a
         # printed invoice even if some future writer put one on the row.
+        verified_payment = verified.get('payment') or {}
         return {
             **outcome.as_dict(),
             'channel': order_channel.canonical(attribution.get('channel')),
@@ -933,6 +997,12 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             # all - which closes the invoice-delivery gate below, the fail-closed direction.
             'checkoutMode': str(attribution.get('checkoutMode') or ''),
             'invoiceId': str(attribution.get('invoiceId') or ''),
+            # The bound provider payment, for the quarantine paths below.
+            'providerPaymentId': str(outcome.provider_payment_id or ''),
+            # Razorpay's own record of the payment, when this pass read it.
+            'verifiedPayment': (verified_payment if outcome.provider_payment_id
+                                and verified_payment.get('id') == outcome.provider_payment_id
+                                else {}),
         }
 
     except Exception as e:  # noqa: BLE001
@@ -1003,7 +1073,8 @@ def _dispatch_download_grant_confirmation(order_id: str, request_id: str) -> Non
 # PAYMENT EVENT HANDLERS
 # ═══════════════════════════════════════════════════════════════════
 
-def _verified_legacy_invoice(reference_id: str, payment: Dict, request_id: str) -> str:
+def _verified_legacy_invoice(reference_id: str, payment: Dict, request_id: str,
+                             verified: Optional[Dict[str, Any]] = None) -> str:
     """The claimed invoice id when this reference is a genuine, provider-verified, BOUND legacy
     invoice; an empty string otherwise.
 
@@ -1015,7 +1086,7 @@ def _verified_legacy_invoice(reference_id: str, payment: Dict, request_id: str) 
 
       1. An existing InvoicesTable row for this referenceId (exactly one; an ambiguous match is
          refused rather than guessed).
-      2. An authoritative provider readback (`razorpay_verify.payment_capture_details`, never the
+      2. An authoritative provider readback (`razorpay_verify.payment_entity`, never the
          event body) that the named payment is CAPTURED, in INR, for the invoice total to the
          paise.
       3. R2 binding: the invoice row must itself carry a stored provider identifier and the
@@ -1106,8 +1177,12 @@ def _verified_legacy_invoice(reference_id: str, payment: Dict, request_id: str) 
         payment_id = str(payment.get('id') or '')
         if not payment_id:
             return ''
-        (captured, provider_paise, provider_currency,
-         provider_order_id) = razorpay_verify.payment_capture_details(payment_id)
+        # The full entity, so the caller's ledger row is built from this same readback.
+        provider_entity = razorpay_verify.payment_entity(payment_id)
+        captured = str(provider_entity.get('status') or '') == razorpay_verify.CAPTURED
+        provider_paise = int(provider_entity.get('amount') or 0)
+        provider_currency = str(provider_entity.get('currency') or '')
+        provider_order_id = str(provider_entity.get('order_id') or '')
         if not captured:
             return ''
         if str(provider_currency or '') != 'INR':
@@ -1170,6 +1245,8 @@ def _verified_legacy_invoice(reference_id: str, payment: Dict, request_id: str) 
             'stage': 'legacy_verify',
             'requestId': request_id,
         }))
+        if verified is not None:
+            verified['payment'] = dict(provider_entity)
         # Return the claimed invoice id so the caller can release this one-time claim if the
         # subsequent settle no-ops (the stranded-claim window the review flagged).
         return invoice_id
@@ -1307,15 +1384,18 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
          (`reserve_topup_intent`) before the payment link is created, carrying the WABA and amount
          the business actually asked for. No intent -> this is not an authorised top-up -> credit
          nothing. The event notes are never the authority for who or how much.
-      2. The captured amount is VERIFIED against Razorpay's API (`payment_is_captured`), never read
-         from the event, and must equal the stored intent's amount in INR to the paise.
-      3. An idempotency marker (`claim_topup_credit`, keyed by payment id, conditional) is claimed
-         BEFORE the credit, so one captured payment credits exactly once and a redelivery credits
-         nothing.
+      2. The captured amount is VERIFIED against Razorpay's API (`payment_capture_details`), never
+         read from the event, and must equal the stored intent's amount in INR to the paise. The
+         payment must also be one Razorpay lists under the payment link stored on the intent
+         (`paymentLinkId`), on that link's order.
+      3. The intent flips to credited conditionally (`mark_topup_intent_credited`), so one intent
+         credits once, and a per-payment marker (`claim_topup_credit`) is claimed BEFORE the
+         credit, so a redelivery credits nothing.
 
-    Never raises: a non-2xx makes Razorpay retry the whole event, and nothing here is worth that.
-    Returns a narrow authoritative settlement projection so the caller can persist the capture in
-    PaymentsTable without trusting the webhook body's amount or WABA attribution.
+    Raises only `RazorpayUnavailable`, from the readbacks before anything is written, so Razorpay
+    retries. Every other failure is parked. Returns a narrow authoritative settlement projection
+    so the caller can persist the capture in PaymentsTable without trusting the webhook body's
+    amount or WABA attribution.
     """
     from decimal import Decimal
     from lambda_utils.ecommerce import order_keys
@@ -1371,10 +1451,34 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
 
+        # The intent must name the payment link it was created with; an intent without one
+        # (created before links were recorded) is credited by a human, never by an event.
+        link_id = str(intent.get('paymentLinkId') or '')
+        if not link_id:
+            logger.error(json.dumps({'event': 'partner_wallet_topup_intent_unbound',
+                                     'alert': 'TOPUP_INTENT_UNBOUND', 'paymentId': payment_id,
+                                     'referenceId': reference_id or None, 'stage': 'wallet_topup',
+                                     'requestId': request_id}))
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+
         # Gate 2: authoritative provider verification of the captured amount. Never the event body.
-        captured, provider_paise, provider_currency = razorpay_verify.payment_is_captured(
-            payment_id)
+        captured, provider_paise, provider_currency, provider_order_id = (
+            razorpay_verify.payment_capture_details(payment_id))
         if not captured or str(provider_currency or '') != 'INR':
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+        # ...and that THIS payment was made on the intent's link: Razorpay lists the link's
+        # captured payments and its order. Same amount and same reference are not enough.
+        link = razorpay_verify.payment_link_entity(link_id)
+        link_payment_ids = {str(row.get('payment_id') or '') for row in (link.get('payments') or [])
+                            if isinstance(row, dict) and row.get('status') == razorpay_verify.CAPTURED}
+        link_order_id = str(link.get('order_id') or '')
+        if payment_id not in link_payment_ids or (link_order_id and link_order_id != provider_order_id):
+            logger.error(json.dumps({'event': 'partner_wallet_topup_payment_not_for_intent',
+                                     'alert': 'TOPUP_PAYMENT_NOT_FOR_INTENT',
+                                     'paymentId': payment_id, 'referenceId': reference_id or None,
+                                     'stage': 'wallet_topup', 'requestId': request_id}))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
         try:
@@ -1391,11 +1495,32 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
 
-        # Gate 3: idempotency. Claim the credit BEFORE applying it, so a duplicate delivery that
-        # loses the claim credits nothing. A lost claim is the normal duplicate case, not an error.
+        # Gate 3: idempotency, BEFORE the credit. The intent flips to credited conditionally, so
+        # one intent credits once; a redelivery of the payment that flipped it is the normal
+        # duplicate case, and any other payment is parked.
+        flipped, credited_by = order_keys.mark_topup_intent_credited(
+            table, reference_id=reference_id, payment_id=payment_id)
+        if not flipped and credited_by != payment_id:
+            logger.error(json.dumps({'event': 'partner_wallet_topup_intent_already_credited',
+                                     'alert': 'TOPUP_INTENT_ALREADY_CREDITED',
+                                     'paymentId': payment_id, 'referenceId': reference_id or None,
+                                     'stage': 'wallet_topup', 'requestId': request_id}))
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+        # The per-payment claim, taken just before the credit. Lost on a redelivery of this
+        # payment (a duplicate); won after a crash between the flip and here (finish the credit).
         if not order_keys.claim_topup_credit(
                 table, payment_id=payment_id, reference_id=reference_id,
                 waba_id=intent_waba, amount_paise=intent_paise):
+            if flipped:
+                # This intent was never credited, yet the payment already credited something.
+                logger.error(json.dumps({'event': 'partner_wallet_topup_payment_already_credited',
+                                         'alert': 'TOPUP_INTENT_ALREADY_CREDITED',
+                                         'paymentId': payment_id,
+                                         'referenceId': reference_id or None,
+                                         'stage': 'wallet_topup', 'requestId': request_id}))
+                _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+                return {'settled': False}
             logger.info(json.dumps({'event': 'partner_wallet_topup_duplicate_skipped',
                                     'paymentId': payment_id, 'referenceId': reference_id or None,
                                     'stage': 'wallet_topup', 'requestId': request_id}))
@@ -1414,11 +1539,19 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
                                 'stage': 'wallet_topup', 'requestId': request_id}, default=str))
         return {'settled': True, 'duplicate': False, 'referenceId': reference_id,
                 'amountPaise': intent_paise, 'currency': 'INR'}
+    except razorpay_verify.RazorpayUnavailable:
+        # Only the readbacks before Gate 3 call Razorpay, so nothing is written yet: answer
+        # non-2xx and let Razorpay retry instead of dropping a genuine top-up.
+        logger.error(json.dumps({'event': 'partner_wallet_topup_unverified',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'stage': 'wallet_topup', 'requestId': request_id}))
+        raise
     except Exception as e:  # noqa: BLE001
         # Type only. A ClientError / provider error message can echo request content.
         logger.error(json.dumps({'event': 'partner_wallet_topup_error',
                                  'error': type(e).__name__, 'paymentId': payment_id,
                                  'stage': 'wallet_topup', 'requestId': request_id}))
+        _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
         return {'settled': False}
 
 
@@ -1501,7 +1634,8 @@ def _emit_reconciliation_metrics(metrics: Dict, request_id: str) -> None:
                                    'error': type(error).__name__, 'requestId': request_id}))
 
 
-def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id: str) -> None:
+def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id: str,
+                                    *, payment_id: str = '') -> None:
     """Resume the complete manual order projection from stored verified payment evidence."""
     from lambda_utils import shared_tables
     from lambda_utils.ecommerce import paid_invoice_order, wa_payment_request
@@ -1541,9 +1675,12 @@ def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id
             'referenceId': reference_id, 'stage': row['finalizationStage'], 'requestId': request_id}))
     except Exception as error:
         logger.error(json.dumps({'event': 'paid_invoice_order_projection_failed',
+            'alert': 'PAID_BUT_NO_ORDER_RECORD',
             'referenceId': reference_id, 'error': type(error).__name__, 'requestId': request_id}))
         # Leave a durable intake record AND fail this delivery so the webhook lease can retry.
-        provider_id = str(outcome.get('providerPaymentId') or '')
+        # The reconciliation outcome carries the bound payment id; the caller's id is the
+        # fallback, so `redriveQuarantinedCapture` can always find this row.
+        provider_id = str(outcome.get('providerPaymentId') or payment_id or '')
         if provider_id:
             order_keys.record_capture_quarantine(dynamodb.Table(COMMERCE_KEYS_TABLE),
                 payment_id=provider_id, reference_id=reference_id,
@@ -1632,8 +1769,109 @@ def _store_verified_special_capture(payment: Dict, settlement: Dict[str, Any],
 
 
 
-def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
-    """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
+def _verified_capture_entity(payment_id: str, reference_id: str,
+                             holder: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Razorpay's own record of a captured payment, with OUR reference on its notes.
+
+    Uses the entity this pass already read (`holder['payment']`) when it is for this payment,
+    and otherwise reads it. Raises rather than falling back to the event body.
+    """
+    from lambda_utils.integrations import razorpay_verify
+    entity = (holder or {}).get('payment') or {}
+    if not payment_id or str(entity.get('id') or '') != payment_id:
+        entity = razorpay_verify.payment_entity(payment_id)
+    # A payment refunded since its capture was still captured.
+    if (str(entity.get('id') or '') != payment_id
+            or str(entity.get('status') or '') not in (razorpay_verify.CAPTURED, 'refunded')):
+        raise RuntimeError('verified payment entity unavailable')
+    entity = dict(entity)
+    notes = dict(entity['notes']) if isinstance(entity.get('notes'), dict) else {}
+    if reference_id:
+        notes['referenceId'] = reference_id
+    entity['notes'] = notes
+    return entity
+
+
+#: The attempt-row marker the sweep resumes from. Present only while a post-capture step of a
+#: verified capture is unfinished.
+_POST_CAPTURE_PENDING = 'PENDING'
+
+
+def _mark_post_capture_pending(attempt_id: str, reference_id: str, payment_id: str, step: str,
+                               request_id: str) -> None:
+    """Record on the PAID attempt that a post-capture step failed. Never raises."""
+    logger.error(json.dumps({'event': 'post_capture_step_pending',
+                             'alert': 'NEEDS_RECONCILIATION', 'step': step or None,
+                             'paymentId': payment_id or None, 'referenceId': reference_id or None,
+                             'durable': bool(attempt_id and payment_id and reference_id),
+                             'requestId': request_id}))
+    if not attempt_id or not payment_id or not reference_id:
+        return  # the legacy invoice path has no attempt; its quarantine row is the record
+    now = int(time.time())
+    try:
+        dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).update_item(
+            Key={'paymentAttemptId': attempt_id},
+            UpdateExpression=('SET postCapturePending = :pending, postCapturePaymentId = :pid, '
+                              'postCaptureStep = :step, '
+                              'postCapturePendingAt = if_not_exists(postCapturePendingAt, :now), '
+                              'postCaptureUpdatedAt = :now'),
+            ConditionExpression='attribute_exists(paymentAttemptId) AND referenceId = :ref',
+            ExpressionAttributeValues={':pending': _POST_CAPTURE_PENDING, ':pid': payment_id,
+                                       ':step': step or 'unknown', ':now': now,
+                                       ':ref': reference_id})
+    except Exception as error:  # noqa: BLE001 - the alert above still fires
+        logger.error(json.dumps({'event': 'post_capture_marker_write_failed',
+                                 'paymentId': payment_id, 'error': type(error).__name__,
+                                 'requestId': request_id}))
+
+
+def _post_capture_settled(attempt_id: str, payment_id: str, order_id: str, request_id: str,
+                          *, resolve_quarantine: bool = True) -> None:
+    """Clear the resume marker and resolve this payment's quarantine row. Never raises."""
+    if attempt_id and payment_id:
+        try:
+            dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).update_item(
+                Key={'paymentAttemptId': attempt_id},
+                UpdateExpression=('REMOVE postCapturePending, postCaptureStep, postCapturePendingAt '
+                                  'SET postCaptureSettledAt = :now'),
+                ConditionExpression='attribute_exists(postCapturePending) AND postCapturePaymentId = :pid',
+                ExpressionAttributeValues={':now': int(time.time()), ':pid': payment_id})
+            logger.info(json.dumps({'event': 'post_capture_marker_cleared',
+                                    'paymentId': payment_id, 'requestId': request_id}))
+        except Exception as error:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(error):  # no marker is the normal case
+                logger.warning(json.dumps({'event': 'post_capture_marker_clear_failed',
+                                           'paymentId': payment_id,
+                                           'error': type(error).__name__, 'requestId': request_id}))
+    if not resolve_quarantine or not payment_id:
+        return
+    try:
+        from lambda_utils.ecommerce import order_creation
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        parked = order_keys.resolve_capture_quarantine(keys, payment_id) or {}
+        if (parked and str(parked.get('status') or '') != 'RESOLVED'
+                and parked.get('outcome') != order_creation.DUPLICATE_CAPTURE):
+            order_keys.mark_capture_quarantine_resolved(
+                keys, payment_id=payment_id,
+                resolution='capture settled by a later delivery or the scheduled sweep',
+                actor='system:razorpay-webhook', order_id=order_id)
+            logger.info(json.dumps({'event': 'capture_quarantine_auto_resolved',
+                                    'paymentId': payment_id,
+                                    'outcome': parked.get('outcome') or None,
+                                    'requestId': request_id}))
+    except Exception as error:  # noqa: BLE001 - the row stays listed for a human
+        logger.warning(json.dumps({'event': 'capture_quarantine_resolve_failed',
+                                   'paymentId': payment_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
+
+
+def _handle_payment_captured(event_data: Dict, request_id: str, *, resume: bool = False) -> None:
+    """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice.
+
+    `resume` is the scheduled sweep finishing a capture whose post-capture steps failed earlier.
+    It runs the same claim-guarded steps but never sends the order-status messages or the CTWA
+    Purchase event, and never raises to retry a receipt.
+    """
     payment = event_data.get('payment', {}).get('entity', {})
     payment_id = payment.get('id', '')
     # INTEGER PAISE is the single value. `amount_rupees` is gone: it was a float derived by
@@ -1752,9 +1990,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # invoice-only payment. Every other outcome (paid-but-blocked, not-paid, unavailable, error,
     # needs-reconciliation) goes straight to durable quarantine and never touches an invoice.
     legacy_invoice_id = ''
+    legacy_verified: Dict[str, Any] = {}
     if reference_id and not verified_paid and outcome_kind == order_creation.UNKNOWN_REFERENCE:
         legacy_invoice_id = _verified_legacy_invoice(
-            reference_id, payment, request_id)
+            reference_id, payment, request_id, verified=legacy_verified)
     legacy_invoice_verified = bool(legacy_invoice_id)
 
     financial_success = verified_paid or legacy_invoice_verified
@@ -1785,6 +2024,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # release. A cross-reference replay still loses the held claim while it is held; a one-payment-
     # two-invoices (ambiguous) case still settles none. R1/C1 and R2 are untouched: the commerce
     # path below is unchanged, and the legacy claim/settle ordering only adds a release on failure.
+    # Which step of the post-capture work is running, and which ones still need a later pass.
+    # A failure writes a durable marker on the attempt so the 5-minute sweep can finish it.
+    post_state: Dict[str, Any] = {'pending': [], 'step': 'ledger'}
+    attempt_id = str((outcome or {}).get('paymentAttemptId') or '')
     if legacy_invoice_verified:
         if not _mark_invoice_paid_by_reference(reference_id, request_id, payment_id):
             _release_legacy_invoice_payment_claim(
@@ -1792,14 +2035,32 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
             _quarantine_unverified_capture(reference_id, payment_id, outcome, request_id)
             return
         # A legacy invoice row is now settled and the claim is backed by it. Record the captured
-        # financial state.
+        # financial state, from the readback the legacy verifier made.
+        payment = _verified_capture_entity(payment_id, reference_id, legacy_verified)
         _store_payment_record(payment, 'captured', request_id)
     else:
         # Verified commerce path (ORDER_CREATED / ORDER_ALREADY_EXISTS). The authoritative order
-        # already exists via reconcile; the invoice-paid write is a secondary projection. Ordering
-        # and behaviour here are unchanged from before this reconciliation was added.
+        # already exists via reconcile; the invoice-paid write is a secondary projection. The
+        # ledger row (which the invoice reads its amount and payer from) is Razorpay's own record
+        # of the payment, never this event body.
+        payment_id = payment_id or str((outcome or {}).get('providerPaymentId') or '')
+        try:
+            payment = _verified_capture_entity(
+                payment_id, reference_id, {'payment': (outcome or {}).get('verifiedPayment')})
+        except Exception:
+            _mark_post_capture_pending(attempt_id, reference_id, payment_id, 'ledger', request_id)
+            raise
         _store_payment_record(payment, 'captured', request_id)
         _mark_invoice_paid_by_reference(reference_id, request_id, payment_id)
+
+    # Everything below reads the verified entity.
+    amount_paise = payment_status.paise(payment.get('amount', 0))
+    currency = payment.get('currency') or 'INR'
+    order_id = payment.get('order_id') or ''
+    contact = payment.get('contact') or ''
+    email = payment.get('email') or ''
+    description = payment.get('description') or ''
+    notes = payment['notes']
 
     # Post-payment: create invoice, generate image (internal reference only)
     #
@@ -1817,44 +2078,65 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # runs AFTER `_post_payment_handler` returns - so the invoice delivery that call now performs
     # had no sender to use. Resolved here instead, so the GST invoice returns from the SAME
     # number that collected the payment, and the WABA1 default travels WITH the resolution.
-    _materialize_paid_invoice_order(reference_id, outcome or {}, request_id)
-    contact = _notification_recipient(reference_id, contact)
-    originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
+    try:
+        post_state['step'] = 'projection'
+        _materialize_paid_invoice_order(reference_id, outcome or {}, request_id,
+                                        payment_id=payment_id)
+        contact = _notification_recipient(reference_id, contact)
+        originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
-    # Post-payment sequence (`_post_payment_handler`), every step claim-guarded so a redelivery or
-    # a sweep re-run repeats nothing:
-    #   1. the invoice is created once, numbered, and its paid image rendered;
-    #   2. WhatsApp-paid orders only: ORDER_STATUS `processing` then `completed` through the
-    #      approved wecare_order_status_v3 template (`_start_native_fulfilment`);
-    #   3. the paid invoice template, once - the statutory receipt with the Leave Review button.
-    # Staff changes never send a WhatsApp order_status; physical/service fulfilment is internal.
-    checkout_mode = str((outcome or {}).get('checkoutMode') or '')
-    invoice_delivered = _post_payment_handler(
-        payment_id, contact, email, description, notes, request_id,
-        channel=str((outcome or {}).get('channel') or ''),
-        customer_uuid=str((outcome or {}).get('customerUuid') or ''),
-        checkout_mode=checkout_mode,
-        originating_phone_id=originating_phone_id,
-        reference_id=reference_id,
-    )
-
-    # One-payment -> one-service-Flow, and only AFTER the statutory invoice message is confirmed.
-    # Ordinary orders no-op in the receiver because their PAYREF# has no serviceLine.
-    if invoice_delivered and reference_id:
-        _dispatch_post_invoice_service_flow(
+        # Post-payment sequence (`_post_payment_handler`), every step claim-guarded so a
+        # redelivery or a sweep re-run repeats nothing:
+        #   1. the invoice is created once, numbered, and its paid image rendered;
+        #   2. WhatsApp-paid orders only: ORDER_STATUS `processing` then `completed` through the
+        #      approved wecare_order_status_v3 template (`_start_native_fulfilment`);
+        #   3. the paid invoice template, once - the statutory receipt with the Leave Review button.
+        # Staff changes never send a WhatsApp order_status; physical/service fulfilment is internal.
+        checkout_mode = str((outcome or {}).get('checkoutMode') or '')
+        invoice_delivered = _post_payment_handler(
+            payment_id, contact, email, description, notes, request_id,
+            channel=str((outcome or {}).get('channel') or ''),
+            customer_uuid=str((outcome or {}).get('customerUuid') or ''),
+            checkout_mode=checkout_mode,
+            originating_phone_id=originating_phone_id,
             reference_id=reference_id,
-            payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
-            order_id=str((outcome or {}).get('orderId') or order_id or ''),
-            request_id=request_id,
+            resume=resume,
+            state=post_state,
         )
+
+        # One-payment -> one-service-Flow, and only AFTER the statutory invoice message is
+        # confirmed. Ordinary orders no-op in the receiver because their PAYREF# has no serviceLine.
+        if invoice_delivered and reference_id:
+            post_state['step'] = 'service'
+            if not _dispatch_post_invoice_service_flow(
+                    reference_id=reference_id,
+                    payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
+                    order_id=str((outcome or {}).get('orderId') or order_id or ''),
+                    request_id=request_id,
+                    invoice_id=str(post_state.get('invoiceId') or '')):
+                post_state['pending'].append('service')
+    except Exception:
+        _mark_post_capture_pending(
+            attempt_id, reference_id, payment_id,
+            ','.join(dict.fromkeys(post_state['pending'] + [str(post_state.get('step') or '')])),
+            request_id)
+        raise
+    if post_state['pending']:
+        _mark_post_capture_pending(attempt_id, reference_id, payment_id,
+                                   ','.join(dict.fromkeys(post_state['pending'])), request_id)
+    else:
+        _post_capture_settled(attempt_id, payment_id, str((outcome or {}).get('orderId') or ''),
+                              request_id, resolve_quarantine=not post_state.get('receiptExhausted'))
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
-    # (returns 400, just logged) for non-ad conversations. Fire-and-forget.
-    _log_ctwa_purchase(
-        contact, amount_paise, currency, order_id, notes, request_id,
-        payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
-    )
+    # (returns 400, just logged) for non-ad conversations. Fire-and-forget. Not claim-guarded,
+    # so the sweep's resume pass never sends it.
+    if not resume:
+        _log_ctwa_purchase(
+            contact, amount_paise, currency, order_id, notes, request_id,
+            payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
+        )
 
     # Post-payment service activation remains an internal business step.
     #
@@ -1862,7 +2144,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # The paid-submit-request handler this
     # invokes no longer pushes a separate interactive Flow invitation; it only activates the
     # service relationship and preserves the details-collection model for its normal entry points.
-    if contact and reference_id:
+    # Diagnostics only (it sends nothing), so the sweep's resume pass skips it.
+    if contact and reference_id and not resume:
         try:
             clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
             if not clean_phone.startswith('91') and len(clean_phone) == 10:
@@ -2110,20 +2393,40 @@ def _handle_payment_pending(event_data: Dict, request_id: str) -> None:
 
 
 def _handle_payment_failed(event_data: Dict, request_id: str) -> None:
-    """Handle payment.failed — payment attempt failed. Update linked invoice status."""
+    """Handle payment.failed — payment attempt failed. Update linked invoice status.
+
+    Confirmed with `GET /payments/{id}` first; unreachable Razorpay writes nothing and raises.
+    """
     payment = event_data.get('payment', {}).get('entity', {})
     payment_id = payment.get('id', '')
     error_code = payment.get('error_code', '')
     error_desc = payment.get('error_description', '')
-    # Razorpay serialises EMPTY notes as `[]`; `.get` on it raised AttributeError, turning every
-    # notes-less `payment.failed` into a 500 that Razorpay retries. Same guard as the capture path.
-    notes = payment.get('notes')
-    if not isinstance(notes, dict):
-        notes = {}
     logger.warning(json.dumps({
         'event': 'payment_failed', 'paymentId': payment_id,
         'errorCode': error_code, 'errorDesc': error_desc, 'requestId': request_id,
     }))
+    if not payment_id:
+        return
+    # The body is a trigger. Razorpay must say the payment failed before anything records it,
+    # and the record (including the reference whose invoice is marked failed) is Razorpay's.
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        payment = razorpay_verify.payment_entity(str(payment_id))
+    except Exception as exc:  # noqa: BLE001 - nothing is written; Razorpay retries the 500
+        logger.error(json.dumps({'event': 'payment_failed_unverified',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'error': type(exc).__name__, 'requestId': request_id}))
+        raise RuntimeError('payment.failed could not be confirmed with Razorpay') from None
+    if str(payment.get('status') or '') != 'failed':
+        logger.error(json.dumps({'event': 'payment_failed_not_confirmed',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'providerStatus': str(payment.get('status') or ''),
+                                 'requestId': request_id}))
+        return
+    # Razorpay serialises EMPTY notes as `[]`; anything that is not an object carries no notes.
+    notes = payment.get('notes')
+    if not isinstance(notes, dict):
+        notes = {}
     _store_payment_record(payment, 'failed', request_id)
 
     # Update linked invoice status to payment_failed (if referenceId exists)
@@ -2714,7 +3017,8 @@ def _post_payment_handler(payment_id: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
                           *, channel: str = '', customer_uuid: str = '',
                           checkout_mode: str = '', originating_phone_id: str = '',
-                          reference_id: str = '') -> bool:
+                          reference_id: str = '', resume: bool = False,
+                          state: Optional[Dict[str, Any]] = None) -> bool:
     """
     After payment captured (Razorpay webhook path):
     This is the authoritative invoice path for a verified capture. (It was once described as a
@@ -2745,10 +3049,17 @@ def _post_payment_handler(payment_id: str, contact: str,
     `amount` and `currency` are GONE from this signature rather than retyped. Measured, neither
     name occurred anywhere in the body after the signature - they were dead parameters carrying
     a float on a money path.
+
+    `state` (optional) is filled with the current `step`, the `invoiceId`, the steps still
+    `pending` and whether the receipt retries are exhausted, for the caller's resume marker.
+    `resume` (the sweep) skips the order-status step and does not raise to retry the receipt.
     """
+    state = state if state is not None else {}
+    state.setdefault('pending', [])
     logger.info(json.dumps({'event': 'post_payment_start', 'paymentId': payment_id, 'path': 'webhook_backup', 'requestId': request_id}))
 
     # ── Step 1: Create invoice from payment (dedup-safe) ──
+    state['step'] = 'invoice'
     try:
         invoice_payload = {
             'body': json.dumps({
@@ -2853,11 +3164,13 @@ def _post_payment_handler(payment_id: str, contact: str,
                                  'invoiceId': invoice_id, 'requestId': request_id,
                                  'alert': 'INVOICE_CREATE_FAILED'}))
         raise RuntimeError('invoice creation returned an unnumbered invoice for a verified capture')
+    state['invoiceId'] = invoice_id
 
     # Guarantee the customer PNG even when invoice creation deduplicated onto a pre-payment
     # invoice. Deduplication proves invoice identity, not that a previous render succeeded.
     # The engine's ensure-image route is idempotent: it reuses the newest existing image row
     # and renders only when none exists, so webhook replay cannot create a rendition storm.
+    state['step'] = 'image'
     _ensure_invoice_asset(invoice_id, request_id)
 
     # ── Step 3: finish the Meta payment-order lifecycle before the receipt ──
@@ -2865,8 +3178,11 @@ def _post_payment_handler(payment_id: str, contact: str,
     # Payment-only invariant: pending -> processing -> completed. The chained helper sends the
     # second transition ONLY when processing was accepted (or was already current), so Meta never
     # receives completed out of order. Both sends are template-only in outbound-whatsapp.
-    _start_native_fulfilment(reference_id, checkout_mode, originating_phone_id, request_id,
-                             invoice_id=invoice_id)
+    # The sweep's resume pass does not send them (owner rule: no resend from the sweep).
+    if not resume:
+        state['step'] = 'order_status'
+        _start_native_fulfilment(reference_id, checkout_mode, originating_phone_id, request_id,
+                                 invoice_id=invoice_id)
 
     # ── Step 4: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
     #
@@ -2884,24 +3200,27 @@ def _post_payment_handler(payment_id: str, contact: str,
     # fulfilment remains separate. This template delivers the statutory receipt and its embedded
     # Leave Review Flow button.
     #
-    # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
+    # Delivery is retried by REPLAY: a miss raises so the webhook releases its lease and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
     # re-send idempotent (no double receipt). The retry is bounded by
-    # `_receipt_delivery_should_retry`.
+    # `_receipt_delivery_should_retry`. The raise waits until the Vault dispatch below has run.
+    state['step'] = 'receipt'
     delivered = False
+    receipt_retry = False
     if contact and invoice_id:
         delivered = _deliver_invoice_on_whatsapp(
             invoice_id, contact, originating_phone_id, request_id)
         if not delivered and _receipt_delivery_should_retry(invoice_id, request_id):
-            # A transient miss (Meta down, throttle, uncertain send): raise so the webhook
-            # lease lapses and Razorpay redelivers, and the delivery CLAIM makes the re-send
-            # idempotent. BOUNDED by `_receipt_delivery_should_retry` so a persistently
-            # undeliverable receipt cannot pin the money-path lease in an infinite replay of an
-            # already-captured, already-finalized payment: once the cap is reached the capture
-            # is allowed to settle and the stuck receipt is quarantined for manual follow-up
-            # below. The paid state and the order are already correct at this point.
-            raise RuntimeError('Invoice receipt delivery is pending')
-        if not delivered:
+            # A transient miss (Meta down, throttle, uncertain send): retried by replay below
+            # and by the sweep, and the delivery CLAIM makes the re-send idempotent. BOUNDED by
+            # `_receipt_delivery_should_retry` so a persistently undeliverable receipt cannot pin
+            # the money-path lease in an infinite replay of an already-captured,
+            # already-finalized payment: once the cap is reached the capture is allowed to settle
+            # and the stuck receipt is quarantined for manual follow-up below. The paid state and
+            # the order are already correct at this point.
+            receipt_retry = True
+        elif not delivered:
+            state['receiptExhausted'] = True
             # Retries exhausted. Do NOT raise - the capture must settle. Record a durable
             # quarantine so a human can re-send the receipt; the delivery claim is idempotent,
             # so a later manual or forced resend still cannot double-send.
@@ -2942,12 +3261,14 @@ def _post_payment_handler(payment_id: str, contact: str,
     # template could not be delivered (Meta throttle, template issue) silently never received
     # their paid file access either - two independent deliverables coupled by one flag. The
     # payment is already verified-paid at this point (financial_success gate above); a receipt
-    # miss must not deny paid access. Dispatch is idempotent (grant id derived from
-    # invoiceId|fileId), fire-and-forget, and secure-files re-confirms with Razorpay before any
-    # paid state, so dispatching regardless of receipt state is safe and recoverable by
-    # scripts/reconcile_file_deliveries.py. The Razorpay order id comes from OUR attempt row
-    # (`providerOrderId`, written by meta_payment_binding during reconciliation), never the event.
+    # miss must not deny paid access. It also runs BEFORE the receipt-retry raise below, so a
+    # pending receipt cannot hold it back. The dispatch is claim-guarded per invoice (secure-files
+    # sends the Access Vault link on every settle it runs), fire-and-forget, and secure-files
+    # re-confirms with Razorpay before any paid state. A failed dispatch is left pending for the
+    # sweep. The Razorpay order id comes from OUR attempt row (`providerOrderId`, written by
+    # meta_payment_binding during reconciliation), never the event.
     if invoice_id:
+        state['step'] = 'vault'
         try:
             invoice = dynamodb.Table(INVOICES_TABLE).get_item(
                 Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
@@ -2959,16 +3280,26 @@ def _post_payment_handler(payment_id: str, contact: str,
                 attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
                     Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {} if attempt_id else {}
                 razorpay_order_id = str(attempt.get('providerOrderId') or reservation.get('providerOrderId') or '')
-                _dispatch_vault_settlement(
-                    invoice_id=invoice_id, file_id=vault_file_id,
-                    customer_id=str(invoice.get('vaultCustomerId') or ''),
-                    razorpay_order_id=razorpay_order_id, payment_id=payment_id,
-                    reference_id=reference_id, request_id=request_id)
+                if not _dispatch_vault_settlement(
+                        invoice_id=invoice_id, file_id=vault_file_id,
+                        customer_id=str(invoice.get('vaultCustomerId') or ''),
+                        razorpay_order_id=razorpay_order_id, payment_id=payment_id,
+                        reference_id=reference_id, request_id=request_id):
+                    state['pending'].append('vault')
         except Exception as vault_error:  # noqa: BLE001 - payment/receipt are already complete
-            logger.warning(json.dumps({'event': 'vault_settlement_dispatch_unavailable',
-                                       'invoiceId': invoice_id,
-                                       'error': type(vault_error).__name__,
-                                       'requestId': request_id}))
+            state['pending'].append('vault')
+            logger.error(json.dumps({'event': 'vault_settlement_dispatch_unavailable',
+                                     'alert': 'PAID_VAULT_UNFULFILLED',
+                                     'invoiceId': invoice_id,
+                                     'error': type(vault_error).__name__,
+                                     'requestId': request_id}))
+
+    if receipt_retry:
+        state['pending'].append('receipt')
+        if not resume:
+            # Replay is the retry: the webhook answers non-2xx and releases its lease.
+            state['step'] = 'receipt'
+            raise RuntimeError('Invoice receipt delivery is pending')
 
     # The invoice template itself contains the Leave Review Flow button.
     # Do not send a second standalone review template from the payment webhook.
@@ -2978,9 +3309,40 @@ def _post_payment_handler(payment_id: str, contact: str,
     return bool(delivered)
 
 
+#: Delivery-claim channels for the two fire-and-forget hand-offs, one dispatch per invoice.
+_VAULT_DISPATCH_CHANNEL = 'vault-settlement'
+_SERVICE_FLOW_DISPATCH_CHANNEL = 'service-flow'
+
+
+def _claim_dispatch(invoice_id: str, channel: str, request_id: str) -> Optional[bool]:
+    """True: this pass may dispatch. False: an earlier pass already did. None: unknown."""
+    try:
+        return order_keys.claim_invoice_delivery(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), invoice_id=invoice_id, channel=channel,
+            extra={'requestId': request_id})
+    except Exception as error:  # noqa: BLE001 - not dispatching is the safe answer; retried later
+        logger.warning(json.dumps({'event': 'dispatch_claim_unavailable', 'channel': channel,
+                                   'invoiceId': invoice_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
+        return None
+
+
+def _settle_dispatch_claim(invoice_id: str, channel: str, *, dispatched: bool) -> None:
+    """Confirm the claim after a dispatch; release it when the invoke was refused."""
+    table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    try:
+        if dispatched:
+            order_keys.confirm_invoice_delivery(table, invoice_id=invoice_id, channel=channel)
+        else:
+            order_keys.release_invoice_delivery(table, invoice_id=invoice_id, channel=channel)
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'dispatch_claim_settle_failed', 'channel': channel,
+                                   'invoiceId': invoice_id, 'error': type(error).__name__}))
+
+
 def _dispatch_vault_settlement(*, invoice_id: str, file_id: str, customer_id: str,
                                razorpay_order_id: str, payment_id: str, reference_id: str,
-                               request_id: str) -> None:
+                               request_id: str) -> bool:
     """Hand secure-files a paid Vault invoice to settle and deliver. Grants nothing itself.
 
     secure-files is the only owner of the DownloadGrants invariants and the only sender of the
@@ -2989,9 +3351,19 @@ def _dispatch_vault_settlement(*, invoice_id: str, file_id: str, customer_id: st
     re-verifies the capture with Razorpay (`order_is_paid`) before it writes any paid grant, so a
     forged event - including one signed with the webhook secret in this repo's public git history
     - cannot mint a free download. Fire-and-forget on an Event invoke; nothing here is awaited.
+
+    Once per invoice: secure-files sends the Access Vault link on every settle, so a replay or a
+    sweep pass must not dispatch again. Returns False when the dispatch still has to happen.
     """
     if not invoice_id or not file_id:
-        return
+        return True
+    claimed = _claim_dispatch(invoice_id, _VAULT_DISPATCH_CHANNEL, request_id)
+    if claimed is None:
+        return False
+    if not claimed:
+        logger.info(json.dumps({'event': 'vault_settlement_already_dispatched',
+                                'invoiceId': invoice_id, 'requestId': request_id}))
+        return True
     try:
         lambda_client.invoke(
             FunctionName='wecare-secure-files:live',
@@ -3009,16 +3381,33 @@ def _dispatch_vault_settlement(*, invoice_id: str, file_id: str, customer_id: st
         logger.info(json.dumps({'event': 'vault_settlement_dispatched', 'invoiceId': invoice_id,
                                 'fileId': file_id, 'requestId': request_id}))
     except Exception as exc:  # noqa: BLE001 - type only; a ClientError message can echo content
+        # The Event invoke was refused, so nothing was queued: release for the next pass.
+        _settle_dispatch_claim(invoice_id, _VAULT_DISPATCH_CHANNEL, dispatched=False)
         logger.error(json.dumps({'event': 'vault_settlement_dispatch_failed',
+                                  'alert': 'PAID_VAULT_UNFULFILLED',
                                   'invoiceId': invoice_id, 'error': type(exc).__name__,
                                   'requestId': request_id}))
+        return False
+    _settle_dispatch_claim(invoice_id, _VAULT_DISPATCH_CHANNEL, dispatched=True)
+    return True
 
 
 def _dispatch_post_invoice_service_flow(*, reference_id: str, payment_attempt_id: str,
-                                        order_id: str, request_id: str) -> None:
-    """Hint the service Flow launcher only after invoice delivery is confirmed. Never raises."""
+                                        order_id: str, request_id: str,
+                                        invoice_id: str = '') -> bool:
+    """Hint the service Flow launcher only after invoice delivery is confirmed. Never raises.
+
+    Once per invoice when the invoice id is known. Returns False when the dispatch still has to
+    happen.
+    """
     if not reference_id or not payment_attempt_id or not order_id:
-        return
+        return True
+    if invoice_id:
+        claimed = _claim_dispatch(invoice_id, _SERVICE_FLOW_DISPATCH_CHANNEL, request_id)
+        if claimed is None:
+            return False
+        if not claimed:
+            return True
     try:
         lambda_client.invoke(
             FunctionName='wecare-whatsapp-business-api:live',
@@ -3037,12 +3426,18 @@ def _dispatch_post_invoice_service_flow(*, reference_id: str, payment_attempt_id
             'requestId': request_id,
         }))
     except Exception as error:  # noqa: BLE001 - payment/invoice are already complete
+        if invoice_id:
+            _settle_dispatch_claim(invoice_id, _SERVICE_FLOW_DISPATCH_CHANNEL, dispatched=False)
         logger.warning(json.dumps({
             'event': 'post_invoice_service_flow_dispatch_failed',
             'referenceId': reference_id,
             'error': type(error).__name__,
             'requestId': request_id,
         }))
+        return False
+    if invoice_id:
+        _settle_dispatch_claim(invoice_id, _SERVICE_FLOW_DISPATCH_CHANNEL, dispatched=True)
+    return True
 
 
 def _ensure_invoice_asset(invoice_id: str, request_id: str) -> None:
@@ -3280,41 +3675,156 @@ def _handle_refund(event_type: str, event_data: Dict, request_id: str) -> None:
         'amountPaise': refund_paise, 'status': status, 'requestId': request_id,
     }))
 
-    # Update payment record status if refund processed
-    if event_type == 'refund.processed' and payment_id and refund_paise is not None:
+    # Only a processed refund changes state, and only after Razorpay confirms it.
+    if event_type == 'refund.processed' and refund_id:
+        _record_verified_refund(str(refund_id), str(payment_id or ''), request_id)
+
+
+#: Refund vocabulary on payment, invoice and order rows (`refundStatus`).
+_REFUND_FULL = payment_status.REFUNDED
+_REFUND_PARTIAL = 'partially_refunded'
+
+
+def _record_verified_refund(refund_id: str, event_payment_id: str, request_id: str) -> None:
+    """Record a refund Razorpay confirms, with the payment's SUMMED refunded amount.
+
+    `GET /refunds/{id}` must say processed, and `GET /payments/{id}` supplies `amount_refunded`
+    (every processed refund so far). A full refund moves the payment to `refunded`; a partial one
+    leaves it captured and records `partially_refunded`. Unreachable Razorpay writes nothing and
+    raises, so the event is retried.
+    """
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        refund = razorpay_verify.refund_entity(refund_id)
+        payment_id = str(refund.get('payment_id') or '')
+        payment = razorpay_verify.payment_entity(payment_id) if payment_id else {}
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'refund_unverified', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id, 'error': type(exc).__name__,
+                                 'requestId': request_id}))
+        raise RuntimeError('refund could not be confirmed with Razorpay') from None
+    if (str(refund.get('status') or '') != 'processed' or not payment_id
+            or (event_payment_id and event_payment_id != payment_id)):
+        logger.error(json.dumps({'event': 'refund_not_confirmed', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id,
+                                 'providerStatus': str(refund.get('status') or ''),
+                                 'requestId': request_id}))
+        return
+    try:
+        captured_paise = payment_status.paise(payment.get('amount'))
+        refunded_paise = payment_status.paise(payment.get('amount_refunded'))
+    except ValueError:
+        refunded_paise = 0
+    if refunded_paise <= 0:
+        logger.error(json.dumps({'event': 'refund_amount_unusable', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'refundId': refund_id, 'paymentId': payment_id,
+                                 'requestId': request_id}))
+        return
+    full = (refunded_paise >= captured_paise
+            or str(payment.get('refund_status') or '') == 'full')
+    refund_state = _REFUND_FULL if full else _REFUND_PARTIAL
+    now = Decimal(str(int(time.time())))
+
+    # The payment row. Monotonic in the summed amount, so a late or replayed event for an
+    # earlier, smaller refund never rewinds it. Only a full refund moves the status rank.
+    names = {'#refundId': 'refundId', '#refundAmount': 'refundAmountPaise',
+             '#refundStatus': 'refundStatus', '#ua': 'updatedAt'}
+    values = {':rid': refund_id, ':sum': Decimal(refunded_paise), ':rs': refund_state,
+              ':now': now, ':rids': {refund_id}}
+    sets = ['#refundId = :rid', '#refundAmount = :sum', '#refundStatus = :rs', '#ua = :now']
+    condition = 'attribute_not_exists(#refundAmount) OR #refundAmount < :sum'
+    if full:
+        names.update({'#st': 'status', '#rank': payment_status.RANK_ATTRIBUTE})
+        values.update({':st': payment_status.REFUNDED,
+                       ':rank': payment_status.rank(payment_status.REFUNDED)})
+        sets += ['#st = :st', '#rank = :rank']
+        condition = f'(attribute_not_exists(#rank) OR #rank <= :rank) AND ({condition})'
+    expression = 'SET ' + ', '.join(sets) + ' ADD refundIds :rids'
+    try:
+        dynamodb.Table(PAYMENTS_TABLE).update_item(
+            Key={'id': payment_id}, UpdateExpression=expression, ConditionExpression=condition,
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+    except Exception as e:  # noqa: BLE001
+        if not order_keys.is_conditional_failure(e):
+            raise
+        logger.info(json.dumps({'event': 'refund_status_not_applied', 'paymentId': payment_id,
+                                'refundId': refund_id,
+                                'reason': 'a refund total at least this large is recorded',
+                                'requestId': request_id}))
+
+    _record_on_payment_records(
+        payment_id, request_id, kind='refund',
+        fields={'refundStatus': refund_state, 'refundAmountPaise': refunded_paise,
+                'lastRefundId': refund_id, 'refundUpdatedAt': int(now),
+                **({'paymentStatus': payment_status.REFUNDED} if full else {})},
+        monotonic=True)
+    logger.warning(json.dumps({'event': 'refund_recorded', 'paymentId': payment_id,
+                               'refundId': refund_id, 'refundStatus': refund_state,
+                               'refundedPaise': refunded_paise, 'requestId': request_id}))
+
+
+def _payment_records(payment_id: str) -> tuple[list, str]:
+    """The invoice ids and the order id this payment settled, from OUR claim rows."""
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    claim = order_keys.resolve_order_for_provider_payment(keys, payment_id) or {}
+    order_id = str(claim.get('orderIdRef') or '')
+    if claim.get('invoiceIdRef'):  # a legacy invoice payment claim names its invoice
+        return [str(claim['invoiceIdRef'])], order_id
+    reference_id = str(claim.get('referenceId') or '')
+    invoice_ids = []
+    if reference_id:
+        query = {'IndexName': 'referenceId-index', 'KeyConditionExpression': 'referenceId = :ref',
+                 'ExpressionAttributeValues': {':ref': reference_id}}
+        while True:
+            page = dynamodb.Table(INVOICES_TABLE).query(**query)
+            invoice_ids.extend(str(row.get('invoiceId') or '') for row in page.get('Items') or []
+                               if payment_id in (row.get('paymentId'), row.get('providerPaymentId')))
+            if 'LastEvaluatedKey' not in page:
+                break
+            query['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    return [invoice_id for invoice_id in invoice_ids if invoice_id], order_id
+
+
+def _record_on_payment_records(payment_id: str, request_id: str, *, kind: str,
+                               fields: Dict[str, Any], monotonic: bool = False) -> None:
+    """SET `fields` on the invoice(s) and order this payment settled. Never raises.
+
+    Each write is conditional on the row naming this payment; a refund write also only moves
+    the refunded total forward.
+    """
+    from lambda_utils import shared_tables
+    try:
+        invoice_ids, order_id = _payment_records(payment_id)
+    except Exception as error:  # noqa: BLE001
+        logger.error(json.dumps({'event': f'{kind}_records_lookup_failed',
+                                 'paymentId': payment_id, 'error': type(error).__name__,
+                                 'requestId': request_id}))
+        return
+    names = {f'#f{i}': name for i, name in enumerate(fields)}
+    values = {f':v{i}': value for i, value in enumerate(fields.values())}
+    values[':pid'] = payment_id
+    expression = 'SET ' + ', '.join(f'#f{i} = :v{i}' for i in range(len(fields)))
+    forward = ''
+    if monotonic:
+        # `fields` carries refundAmountPaise; reuse its placeholders in the condition.
+        index = list(fields).index('refundAmountPaise')
+        forward = (f' AND (attribute_not_exists(#f{index}) OR #f{index} < :v{index})')
+    targets = [(INVOICES_TABLE, {'invoiceId': invoice_id},
+                '(paymentId = :pid OR providerPaymentId = :pid)' + forward)
+               for invoice_id in invoice_ids]
+    if order_id:
+        targets.append((shared_tables.orders_table_name(), {'orderId': order_id},
+                        'providerPaymentId = :pid' + forward))
+    for table_name, key, condition in targets:
         try:
-            table = dynamodb.Table(PAYMENTS_TABLE)
-            import time as _time
-            # Monotonic, like the capture write. `refunded` outranks `captured`, so this
-            # applies over a captured payment and is then itself protected from any later
-            # redelivered payment.* event.
-            refunded_rank = payment_status.rank(payment_status.REFUNDED)
-            table.update_item(
-                Key={'id': payment_id},
-                UpdateExpression=('SET #st = :st, #refundId = :rid, #refundAmount = :ra, '
-                                  f'#rank = :rank, #ua = :now'),
-                ConditionExpression=payment_status.condition_expression('#rank'),
-                ExpressionAttributeNames={
-                    '#st': 'status', '#refundId': 'refundId',
-                    '#refundAmount': 'refundAmountPaise',
-                    '#rank': payment_status.RANK_ATTRIBUTE, '#ua': 'updatedAt',
-                },
-                ExpressionAttributeValues={
-                    ':st': payment_status.REFUNDED, ':rid': refund_id,
-                    ':ra': Decimal(str(refund_paise)), ':rank': refunded_rank,
-                    ':now': Decimal(str(int(_time.time()))),
-                },
-            )
-        except Exception as e:
-            if order_keys.is_conditional_failure(e):
-                logger.info(json.dumps({
-                    'event': 'refund_status_not_applied', 'paymentId': payment_id,
-                    'refundId': refund_id,
-                    'reason': 'stored rank already at or beyond refunded',
-                    'requestId': request_id,
-                }))
-                return
-            logger.error(json.dumps({'event': 'refund_update_error', 'error': str(e), 'requestId': request_id}))
+            dynamodb.Table(table_name).update_item(
+                Key=key, UpdateExpression=expression, ConditionExpression=condition,
+                ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+        except Exception as error:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(error):
+                logger.error(json.dumps({'event': f'{kind}_record_update_failed',
+                                         'paymentId': payment_id, 'error': type(error).__name__,
+                                         'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -3329,14 +3839,60 @@ def _handle_dispute(event_type: str, event_data: Dict, request_id: str) -> None:
     so unlike downtime the fault was never exercised - but it would have logged an empty
     dispute for a contested payment, which is the worst possible moment to have no detail.
 
-    Still log-only. Writing `disputed` onto the payment row is a behaviour change and a
-    separate decision; the rank exists in `payment_status` for when it is made.
+    The dispute is confirmed with `GET /disputes/{id}` and recorded in its own attributes
+    (`disputeId`, `disputeStatus`, ...) on the payment, invoice and order rows, with an alert.
+    The payment's status rank is not moved and Vault access is not touched.
     """
     logger.warning(json.dumps({
         'event': event_type,
         **payment_status.entity_summary(event_data),
         'requestId': request_id,
     }))
+    _, dispute = payment_status.extract_entity(event_data)
+    dispute_id = str(dispute.get('id') or '')
+    if not dispute_id:
+        return
+    from lambda_utils.integrations import razorpay_verify
+    try:
+        verified = razorpay_verify.dispute_entity(dispute_id)
+    except Exception as exc:  # noqa: BLE001 - nothing is written; Razorpay retries the 500
+        logger.error(json.dumps({'event': 'dispute_unverified', 'alert': 'PAYMENT_EVENT_UNVERIFIED',
+                                 'disputeId': dispute_id, 'error': type(exc).__name__,
+                                 'requestId': request_id}))
+        raise RuntimeError('dispute could not be confirmed with Razorpay') from None
+    payment_id = str(verified.get('payment_id') or '')
+    if not payment_id:
+        return
+    amounts = {}
+    for field, source in (('disputeAmountPaise', 'amount'),
+                          ('disputeAmountDeductedPaise', 'amount_deducted')):
+        try:
+            amounts[field] = payment_status.paise(verified.get(source))
+        except ValueError:
+            pass
+    fields = {'disputeId': dispute_id, 'disputeStatus': str(verified.get('status') or ''),
+              'disputePhase': str(verified.get('phase') or ''),
+              'disputeUpdatedAt': int(time.time()), **amounts}
+    names = {f'#d{i}': name for i, name in enumerate(fields)}
+    values = {f':d{i}': value for i, value in enumerate(fields.values())}
+    try:
+        dynamodb.Table(PAYMENTS_TABLE).update_item(
+            Key={'id': payment_id},
+            UpdateExpression='SET ' + ', '.join(f'#d{i} = :d{i}' for i in range(len(fields))),
+            ConditionExpression='attribute_exists(id)',
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+    except Exception as e:  # noqa: BLE001
+        if not order_keys.is_conditional_failure(e):
+            raise
+    _record_on_payment_records(payment_id, request_id, kind='dispute',
+                               fields={key: fields[key] for key in
+                                       ('disputeId', 'disputeStatus', 'disputeUpdatedAt')})
+    logger.error(json.dumps({'event': 'payment_dispute_recorded', 'alert': 'PAYMENT_DISPUTED',
+                             'eventType': event_type, 'disputeId': dispute_id,
+                             'paymentId': payment_id, 'status': fields['disputeStatus'],
+                             'phase': fields['disputePhase'],
+                             'amountPaise': amounts.get('disputeAmountPaise'),
+                             'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -3787,11 +4343,14 @@ def _retry_deferred_order_status(request_id: str) -> Dict[str, Any]:
 #: a wide scan - a short window and a small page per status.
 _SWEEP_MIN_AGE_SECONDS = 120          # younger than this is still a live checkout; leave it alone
 _SWEEP_MAX_AGE_SECONDS = 24 * 60 * 60  # older than this is beyond the recovery horizon
-_SWEEP_PAGE_LIMIT = 25                 # per status, per run
+_SWEEP_PAGE_LIMIT = 25                 # per query page; pages continue while budget remains
 #: Wall-clock budget for one run. The function's timeout is 60 s and the sweep rides the same
 #: invocation as the customer-link reconcile, so it stops starting new provider lookups after this
 #: and leaves the rest for the next 5-minute run.
 _SWEEP_TIME_BUDGET_SECONDS = 30
+#: The in-flight pass stops starting work after this much of the budget, so the paid pass
+#: (missing invoices and unfinished post-capture steps) always gets a turn.
+_SWEEP_IN_FLIGHT_BUDGET_SECONDS = 20
 #: A PAID attempt whose invoice has not appeared this long after payment is treated as a lost
 #: webhook. The browser verify leg writes the order and stages ORDER_FINALIZED but never the
 #: invoice; only this webhook's post-payment step creates it. Without this pass a webhook that
@@ -3969,7 +4528,9 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
     from lambda_utils.ecommerce import payment_attempt
 
     now = int(time.time())
-    deadline = time.time() + _SWEEP_TIME_BUDGET_SECONDS
+    started = time.time()
+    deadline = started + _SWEEP_TIME_BUDGET_SECONDS
+    in_flight_deadline = started + _SWEEP_IN_FLIGHT_BUDGET_SECONDS
     low = now - _SWEEP_MAX_AGE_SECONDS
     high = now - _SWEEP_MIN_AGE_SECONDS
     counts = {'scanned': 0, 'skipped_paid': 0, 'no_capture': 0, 'reconciled': 0,
@@ -3981,27 +4542,36 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
     attempts_table = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
     try:
         for status in statuses:
-            try:
-                page = attempts_table.query(
-                    IndexName='status-index',
-                    KeyConditionExpression=(Key('status').eq(status)
-                                            & Key('createdAt').between(low, high)),
-                    Limit=_SWEEP_PAGE_LIMIT)
-            except Exception as error:  # noqa: BLE001
-                counts['errors'] += 1
-                logger.warning(json.dumps({'event': 'sweep_status_query_failed',
-                                           'status': status, 'error': type(error).__name__,
-                                           'requestId': request_id}))
-                continue
-            for attempt in page.get('Items') or []:
-                if time.time() > deadline:
-                    # Out of budget: leave the remainder for the next scheduled run.
+            # Newest first, page by page while the budget lasts. Reading only the 25 OLDEST used
+            # to hide every newer stuck attempt behind ones that would never settle.
+            query = {'IndexName': 'status-index',
+                     'KeyConditionExpression': (Key('status').eq(status)
+                                                & Key('createdAt').between(low, high)),
+                     'Limit': _SWEEP_PAGE_LIMIT, 'ScanIndexForward': False}
+            while True:
+                if time.time() > in_flight_deadline:
                     counts['deferred'] += 1
-                    continue
-                counts['scanned'] += 1
-                outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id)
-                if outcome in counts:
-                    counts[outcome] += 1
+                    break
+                try:
+                    page = attempts_table.query(**query)
+                except Exception as error:  # noqa: BLE001
+                    counts['errors'] += 1
+                    logger.warning(json.dumps({'event': 'sweep_status_query_failed',
+                                               'status': status, 'error': type(error).__name__,
+                                               'requestId': request_id}))
+                    break
+                for attempt in page.get('Items') or []:
+                    if time.time() > in_flight_deadline:
+                        # Out of budget: leave the remainder for the next scheduled run.
+                        counts['deferred'] += 1
+                        continue
+                    counts['scanned'] += 1
+                    outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id)
+                    if outcome in counts:
+                        counts[outcome] += 1
+                if 'LastEvaluatedKey' not in page:
+                    break
+                query['ExclusiveStartKey'] = page['LastEvaluatedKey']
         _sweep_paid_without_invoice(attempts_table, keys_table, now, deadline, counts, request_id)
     except Exception as error:  # noqa: BLE001 - the sweep itself must never raise
         counts['errors'] += 1
@@ -4021,6 +4591,34 @@ def _invoice_exists_for_reference(reference_id: str) -> bool:
     return bool(items)
 
 
+def _resume_post_capture(attempt: Dict[str, Any], request_id: str) -> str:
+    """Finish the post-capture steps a failed pass left on a PAID attempt. Never raises.
+
+    The marker must name the attempt's verified payment. The entity built here is only a
+    trigger: the captured path re-reconciles against the stored claims and reads the payment
+    back from Razorpay before writing anything. `resume=True` keeps every step claim-guarded and
+    sends no order-status message and no CTWA event.
+    """
+    from lambda_utils.integrations import razorpay_verify
+    reference_id = str(attempt.get('referenceId') or '')
+    payment_id = str(attempt.get('verifiedProviderPaymentId') or '')
+    if (not reference_id or not payment_id
+            or str(attempt.get('postCapturePaymentId') or '') != payment_id):
+        return 'skipped'
+    try:
+        _handle_payment_captured({'payment': {'entity': {
+            'id': payment_id, 'status': razorpay_verify.CAPTURED,
+            'notes': {'referenceId': reference_id}}}}, request_id, resume=True)
+        return 'resumed'
+    except razorpay_verify.RazorpayUnavailable:
+        return 'provider_unavailable'
+    except Exception as error:  # noqa: BLE001 - the marker stays for the next run
+        logger.warning(json.dumps({'event': 'post_capture_resume_failed',
+                                   'referenceId': reference_id,
+                                   'error': type(error).__name__, 'requestId': request_id}))
+        return 'errors'
+
+
 def _sweep_paid_without_invoice(attempts_table: Any, keys_table: Any, now: int, deadline: float,
                                 counts: Dict[str, Any], request_id: str) -> None:
     """Create the invoice for PAID attempts whose capture webhook never produced one.
@@ -4030,16 +4628,20 @@ def _sweep_paid_without_invoice(attempts_table: Any, keys_table: Any, now: int, 
     `_PAID_WITHOUT_INVOICE_MIN_AGE_SECONDS` ago AND no invoice carries its reference; then the
     provider readback re-runs the captured path (`settle_paid=True`). Each one is logged with
     alert PAID_WITHOUT_INVOICE, because it means capture webhooks are not completing.
+
+    An attempt that HAS an invoice is resumed only when it carries the post-capture marker a
+    failed step left (`postCapturePending`); see `_resume_post_capture`.
     """
     from boto3.dynamodb.conditions import Key
     from lambda_utils.ecommerce import payment_attempt
 
     counts.setdefault('paid_without_invoice', 0)
     counts.setdefault('invoiced', 0)
+    counts.setdefault('resumed', 0)
     query = {'IndexName': 'status-index',
              'KeyConditionExpression': (Key('status').eq(payment_attempt.PAYMENT_PAID)
                                         & Key('createdAt').between(now - _SWEEP_MAX_AGE_SECONDS, now)),
-             'Limit': _SWEEP_PAGE_LIMIT}
+             'Limit': _SWEEP_PAGE_LIMIT, 'ScanIndexForward': False}
     for _ in range(_PAID_SWEEP_MAX_PAGES):
         try:
             page = attempts_table.query(**query)
@@ -4062,6 +4664,13 @@ def _sweep_paid_without_invoice(attempts_table: Any, keys_table: Any, now: int, 
                 continue
             try:
                 if _invoice_exists_for_reference(reference_id):
+                    if attempt.get('postCapturePending') == _POST_CAPTURE_PENDING:
+                        counts['scanned'] += 1
+                        outcome = _resume_post_capture(attempt, request_id)
+                        if outcome == 'resumed':
+                            counts['resumed'] += 1
+                        elif outcome in counts:
+                            counts[outcome] += 1
                     continue
             except Exception as error:  # noqa: BLE001 - try again on the next run
                 counts['errors'] += 1

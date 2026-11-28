@@ -174,13 +174,46 @@ def order_is_paid(order_id: str) -> Tuple[bool, str, int, str]:
     return False, "", 0, ""
 
 
+def _entity(path: str, entity_id: str) -> Dict:
+    """One Razorpay entity by id; refuses an answer naming a different id."""
+    if not entity_id:
+        raise ValueError("an entity id is required")
+    entity = _get(f"{path}/{urllib.parse.quote(entity_id, safe='')}")
+    if str(entity.get("id") or "") != entity_id:
+        raise RazorpayUnavailable("provider returned an unexpected entity")
+    return entity
+
+
+def payment_entity(payment_id: str) -> Dict:
+    """The full payment entity from `GET /payments/{id}`, for ledger rows built from evidence."""
+    return _entity("/payments", payment_id)
+
+
+def refund_entity(refund_id: str) -> Dict:
+    """`GET /refunds/{id}`: status, amount and payment_id as Razorpay records them."""
+    return _entity("/refunds", refund_id)
+
+
+def payment_link_entity(payment_link_id: str) -> Dict:
+    """`GET /payment_links/{id}`: carries `order_id` and the captured `payments` list."""
+    return _entity("/payment_links", payment_link_id)
+
+
+def dispute_entity(dispute_id: str) -> Dict:
+    """`GET /disputes/{id}`: status, phase, amount and amount_deducted."""
+    return _entity("/disputes", dispute_id)
+
+
 def verifier_for_event(payment_id: str = "", order_id: str = "", *,
-                       load_attempt=None):
+                       load_attempt=None, capture: Optional[Dict] = None):
     """Verify a capture bound to a trusted attempt, never just an event reference.
 
     The attempt must already carry a providerOrderId or providerPaymentId derived
     from payment initiation or an authenticated Meta lookup. A webhook must not
     supply its own binding. Missing bindings fail closed for reconciliation.
+
+    `capture`, when given, receives the verified payment entity under `payment`, so a caller
+    can build its records from the readback instead of fetching it again.
     """
     if not payment_id and not order_id:
         raise ValueError("a payment id or an order id is required to verify")
@@ -218,6 +251,8 @@ def verifier_for_event(payment_id: str = "", order_id: str = "", *,
         if len(captured) != 1:
             raise RazorpayUnavailable("multiple captures require reconciliation")
         paid = captured[0]
+        if capture is not None:
+            capture["payment"] = dict(paid)
         return True, paid["id"], positive_paise(paid.get("amount")), str(paid.get("currency") or "")
 
     return verify
@@ -229,6 +264,10 @@ __all__ = [
     "RazorpayUnavailable",
     "payment_is_captured",
     "payment_capture_details",
+    "payment_entity",
+    "refund_entity",
+    "payment_link_entity",
+    "dispute_entity",
     "order_is_paid",
     "verifier_for_event",
 ]
