@@ -11,7 +11,7 @@
 .panel h3{scroll-margin-block-start:calc(var(--wc-toast-header-height,108px) + 16px);font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);margin:0 0 24px;color:var(--public-heading)}
 .fields{display:grid;gap:20px;min-width:0}
 .fields label{display:flex;flex-direction:column;gap:8px;font-size:var(--public-supporting-size);font-weight:600;min-width:0;color:var(--public-body)}
-.fields input:not([type=radio]),.fields select,.fields textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:52px;font-family:inherit;font:var(--public-body-weight) var(--public-body-size)/1.4 var(--font-sans);color:var(--public-text);background:transparent;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;padding:12px 2px;margin:0;box-shadow:none}
+.fields input:not([type=radio]):not([type=checkbox]),.fields select,.fields textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:52px;font-family:inherit;font:var(--public-body-weight) var(--public-body-size)/1.4 var(--font-sans);color:var(--public-text);background:transparent;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;padding:12px 2px;margin:0;box-shadow:none}
 .fields textarea{min-height:100px;resize:vertical}
 .fields input:focus-visible,.fields select:focus-visible,.fields textarea:focus-visible,.actions button:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:3px}
 .planner .help{font-size:var(--public-supporting-size);font-weight:400;line-height:1.5;margin:0;overflow-wrap:anywhere}
@@ -35,4 +35,13 @@
 
 .fields input:focus,.fields select:focus,.fields textarea:focus{border-bottom-color:var(--public-brand-green)}
 .actions button:disabled{opacity:.6;cursor:not-allowed}
-@media(max-width:767px){.fields input:not([type=radio]),.fields select,.fields textarea{font-size:16px}.actions button{font-size:var(--public-mobile-cta-font-size)}}
+@media(max-width:767px){.fields input:not([type=radio]):not([type=checkbox]),.fields select,.fields textarea{font-size:16px}.actions button{font-size:var(--public-mobile-cta-font-size)}}
+
+.requestFields{border:0;padding:0;margin:24px 0;min-width:0}
+.requestFields>legend{font-size:var(--public-card-size);font-weight:700;margin-bottom:16px;color:var(--public-heading)}
+.requestFields>.help{margin-bottom:22px}
+.requestFields h3{margin:32px 0 22px;font-size:var(--public-card-size);color:var(--public-heading)}
+.fields .consent{display:flex;flex-direction:row;align-items:flex-start;font-weight:400;line-height:1.5}
+.fields .consent input[type=checkbox]{width:20px;height:20px;min-height:20px;flex:0 0 auto;margin:3px 4px 0 0;accent-color:var(--public-brand-green)}
+.reference{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.requestList{padding-left:20px;display:grid;gap:16px;font-size:var(--public-supporting-size);line-height:1.5}

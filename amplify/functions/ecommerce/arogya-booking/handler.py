@@ -13,6 +13,7 @@ import boto3
 from lambda_utils.customer_auth import require_customer
 from lambda_utils.arogya import booking_store as store
 from lambda_utils.arogya import provider_runtime as catalog
+from lambda_utils.arogya import assistance_requests as requests
 from lambda_utils.ecommerce.unified_pricing import price_components
 
 _db = None
@@ -32,6 +33,21 @@ def _response(code, value):
 
 
 def handler(event, context):
+    # Operator reads use native IAM Invoke only, never a public HTTP body or
+    # customer token. Queue pointers contain no patient details.
+    if 'requestContext' not in event and event.get('internalAction') in ('listAssistanceRequests', 'getAssistanceRequest'):
+        try:
+            now = int(time.time())
+            if event['internalAction'] == 'listAssistanceRequests' and not set(event) - {'internalAction', 'after'}:
+                return _response(200, requests.operator_queue(_table(), now=now, after=event.get('after')))
+            if event['internalAction'] == 'getAssistanceRequest' and set(event) == {'internalAction', 'customerId', 'requestId'}:
+                item = requests.operator_request(_table(), event['customerId'], event['requestId'], now=now)
+                return _response(200, {'request': item}) if item else _response(404, {'error': 'Request not found.'})
+            return _response(400, {'error': 'Invalid request lookup.'})
+        except store.InvalidPlan as error:
+            return _response(400, {'error': str(error)})
+        except Exception:
+            return _response(503, {'error': 'Request storage is temporarily unavailable.'})
     # Native SDK Invoke is IAM-authorized. Function URLs always supply
     # requestContext, including for unsigned requests. Keep this operator-only
     # health check outside HTTP and limit it to the existing public catalogue
@@ -75,6 +91,20 @@ def handler(event, context):
             return _response(200, catalog.read_catalog(body, now=now))
         if action == 'access' and set(body) == {'action'}:
             return _response(200, {'phoneVerified': True, 'accountKey': account_key, 'appointmentConfirmed': False})
+        if action in ('submitRequest', 'myRequests'):
+            claimed = body.get('accountKey')
+            if (not isinstance(claimed, str) or not claimed.isascii()
+                    or not hmac.compare_digest(claimed, account_key)):
+                return _response(409, {'code': 'ACCOUNT_CHANGED', 'error': 'Your account changed. Reopen the request form.'})
+            allowed = {'action', 'accountKey', 'requestId', 'request'} if action == 'submitRequest' else {'action', 'accountKey'}
+            if action == 'myRequests' and 'after' in body:
+                allowed.add('after')
+            if set(body) != allowed:
+                return _response(400, {'error': 'Invalid assistance request.'})
+            if action == 'myRequests':
+                return _response(200, requests.customer_requests(_table(), identity.subject, now=now, after=body.get('after')))
+            return _response(200, {'request': requests.submit(_table(), identity.subject,
+                body['requestId'], body['request'], now=now), 'appointmentConfirmed': False})
         if action == 'quote' and set(body) == {'action'}:
             # Formula preview only; live ProductsTable, provider and paid-order
             # binding are not yet activated. Never present this as payable quote.

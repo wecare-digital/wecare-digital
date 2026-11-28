@@ -37,7 +37,8 @@ test('ordinary Arogya checkout stays disabled until an owned appointment intent 
   assert.equal(productCheckoutLine('sehat'), null);
   const page = readFileSync(new URL('../src/pages/elsewhere/arogya-yatra.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(page, /<ProductBuyBox/);
-  assert.match(page, /No payment is taken for a draft/);
+  const knowledge = readFileSync(new URL('../src/components/public/HospitalAssistanceKnowledge.tsx', import.meta.url), 'utf8');
+  assert.match(knowledge, /No payment is collected when you submit this form/);
 });
 
 
@@ -49,6 +50,7 @@ test('appointment planner does not redirect customers to external provider pages
   assert.doesNotMatch(planner, /https?:\/\/(?:[^/'"\s]+\.)?(?:apollohospitals\.com|askapollo\.com|apollo247\.com)/i);
   assert.doesNotMatch(planner, /target="_blank"|window\.open\(|window\.location\./);
   assert.doesNotMatch(planner, /directoryHandoff|directoryPrimary|opens Apollo/);
-  assert.match(planner, /Retry live choices/);
-  assert.match(planner, /No live hospital choices were returned/);
+  assert.doesNotMatch(planner, /useApolloChoices|appointmentCatalogAction|Retry live choices/);
+  assert.match(planner, /action: 'submitRequest'/);
+  assert.match(planner, /Awaiting review/);
 });

@@ -11,6 +11,7 @@ const APPOINTMENT_AUTH_URL = '/auth?return=%2Felsewhere%2Farogya-yatra%2F';
 /** Never mount patient fields until the owning API confirms a verified customer. */
 export default function AppointmentAccess (): React.ReactElement {
   const [ ready, setReady ] = useState( false );
+  const [ checking, setChecking ] = useState( true );
   const [ accountKey, setAccountKey ] = useState( '' );
   const [ error, setError ] = useState( '' );
   const [ attempt, setAttempt ] = useState( 0 );
@@ -38,19 +39,20 @@ export default function AppointmentAccess (): React.ReactElement {
       try {
         const session = getSession() || await restoreSession();
         if ( !active ) return;
-        if ( !session ) { signIn(); return; }
+        if ( !session ) { setReady( false ); setAccountKey( '' ); setChecking( false ); return; }
         requestToken = session.accessToken;
         // Access is independent of price or provider availability.
         const access = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'access' } );
         if ( access.phoneVerified !== true || typeof access.accountKey !== 'string' || !/^[a-f0-9]{64}$/.test( access.accountKey ) ) throw new Error( 'Customer verification unavailable.' );
         if ( !active ) return;
         if ( getSession()?.accessToken !== requestToken ) { accountChanged(); return; }
-        setAccountKey( access.accountKey ); setError( '' ); setReady( true );
+        setAccountKey( access.accountKey ); setError( '' ); setReady( true ); setChecking( false );
         // Refresh the shared session instead of revoking it at an access-token deadline.
         expiry = setTimeout( () => { void check(); }, Math.max( 1000, session.expiresAt - Date.now() - 25000 ) );
       } catch ( failure ) {
         if ( !active ) return;
         setReady( false );
+        setChecking( false );
         if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) {
           if ( requestToken && getSession()?.accessToken !== requestToken ) accountChanged();
           else sessionExpired();
@@ -81,11 +83,12 @@ export default function AppointmentAccess (): React.ReactElement {
 
   if ( ready ) return <AppointmentPlanner key={ accountKey } accountKey={ accountKey } onAccountChanged={ accountChanged } onSessionExpired={ sessionExpired } />;
   return <section className={ styles.planner } aria-label="Appointment access">
-    <h2>Request an appointment</h2>
+    <h2>Submit a hospital assistance request</h2>
     { error ? <>
       <PublicNotice mode="inline" tone="error" message={ error } />
       <div className={ styles.actions }><button type="button" onClick={ () => { setError( '' ); setAttempt( value => value + 1 ); } }>Try again</button></div>
-    </> : <p role="status">Checking your WhatsApp-verified account…</p> }
+    </> : checking ? <p role="status">Checking your WhatsApp-verified account…</p>
+      : <p>Sign in with WhatsApp before entering patient details and submitting your request. You can read how the service works alongside this form.</p> }
     <div className={ styles.actions }><button type="button" className={ styles.primary } onClick={ signIn }>Sign in with WhatsApp</button></div>
   </section>;
 }

@@ -1,0 +1,11 @@
+.knowledge{position:sticky;top:calc(var(--wc-toast-header-height,108px) + 20px);max-height:calc(100dvh - var(--wc-toast-header-height,108px) - 40px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;padding:0 18px 8px 24px;border-left:1px solid var(--public-hairline);min-width:0;color:var(--public-body);scroll-margin-top:140px}
+.knowledge:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:4px}
+.knowledge h2{font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:700;color:var(--public-heading);margin:8px 0 24px}
+.knowledge h3{font-size:var(--public-supporting-size);line-height:1.45;font-weight:700;color:var(--public-heading);margin:0 0 10px}
+.knowledge section{margin-bottom:26px}
+.knowledge p,.knowledge li{font-size:var(--public-supporting-size);line-height:1.6;overflow-wrap:anywhere}
+.knowledge p{margin:0 0 12px}
+.knowledge ul,.knowledge ol{padding-left:22px;margin:0 0 14px}
+.knowledge li{margin:0 0 8px}
+.knowledge .eyebrow{font-weight:700;color:var(--public-brand-green);margin:0}
+@media(max-width:899px){.knowledge{position:static;max-height:none;overflow:visible;padding:26px 0 0;border-left:0;border-top:1px solid var(--public-hairline);scrollbar-gutter:auto}}
