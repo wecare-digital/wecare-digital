@@ -23,6 +23,7 @@ test('public form checks shared authentication at submission; no inline OTP or s
   const planner = read('../src/components/public/AppointmentPlanner.tsx');
   assert.match(planner, /const access = await verifyAtAction\(\)/);
   assert.match(planner, /Your form stays open here/);
+  assert.match(planner, /<form method="post"/); // Never fall back to patient details in a GET URL.
   assert.doesNotMatch(read('../src/components/public/SavedAppointmentDrafts.tsx'), /requestOtp|submitOtp|ay-signin-code/);
   assert.doesNotMatch(read('../src/components/public/AppointmentPlanner.tsx'), /apolloAppointmentCatalog|GREAMS_GENERAL_SURGEONS/);
 });
