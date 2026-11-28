@@ -48,7 +48,13 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   GetParameter on the exact ARN and scopes KMS decrypt to that key, SSM service
   and parameter encryption context. The Lambda reserves its existing budget
   before a cache-miss decrypt and provider attempt, then checks the full snapshot.
-  No demo/shared key or fallback to plaintext. Verify on $LATEST before promotion.
+  Keep one request at limit=10000: PR #2540 reports a complete 3,934-row upstream
+  snapshot and the live avg_value field. The separately staged Lambda still
+  returned unavailable (provider failure 502). Log only actual HTTP status,
+  transport exception class, JSON/size classification and bounded counts to
+  diagnose the Lambda-specific failure; never the key, URL or response text.
+  No pagination, retries, quota increase, demo/shared key or plaintext fallback.
+  Verify on $LATEST before promotion.
 - PVGIS requires server-side GET (AJAX is prohibited). SPARTAN uses public
   verified CSV object keys and credits the network. Both need no new provider key.
 - Run the existing Node 24 typecheck/lint/test/build plus

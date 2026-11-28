@@ -616,10 +616,19 @@ def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
         ) as response:
             body = response.read(limit + 1)
     except urllib.error.HTTPError as exc:
+        if url.startswith(CPCB_URL + "?"):
+            logger.warning("nano_climate_cpcb_upstream_http status=%d", exc.code)
         raise ProviderFailure(404 if exc.code == 404 else 502) from None
-    except Exception:
+    except Exception as exc:
+        if url.startswith(CPCB_URL + "?"):
+            # The reason itself can contain the request URL. Log only types.
+            reason = exc.reason if isinstance(exc, urllib.error.URLError) else None
+            logger.warning("nano_climate_cpcb_transport type=%s reason_type=%s",
+                           type(exc).__name__, type(reason).__name__)
         raise ProviderFailure(502) from None
     if len(body) > limit:
+        if url.startswith(CPCB_URL + "?"):
+            logger.warning("nano_climate_cpcb_response_too_large")
         raise ProviderFailure(502)
     return body
 
@@ -628,8 +637,12 @@ def _extra_json(url: str, headers: Optional[Mapping[str, str]] = None) -> Dict[s
     try:
         data = json.loads(_extra_read(url, headers).decode("utf-8"))
     except (ValueError, UnicodeError):
+        if url.startswith(CPCB_URL + "?"):
+            logger.warning("nano_climate_cpcb_invalid_json")
         raise ProviderFailure(502) from None
     if not isinstance(data, dict):
+        if url.startswith(CPCB_URL + "?"):
+            logger.warning("nano_climate_cpcb_invalid_envelope")
         raise ProviderFailure(502)
     return data
 
@@ -772,8 +785,13 @@ def _cpcb_snapshot() -> list:
     rows = response.get("records")
     total = _finite(response.get("total"), 0, 10000)
     # Never silently choose a "nearest" station from a truncated snapshot.
-    if not isinstance(rows, list) or total is None or total != len(rows) or len(rows) > 10000:
+    if (response.get("status") != "ok" or not isinstance(rows, list)
+            or total is None or total != len(rows) or len(rows) > 10000):
+        logger.warning("nano_climate_cpcb_snapshot_invalid status_ok=%s total=%s records=%s",
+                       response.get("status") == "ok", total,
+                       len(rows) if isinstance(rows, list) else None)
         raise ProviderFailure()
+    logger.info("nano_climate_cpcb_snapshot_complete records=%d", len(rows))
     _extra_store("cpcb:national", rows)
     return rows
 

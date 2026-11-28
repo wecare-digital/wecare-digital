@@ -310,3 +310,39 @@ def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch):
     assert variables["VAYULOK_CPCB_PARAMETER"] == cfg.CPCB
     assert variables["VAYULOK_EXTENDED_SOURCES"] == "cpcb,pvgis,spartan"
     clients["ssm"].get_parameter.assert_not_called()
+
+def test_cpcb_diagnostics_never_log_url_key_or_provider_message(monkeypatch, caplog):
+    import urllib.error
+    url = h.CPCB_URL + "?api-key=unit-test-placeholder&format=json"
+    fake = Mock()
+    fake.open.side_effect = urllib.error.HTTPError(url, 403, "unit-test-placeholder", {}, None)
+    monkeypatch.setattr(h.urllib.request, "build_opener", lambda *_: fake)
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert "nano_climate_cpcb_upstream_http status=403" in caplog.text
+    assert "unit-test-placeholder" not in caplog.text
+    assert h.CPCB_URL not in caplog.text
+    fake.open.side_effect = urllib.error.URLError("unit-test-placeholder")
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert "nano_climate_cpcb_transport type=URLError reason_type=str" in caplog.text
+    assert "unit-test-placeholder" not in caplog.text
+
+
+def test_cpcb_complete_single_snapshot_and_provider_error_fail_closed(monkeypatch):
+    monkeypatch.setattr(h, "_extra_cache", {})
+    reserve = Mock()
+    monkeypatch.setattr(h, "_reserve_extra", reserve)
+    monkeypatch.setattr(h, "_cpcb_key", Mock(return_value="unit-test-placeholder"))
+    provider = Mock(return_value={"status": "error", "total": 0, "records": []})
+    monkeypatch.setattr(h, "_extra_json", provider)
+    with pytest.raises(h.ProviderFailure):
+        h._cpcb_snapshot()
+    assert h._extra_cached("cpcb:national", 3600) is None
+    provider.return_value = {"status": "ok", "total": 2, "records": [{"station": "A"}, {"station": "B"}]}
+    assert len(h._cpcb_snapshot()) == 2
+    assert reserve.call_count == 2
+    assert provider.call_count == 2
+    assert "limit=10000" in provider.call_args.args[0]
+    assert len(h._cpcb_snapshot()) == 2
+    assert provider.call_count == 2
