@@ -7,6 +7,7 @@ creates a parameter or secret, changes Google API restrictions, publishes an ali
 """
 import argparse
 import json
+import shlex
 
 import boto3
 
@@ -19,13 +20,32 @@ CPCB = "/wecare/nano-climate/cpcb"
 SOURCES = ("elevation", "cpcb", "pvgis", "solar", "spartan")
 
 
+def _previous_sources(variables):
+    """Capture the effective configured subset, without printing arbitrary env text."""
+    previous = sorted({source.strip() for source in
+                       variables.get("VAYULOK_EXTENDED_SOURCES", "").split(",")
+                       if source.strip()})
+    if any(source not in SOURCES for source in previous):
+        raise SystemExit("Unexpected existing source selection; review it before changing configuration.")
+    return previous
+
+
+def _rollback_command(previous):
+    selection = ["--sources", *previous] if previous else ["--disable-all"]
+    return shlex.join(["python", "scripts/configure_nano_climate_sources.py",
+                       *selection, "--apply"])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sources", nargs="+", choices=SOURCES, required=True)
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--sources", nargs="+", choices=SOURCES)
+    selection.add_argument("--disable-all", action="store_true",
+                           help="Explicitly disable all extended sources (dry-run unless --apply).")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm-google-key-and-billing", action="store_true")
     args = parser.parse_args()
-    wanted = sorted(set(args.sources))
+    wanted = sorted(set(args.sources or []))
     sts = boto3.client("sts", region_name=REGION)
     if sts.get_caller_identity()["Account"] != ACCOUNT:
         raise SystemExit("Wrong AWS account")
@@ -41,6 +61,7 @@ def main():
     if args.apply and any(s in wanted for s in ("elevation", "solar")) and not args.confirm_google_key_and_billing:
         raise SystemExit("Verify the exact server key API targets, billing-account use and quotas first")
     variables = dict(config.get("Environment", {}).get("Variables", {}))
+    previous = _previous_sources(variables)
     statements = [{
         "Effect": "Allow", "Action": "dynamodb:UpdateItem",
         "Resource": table["TableArn"],
@@ -78,7 +99,8 @@ def main():
     variables["VAYULOK_EXTENDED_SOURCES"] = ",".join(wanted)
     variables["VAYULOK_EXTENDED_BUDGET_TABLE"] = TABLE
     print(json.dumps({"mode": "apply" if args.apply else "dry-run", "function": FUNCTION,
-                      "sources": wanted, "table": TABLE, "secretConfigured": "cpcb" in wanted,
+                      "sources": wanted, "previousSources": previous,
+                      "table": TABLE, "secretConfigured": "cpcb" in wanted,
                       "publishedAliasChanged": False}))
     if not args.apply:
         return
@@ -96,8 +118,12 @@ def main():
             or actual.get("VAYULOK_CPCB_PARAMETER") != (CPCB if "cpcb" in wanted else None)
             or "VAYULOK_CPCB_SECRET" in actual):
         raise SystemExit("Configuration read-back did not match")
-    print("Rollback: re-run with --apply --sources pvgis spartan (drops the CPCB parameter variable "
-          "and the ssm:GetParameter statement), or point the live alias at the prior version.")
+    print("Source-selection rollback (review live alias and shared execution-role dependencies first): "
+          + _rollback_command(previous))
+    if any(source in previous for source in ("elevation", "solar")):
+        print("Google sources require fresh key/billing verification and --confirm-google-key-and-billing.")
+    print("The command restores the previous source selection, not arbitrary prior IAM or environment "
+          "settings. If rolling back a published version, use the owning live-alias release workflow first.")
     print("Configured $LATEST only; verify and use the owning Lambda alias release process.")
 
 
