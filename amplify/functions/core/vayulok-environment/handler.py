@@ -802,7 +802,9 @@ def _cpcb_context(lat: float, lng: float, rows: list,
             continue
         code = "PM2.5" if code == "PM25" else code
         observed = _cpcb_timestamp(row.get("last_update"))
-        average = _finite(row.get("pollutant_avg"), 0)
+        # The live data.gov.in resource returns avg_value (verified 2026-11-28);
+        # pollutant_avg is the older documented name. "NA" is skipped as missing.
+        average = _finite(row.get("avg_value", row.get("pollutant_avg")), 0)
         if observed is None or average is None:
             continue
         age = (now - observed).total_seconds()
@@ -1009,6 +1011,8 @@ def _location_context(lat: float, lng: float, region_code: str,
         except ExtraBudgetExhausted:
             return source, {"status": "budget_limited"}
         except ProviderFailure as exc:
+            # Source and status class only: never the URL, which can carry a key.
+            logger.warning("nano_climate_source_failed source=%s status=%s", source, exc.status)
             return source, {"status": "no_data" if exc.status == 404 else "unavailable"}
         except Exception as exc:
             logger.warning("nano_climate_source_unavailable source=%s type=%s", source, type(exc).__name__)
