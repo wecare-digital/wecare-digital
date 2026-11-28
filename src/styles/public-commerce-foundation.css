@@ -430,3 +430,21 @@
     outline-offset: 0;
   }
 }
+
+/* F004 is the explicitly bordered request form. Keep the shared field metrics
+ * and forced-colors focus outline, but do not flatten its four-sided border. */
+:root:has([data-public-auth-button-theme="active"]) .sr-form textarea {
+  border: 1px solid var(--public-hairline);
+  border-radius: var(--public-hover-radius);
+  padding: 12px;
+}
+:root:has([data-public-auth-button-theme="active"]) .sr-form textarea:is(:focus,[aria-invalid="true"]) {
+  border-color: var(--public-brand-green);
+  box-shadow: 0 0 0 1px var(--public-brand-green);
+}
+@media (forced-colors: active) {
+  :root:has([data-public-auth-button-theme="active"]) .sr-form textarea:focus {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+  }
+}
