@@ -15,9 +15,9 @@ Keys:
 - ai_fallbacks_{lang}: Language-specific fallback messages
 - the Workspace settings rows in SETTINGS_CONFIG_KEYS through ?key= / body.key; no other row
 
-Authority: a staff token (Viewer or above) for reads and POST /ai/test. Every write needs
-Operator (it changes what customers are sent); clearing logs, deleting bot flows and the
-internal agent config need Admin. Writes are audit-logged.
+Authority: a staff token (Viewer or above) for reads. POST /ai/test (it calls Bedrock) and
+every write need Operator (a write changes what customers are sent); clearing logs, deleting
+bot flows and the internal agent config need Admin. Writes are audit-logged.
 """
 
 import hashlib
@@ -112,12 +112,13 @@ def _required_write_role(method: str, path: str) -> str:
 
     Every write decides what customers are sent (auto-reply, prompts, fallbacks, welcome copy,
     menus, Flow triggers, bot flows), so it needs Operator. Deleting logs or bot flows and the
-    internal agent's configuration need Admin. `POST /ai/test` writes nothing and stays a read.
+    internal agent's configuration need Admin. `POST /ai/test` writes nothing, but each call
+    spends Bedrock tokens, so it needs Operator too.
     """
     if method in ('GET', 'HEAD'):
         return ''
     if method == 'POST' and '/ai/test' in path:
-        return ''
+        return 'Operator'
     if ('/ai/clear-logs' in path or '/ai/internal/config' in path
             or (method == 'DELETE' and '/ai/botflow' in path)):
         return 'Admin'

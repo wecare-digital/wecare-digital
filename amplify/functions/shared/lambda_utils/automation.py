@@ -27,13 +27,25 @@ _cache = {'rules': None, 'at': 0}
 _CACHE_TTL = 30  # seconds
 
 
+def _usable_rules(items):
+    """Rules in priority order. A rule whose priority is not a number is skipped, not fatal."""
+    ranked = []
+    for rule in items:
+        try:
+            ranked.append((int(rule.get('priority', 100)), rule))
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            logger.warning('automation rule skipped: invalid priority (id=%s)'
+                           % str((rule.get('id') if isinstance(rule, dict) else '') or '')[:64])
+    return [rule for _, rule in sorted(ranked, key=lambda pair: pair[0])]
+
+
 def _load_rules():
     now = time.time()
     if _cache['rules'] is not None and ( now - _cache['at'] ) < _CACHE_TTL:
         return _cache['rules']
     try:
         resp = _dynamodb.Table(RULES_TABLE).scan()
-        rules = sorted(resp.get('Items', []), key=lambda x: int(x.get('priority', 100)))
+        rules = _usable_rules(resp.get('Items', []))
     except Exception as e:  # noqa: BLE001
         logger.warning('automation rules load failed: %s' % e)
         rules = []
