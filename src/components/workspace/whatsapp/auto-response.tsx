@@ -54,7 +54,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     if (!r.ok) toast.error(r.failure.message || 'Flow triggers could not be loaded.');
     else if (r.data.config) setTriggers(r.data.config as any);
     setTrigLoading(false);
-  }, []);
+  },[toast]);
   useEffect(() => {
     if (tab === 'triggers') loadTriggers();
   }, [tab, loadTriggers]);

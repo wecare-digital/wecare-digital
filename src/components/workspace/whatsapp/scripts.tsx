@@ -102,7 +102,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
 
     setScripts(items);
     setLoading(false);
-  }, []);
+  },[toast]);
 
   useEffect(() => { loadScripts(); }, [loadScripts]);
 
