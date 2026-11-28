@@ -114,6 +114,7 @@ import argparse
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -454,6 +455,10 @@ def main() -> int:
     if args.local:
         return 1 if config_failures else 0
 
+    # A block whose pattern is exactly the probed path (for example `/`) overrides the
+    # sitewide block on that response, so hold the response to the two combined.
+    probe_path = urllib.parse.urlsplit(args.url).path or "/"
+    declared = {**declared, **declared_headers_by_pattern().get(probe_path, {})}
     print(f"  requesting {args.url}  (the Amplify-hosted app)")
     try:
         status, headers = fetch_headers(args.url)

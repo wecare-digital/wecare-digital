@@ -223,6 +223,7 @@ def _real_auth_event(monkeypatch, groups, method="POST", body=None):
     monkeypatch.setattr(middleware, "cognito", FakeCognito())
     monkeypatch.setattr(middleware, "_unverified_issuer", lambda t: middleware.staff_pool_issuer())
     monkeypatch.setattr(middleware, "_unverified_clients", lambda t: {middleware.STAFF_APP_CLIENT_ID})
+    monkeypatch.setattr(middleware, "_plausible_access_token", lambda t: True)
     monkeypatch.setenv("ADMIN_MFA_REQUIRED", "true")
     return {
         "headers": {"authorization": "Bearer t"},

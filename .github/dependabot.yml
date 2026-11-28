@@ -45,27 +45,6 @@ updates:
           - "minor"
           - "patch"
 
-  # The Amplify Gen 2 backend definition: a separate install root with its own
-  # lockfile (see the description in amplify/package.json). CI never installs it,
-  # so the PR's Verify run does not test these updates. Before merging one, run
-  # `npx npm@11.6.2 ci` in a temporary copy of amplify/. Never run `npm audit fix`
-  # there: it leaves a lockfile that `npm ci` refuses.
-  - package-ecosystem: "npm"
-    directory: "/amplify"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(amplify-deps)"
-    groups:
-      amplify-backend-minor-and-patch:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
   # Two small Node packages that have a package.json but no dependencies today:
   # the static-export audit scripts and the VayuLok weather-insights service.
   # Listed so that a dependency added later is tracked from the start.

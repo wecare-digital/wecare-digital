@@ -1662,7 +1662,7 @@ def _cleanup_archive(body: Dict[str, Any], auth: Dict[str, Any],
         return cors_response(400, {'error': str(exc)}, origin)
 
     confirmed = destructive_confirm.consume(
-        CLEANUP_SCOPE, str(body.get('confirmationToken') or ''), contact_ids)
+        CLEANUP_SCOPE, str(body.get('confirmationToken') or ''), contact_ids, actor=actor)
     if not confirmed.get('ok'):
         return cors_response(int(confirmed.get('status') or 409),
                              {'error': confirmed.get('error') or 'Confirmation refused'}, origin)

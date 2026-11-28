@@ -212,10 +212,14 @@ def apply() -> dict:
     except ClientError as e:
         if e.response.get("Error",{}).get("Code")!="NoSuchLifecycleConfiguration": raise
         rules=[]
-    rules=[r for r in rules if r.get("ID")!="wecare-whatsapp-operational-analytics-retention"]
-    rules.append({"ID":"wecare-whatsapp-operational-analytics-retention","Status":"Enabled",
-                  "Filter":{"Prefix":PREFIX+"/"},"Expiration":{"Days":400},
-                  "NoncurrentVersionExpiration":{"NoncurrentDays":30}})
+    retention_ids={"wecare-whatsapp-operational-analytics-retention",
+                   "wecare-whatsapp-operational-analytics-gated-retention"}
+    rules=[r for r in rules if r.get("ID") not in retention_ids]
+    for rule_id,prefix in (("wecare-whatsapp-operational-analytics-retention",PREFIX),
+                           ("wecare-whatsapp-operational-analytics-gated-retention",GATED_PREFIX)):
+        rules.append({"ID":rule_id,"Status":"Enabled",
+                      "Filter":{"Prefix":prefix+"/"},"Expiration":{"Days":400},
+                      "NoncurrentVersionExpiration":{"NoncurrentDays":30}})
     s3.put_bucket_lifecycle_configuration(Bucket=BUCKET,LifecycleConfiguration={"Rules":rules})
 
     for alarm,namespace,metric,dims in [
