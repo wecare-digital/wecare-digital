@@ -156,12 +156,10 @@ jobs:
           set +e
           [ "$PUBLIC_QA_ENGINE" = firefox ] || exit 0
           R=aria-allowed-attr,target-size,nested-interactive,aria-conditional-attr,aria-prohibited-attr,label-content-name-mismatch
-          for n in 1 2; do
-            QA_AXE_RULES=$R DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/a$n.log" 2>&1; echo "EXP profile-as-is try=$n crash=$(grep -c page-crash $RUNNER_TEMP/a$n.log)"
-            QA_AXE_RULES=$R QA_BLUR=1 DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/b$n.log" 2>&1; echo "EXP profile-blur try=$n crash=$(grep -c page-crash $RUNNER_TEMP/b$n.log) $(grep -o 'failures":\[[^]]*' $RUNNER_TEMP/b$n.log | tail -1 | cut -c1-200)"
-            QA_AXE_RULES=$R QA_MODE=ready DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/c$n.log" 2>&1; echo "EXP ready-nofocus try=$n crash=$(grep -c page-crash $RUNNER_TEMP/c$n.log)"
-            QA_AXE_RULES=$R QA_MODE=ready QA_FOCUS_READY=1 DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/d$n.log" 2>&1; echo "EXP ready-focus try=$n crash=$(grep -c page-crash $RUNNER_TEMP/d$n.log)"
-          done
+          for m in none nohas noprofile; do for n in 1 2; do
+            QA_AXE_RULES=$R QA_CSS=$m DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/$m$n.log" 2>&1
+            echo "EXP $m try=$n crash=$(grep -c page-crash $RUNNER_TEMP/$m$n.log) $(grep -o 'CSSMODE.*' $RUNNER_TEMP/$m$n.log)"
+          done; done
           exit 0
       - name: Retain synthetic screenshots and report
         if: always()

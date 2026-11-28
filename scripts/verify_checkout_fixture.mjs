@@ -150,6 +150,11 @@ async function runScenario(browser,width,mode) {
       // page itself; the rule set and tags are unchanged.
       const only=process.env.QA_AXE_RULES;
       if(process.env.QA_FOCUS_READY&&label==='mock-paid-orders'){await page.locator('a,button,input').filter({visible:true}).first().focus();}
+      if(process.env.QA_CSS&&label==='name-only-profile'){const r=await page.evaluate(m=>{let n=0;
+        if(m==='none'){for(const sh of document.styleSheets){sh.disabled=true;n++;}}
+        if(m==='nohas'){const walk=list=>{for(let i=list.length-1;i>=0;i--){const r=list[i];if(r.cssRules&&!r.selectorText)walk(r.cssRules);else if(r.selectorText&&r.selectorText.includes(':has(')){list===r.parentRule?.cssRules;(r.parentRule||r.parentStyleSheet).deleteRule(i);n++;}}};for(const sh of document.styleSheets){try{walk(sh.cssRules);}catch(e){}}}
+        if(m==='noprofile'){document.querySelector('.checkout-profile')?.remove();n=1;}
+        return n;},process.env.QA_CSS);console.log('CSSMODE '+process.env.QA_CSS+' changed='+r);}
       if(process.env.QA_BLUR==='1'){await page.evaluate(()=>document.activeElement&&document.activeElement.blur());}
       if(only&&label!=='name-only-profile'&&!(process.env.QA_FOCUS_READY&&label==='mock-paid-orders')){console.log(JSON.stringify({label,axeSkipped:true}));return;}
       let ab=new AxeBuilder({page}).setLegacyMode(engine==='firefox');
