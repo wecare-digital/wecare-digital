@@ -19,7 +19,7 @@ in an otherwise empty commerce authority.
   salutation, available date and time preference metadata from the provider adapter.
   Unknown response schemas fail closed. Time components are not reserved time slots.
 - Connect the existing encrypted session/renewal core to an exact administrator-bound
-  staff Gmail grant. Use the same fenced OAuth refresh record as workspace MCP,
+  staff Gmail grant. Use the existing fenced OAuth refresh record,
   retain exact Gmail read-only scope, validate the target mailbox, and never
   return OTPs, mail, provider credentials or access tokens. A single service
   renewal lease bounds concurrent login challenges. Do not bypass CAPTCHA or
@@ -41,19 +41,16 @@ in an otherwise empty commerce authority.
    authorized application header, intended account and exact OTP sender. Rotate
    the password exposed in the previous transcript; never pass it in chat, CLI
    flags, browser storage, logs, code or GitHub. Do not use a copied browser token.
-2. In Workspace → Platform → MCP Connections, connect the intended Apollo business
-   Gmail account, grant the exact Gmail read-only scope, then Verify. The consent
-   screen must be completed by the mailbox administrator. A verified staff grant
-   alone does not delegate it to the customer-facing service.
+2. The workspace Gmail connection manager was removed. Use a retained, verified
+   Gmail read-only grant for the Apollo business account; a new grant needs a
+   separate reviewed consent flow. A verified staff grant alone does not
+   delegate it to the customer-facing service.
 3. An authorized AWS administrator configures the existing
    `wecare/arogya/apollo` secret in Secrets Manager. Do not duplicate the
-   password in DynamoDB. Run the updated interactive script:
-   `python3 scripts/configure_arogya_provider.py --grant-owner OWNER_HASH --key-arn APPROVED_KEY_ARN`.
-   It checks the exact account, verified grant and key; requires provider approval
-   and rotation of the previously exposed password; and securely prompts for the
-   provider-issued application header and exact OTP sender. The new secret version
-   is promoted with a version fence. Run the same command with `--check` for
-   read-only readiness verification. Never place credentials on command lines or
+   password in DynamoDB. The provider configuration script
+   (scripts/configure_arogya_provider.py) was removed with the workspace Lambda, so
+   store the provider-issued application header and exact OTP sender in the secret
+   with the AWS console or CLI. Never place credentials on command lines or
    in repository files. Rotate with catalogue disabled; review and reset any old
    provider session before re-enabling.
 4. Review the CloudFormation change set. Set ApolloAutomationEnabled=true only

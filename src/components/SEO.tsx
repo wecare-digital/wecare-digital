@@ -128,10 +128,6 @@ export const PAGE_SEO = {
     title: 'Billing - Usage and Costs',
     description: 'Track messaging and platform usage and costs across every channel.',
   },
-  aiConfig: {
-    title: 'AI Configuration - Response Automation',
-    description: 'Configure AI-assisted response automation, knowledge sources and auto-reply settings.',
-  },
   orders: {
     title: 'Orders - Order Management',
     description: 'Manage orders from native commerce, WhatsApp, and manual sources. Track status, payments, and linked submissions.',

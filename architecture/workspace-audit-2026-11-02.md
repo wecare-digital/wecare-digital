@@ -78,7 +78,7 @@ constrained by static `output: 'export'`); the `overrides`/guard-script machiner
 ### 2.3 Python Lambda fleet (deployed OUTSIDE Amplify)
 - **318** `.py` handlers under `amplify/functions/**`
   (`find amplify/functions -name '*.py' | wc -l`), organized by domain:
-  `ai/`, `auth/`, `core/`, `ecommerce/`, `edge/`, `messaging/`, plus shared
+  `auth/`, `core/`, `ecommerce/`, `edge/`, `messaging/`, plus shared
   `lambda_utils/`. Runtime: **python3.12**.
 - Deployed by **imperative scripts**, not by the Amplify pipeline. The live
   deployed footprint differs from the repo count: `docs/ops/backend-audit-2026-11-02.md`
@@ -112,10 +112,9 @@ constrained by static `output: 'export'`); the `overrides`/guard-script machiner
   A second cloud provider outside the primary AWS footprint.
 
 ### 2.8 Tooling and config
-- `tools/audit/*` (audit JS), `tools/customer-commerce/*` (Python).
+- `tools/audit/*` (audit JS).
 - `config/lambda-env-manifest.json` (~28KB), `config/public-pages.json`,
-  `config/backend-retirement.json`, `config/vendor-versions.json`,
-  `config/workspace-mcp` JSON.
+  `config/backend-retirement.json`, `config/vendor-versions.json`.
 
 ### 2.9 Two independent npm install roots (by design)
 - **Root** `package.json` and **`amplify/package.json`** are separate install

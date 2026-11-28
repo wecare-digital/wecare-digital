@@ -296,11 +296,10 @@ const contextualRoutes: { path: string; label: string; parent: string }[] = [
   { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages', parent: 'Publishing' },
-  { path: '/workspace/automation', label: 'Automation & AI', parent: 'Contextual workflows' },
-  { path: '/workspace/automation?view=agent', label: 'Legacy assistant retired', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=rules', label: 'Rules', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=schedules', label: 'Schedules', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=knowledge', label: 'Knowledge', parent: 'Automation & AI' },
+  { path: '/workspace/automation', label: 'Automation', parent: 'Contextual workflows' },
+  { path: '/workspace/automation?view=rules', label: 'Rules', parent: 'Automation' },
+  { path: '/workspace/automation?view=schedules', label: 'Schedules', parent: 'Automation' },
+  { path: '/workspace/automation?view=knowledge', label: 'Knowledge', parent: 'Automation' },
 ];
 
 export function getAllNavItems (): { path: string; label: string; parent?: string }[] {

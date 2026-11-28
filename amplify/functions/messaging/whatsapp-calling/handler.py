@@ -25,7 +25,6 @@ IVR Audio Playback:
   For true in-call audio, enable SIP on the phone number.
 
 Mode: IVR auto-pickup ONLY (manual/browser WebRTC mode removed).
-AI Respond endpoint removed — AI is handled by inbound WhatsApp handler via voice notes.
 """
 
 import os
@@ -684,8 +683,8 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                 # The inbound handler has full logic for template status, account updates, etc.
                 _forward(entry, waba_id)
             elif field in ('standby', 'messaging_handovers'):
-                # Conversation Routing webhooks only served the removed Meta Business AI
-                # agent. Acknowledge with 200 and do not forward.
+                # Conversation Routing webhooks only served a removed Meta
+                # Business agent. Acknowledge with 200 and do not forward.
                 logger.info(json.dumps({
                     'event': 'webhook_field_ignored',
                     'field': field,

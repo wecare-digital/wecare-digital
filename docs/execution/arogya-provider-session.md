@@ -5,20 +5,11 @@ It does not activate public booking submission by itself.
 
 ## Google authorization
 
-Use the existing staff Admin connection manager:
-https://wecare.digital/workspace/platform/?view=mcp-connections
-
-After the matching workspace-MCP backend release and frontend release:
-1. Select Gmail · Apollo OTP, then Connect.
-2. Continue with Google as wecare.digital.bw@gmail.com and approve Gmail read-only access.
-3. Return to the connection manager and select Verify.
-
-This is a separate per-staff-account grant in the existing encrypted registry,
-not a ChatGPT connector token or an exported browser session. The existing web
-OAuth client and callback are reused. The callback checks the required Gmail
-scope and actual Gmail API profile before saving. Granting a different Google
-account fails closed. Verification exposes only a success marker, not messages,
-tokens or other mail. No arbitrary Gmail read tool is added.
+The staff connection manager (Platform > MCP Connections) and the workspace-mcp
+Lambda that issued and verified Google consent were removed. No new Gmail grant can
+be created from the workspace. Existing encrypted grant rows in the
+`wecare-workspace-mcp` table are retained and are still read and refreshed by the
+Arogya runtime. Issuing a new grant needs a separate reviewed consent flow.
 
 The grant needs explicit service binding before customer requests can use it.
 A staff connection alone does not delegate mailbox access to public customers.
@@ -44,7 +35,7 @@ No such service binding is silently created by consent or by this change.
 - session_store.py supports encrypted custody in the existing registry table,
   fixed service-record keys, KMS encryption-context binding and fenced leases.
   Its separate arogya-provider context requires explicit runtime IAM wiring;
-  the existing workspace-mcp purpose policy is not assumed to permit it.
+  the retained workspace-mcp purpose policy is not assumed to permit it.
 - Direct KMS plaintext is bounded to 4096 bytes. No new secret/table/key,
   provisioned instance, scheduler or always-on worker is created here.
 
@@ -71,7 +62,4 @@ permission is restricted to invocations via the Function URL. Direct SDK Invoke
 requires an independently authorized AWS IAM operator; no fabricated HTTP
 authorizer identity or customer token is used.
 
-scripts/deploy_workspace_mcp.py requires merged wecare.digital source before
-activation. Build and review the deterministic workspace-MCP archive first;
-preserve all existing stack parameters. The current change adds an OAuth
-provider using existing code resources, not another stack or credential family.
+The workspace-mcp deployment scripts were removed with the Lambda.

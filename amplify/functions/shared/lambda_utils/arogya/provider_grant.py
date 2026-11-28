@@ -2,7 +2,7 @@
 
 Only the deployment-selected staff grant is accessed. There is no scan, caller-selected
 owner, generic Gmail proxy or copy of a staff refresh token. The refresh fence is the
-same one used by workspace MCP, so concurrent refreshes cannot overwrite a newer grant.
+same one used by the retired workspace service, so concurrent refreshes cannot overwrite a newer grant.
 """
 from __future__ import annotations
 

@@ -150,7 +150,7 @@ The 318 `.py` files under `amplify/functions/**` are not 318 Lambdas:
   The live example today is `wecare-checkout` and `wecare-commerce`, both
   packaging `ecommerce/checkout`.
 - Delegated and image-package functions are deployed outside the `SPECS` map (for
-  example the MCP functions via CloudFormation, and the image-package
+  example the image-package
   `wecare-docs-scraper`), so they do not line up one-to-one with `SPECS` rows.
 
 The approximately 76 live functions (quoted in

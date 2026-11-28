@@ -37,7 +37,7 @@ average conversation duration, total billable seconds, and breakdowns byCallType
 byStatus, byHangupCause and byHangupStatus.
 
 Auth: `require_auth` on anything that arrives through API Gateway. Internal
-Lambda invokes (the AI assistant's `get_voice_cdr` tool) carry no gateway
+Lambda invokes carry no gateway
 context and are admitted by the middleware.
 """
 
