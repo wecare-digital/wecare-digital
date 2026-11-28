@@ -1150,34 +1150,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
                 # Process incoming messages
                 for _message_index, message in enumerate(_inbound_messages):
+                    # Timeout guard: skip remaining messages if <15s left. It sits outside the
+                    # per-message try, so its failure is never handled as one message's error.
+                    if context and context.get_remaining_time_in_millis() < 15000:
+                        logger.warning(json.dumps({
+                            'event': 'timeout_guard_triggered',
+                            'remainingMs': context.get_remaining_time_in_millis(),
+                            'processedCount': processed_count,
+                            'requestId': request_id
+                        }))
+                        # Park the unprocessed rest as the typed event dlq-replay hands back
+                        # to this worker. The old `{'messages': [...]}` record matched no
+                        # shape wa_internal_event.parse accepts, so a replay reproduced
+                        # nothing; and slicing by the request-wide processed_count dropped
+                        # messages once an earlier change had any. Statuses stay out: this
+                        # run still processes them below.
+                        _remaining_value = {k: v for k, v in value.items() if k != 'statuses'}
+                        _remaining_value['messages'] = _inbound_messages[_message_index:]
+                        parked = _send_to_dlq(
+                            wa_internal_event.build(
+                                entry={**webhook_entry,
+                                       'changes': [{**change, 'value': _remaining_value}]},
+                                waba_id=_item.get('waba_id') or '',
+                                meta_phone_number_ids=meta_phone_number_ids,
+                                request_id=request_id,
+                            ),
+                            'timeout_guard', request_id)
+                        if not parked:
+                            # Nothing durable holds these messages. The record-level handler
+                            # parks the work item or fails the invocation; never acknowledge.
+                            raise RuntimeError('timeout_guard_park_failed')
+                        break
                     try:
-                        # Timeout guard: skip remaining messages if <15s left
-                        if context and context.get_remaining_time_in_millis() < 15000:
-                            logger.warning(json.dumps({
-                                'event': 'timeout_guard_triggered',
-                                'remainingMs': context.get_remaining_time_in_millis(),
-                                'processedCount': processed_count,
-                                'requestId': request_id
-                            }))
-                            # Park the unprocessed rest as the typed event dlq-replay hands back
-                            # to this worker. The old `{'messages': [...]}` record matched no
-                            # shape wa_internal_event.parse accepts, so a replay reproduced
-                            # nothing; and slicing by the request-wide processed_count dropped
-                            # messages once an earlier change had any. Statuses stay out: this
-                            # run still processes them below.
-                            _remaining_value = {k: v for k, v in value.items() if k != 'statuses'}
-                            _remaining_value['messages'] = _inbound_messages[_message_index:]
-                            _send_to_dlq(
-                                wa_internal_event.build(
-                                    entry={**webhook_entry,
-                                           'changes': [{**change, 'value': _remaining_value}]},
-                                    waba_id=_item.get('waba_id') or '',
-                                    meta_phone_number_ids=meta_phone_number_ids,
-                                    request_id=request_id,
-                                ),
-                                'timeout_guard', request_id)
-                            break
-                        
                         message_dedup.process_tracked_message(
                             _process_message,
                             message=message,

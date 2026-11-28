@@ -38,9 +38,9 @@ def inbound():
         sys.modules.pop(spec.name, None)
 
 
-def _context():
+def _context(remaining_ms=120000):
     ctx = mock.Mock()
-    ctx.get_remaining_time_in_millis.return_value = 120000
+    ctx.get_remaining_time_in_millis.return_value = remaining_ms
     ctx.aws_request_id = "req-1"
     return ctx
 
@@ -113,6 +113,49 @@ def test_unparkable_failure_fails_the_invocation(inbound):
     assert isinstance(result, RuntimeError)
     # Per-message park, then the record-level park of the whole work item.
     assert dlq.call_count == 2
+
+
+def _run_out_of_time(inbound, dlq_results):
+    """Less than 15s left: the timeout guard parks both messages before processing either."""
+    with mock.patch.object(inbound, "_process_message") as proc, \
+            mock.patch.object(inbound, "_process_status"), \
+            mock.patch.object(inbound, "_get_aws_phone_number_id", return_value="aws-1"), \
+            mock.patch.object(inbound, "_send_to_dlq", side_effect=list(dlq_results)) as dlq:
+        try:
+            result = inbound.handler(_event("wamid.A", "wamid.B"), _context(remaining_ms=10000))
+        except Exception as exc:  # noqa: BLE001 - asserted by the caller
+            result = exc
+    return result, dlq, proc
+
+
+def _parked_ids(record):
+    return [m["id"] for m in record["entry"]["changes"][0]["value"]["messages"]]
+
+
+def test_timeout_guard_parks_the_unprocessed_messages(inbound):
+    result, dlq, proc = _run_out_of_time(inbound, [True])
+    assert result["statusCode"] == 200
+    proc.assert_not_called()
+    (record, reason, _request), = [c.args for c in dlq.call_args_list]
+    assert reason == "timeout_guard"
+    assert _parked_ids(record) == ["wamid.A", "wamid.B"]
+    assert "statuses" not in record["entry"]["changes"][0]["value"]
+
+
+def test_timeout_guard_fails_the_invocation_when_nothing_can_park(inbound):
+    result, dlq, proc = _run_out_of_time(inbound, [False, False])
+    assert isinstance(result, RuntimeError) and str(result) == "timeout_guard_park_failed"
+    proc.assert_not_called()
+    # The guard's park, then the record-level park of the whole work item; no per-message park.
+    assert [c.args[1] for c in dlq.call_args_list] == ["timeout_guard", "timeout_guard_park_failed"]
+
+
+def test_timeout_guard_park_failure_falls_back_to_the_record_park(inbound):
+    result, dlq, proc = _run_out_of_time(inbound, [False, True])
+    assert result["statusCode"] == 200
+    proc.assert_not_called()
+    assert dlq.call_count == 2
+    assert _parked_ids(dlq.call_args_list[1].args[0]) == ["wamid.A", "wamid.B"]
 
 
 class _Drafts:
