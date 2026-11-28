@@ -115,10 +115,11 @@ test( 'modules every page loads do not statically import staff code, Amplify or 
   assert.ok( files.some( f => rel( f ) === 'src/components/Header.tsx' ), 'graph walk reached Header' );
 } );
 
+const escapeRegExp = value => value.replace( /[.*+?^${}()|[\]\\/]/g, '\\$&' );
 test( '_app.tsx loads every authenticated shell lazily and client-only', () => {
   const app = stripComments( fs.readFileSync( path.join( ROOT, 'src/pages/_app.tsx' ), 'utf8' ) );
   for ( const shell of [ 'components/AuthShell', 'components/ws/WsAuthShell', 'components/WorkspaceShell' ] ) {
-    const lazy = new RegExp( `dynamic\\(\\s*\\(\\)\\s*=>\\s*import\\(\\s*'\\.\\./${ shell.replace( /\//g, '\\/' ) }'\\s*\\),\\s*\\{\\s*ssr:\\s*false\\s*\\}\\s*\\)` );
+    const lazy = new RegExp( `dynamic\\(\\s*\\(\\)\\s*=>\\s*import\\(\\s*'\\.\\./${ escapeRegExp( shell ) }'\\s*\\),\\s*\\{\\s*ssr:\\s*false\\s*\\}\\s*\\)` );
     assert.match( app, lazy, `${ shell } must be next/dynamic with ssr: false` );
   }
 } );
