@@ -8,7 +8,7 @@
       "kind": "action",
       "postbackData": "wd_get_started",
       "text": "Get Started",
-      "url": "https://wecare.digital/submit-request/"
+      "url": "https://wecare.digital/selfservice"
     },
     {
       "actionTypes": [
@@ -24,11 +24,9 @@
       "actionTypes": [
         "dialAction"
       ],
-      "application": null,
       "kind": "action",
       "postbackData": "wd_call",
-      "text": "Call us",
-      "url": null
+      "text": "Call us"
     }
   ],
   "bodyLength": 118,
@@ -46,8 +44,6 @@
   "referencedByCode": false,
   "status": "approved",
   "suggestionCount": 3,
-  "thumbnailImageAlignment": null,
-  "thumbnailUrl": null,
   "title": "WECARE.DIGITAL",
   "titleLength": 14,
   "type": "rich_card",

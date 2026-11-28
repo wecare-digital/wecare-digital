@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T03:32:01.126772+00:00",
+  "generatedAt": "2026-11-28T04:13:09.503546+00:00",
   "generator": "scripts/rcs_template_sync.py",
   "source": {
     "platform": "Sinch India (ex-ACL Mobile)",
@@ -7,14 +7,14 @@
     "note": "The official Sinch MCP server cannot read these: it authenticates against the global Sinch Build platform with KEY_ID/KEY_SECRET, which this account does not have."
   },
   "counts": {
-    "total": 15,
-    "richCard": 10,
+    "total": 18,
+    "richCard": 13,
     "textMessage": 5,
     "carousel": 0,
-    "approved": 15,
+    "approved": 18,
     "referencedByCode": 1,
     "documentedOnly": 2,
-    "unreferenced": 12
+    "unreferenced": 15
   },
   "templates": [
     {
@@ -22,14 +22,6 @@
       "type": "text_message",
       "status": "approved",
       "isRichCard": false,
-      "cardOrientation": null,
-      "thumbnailImageAlignment": null,
-      "mediaHeight": null,
-      "mediaUrl": null,
-      "mediaExtension": null,
-      "thumbnailUrl": null,
-      "forceRefresh": null,
-      "title": null,
       "titleLength": 0,
       "bodyLength": 230,
       "suggestionCount": 0,
@@ -47,14 +39,6 @@
       "type": "text_message",
       "status": "approved",
       "isRichCard": false,
-      "cardOrientation": null,
-      "thumbnailImageAlignment": null,
-      "mediaHeight": null,
-      "mediaUrl": null,
-      "mediaExtension": null,
-      "thumbnailUrl": null,
-      "forceRefresh": null,
-      "title": null,
       "titleLength": 0,
       "bodyLength": 21,
       "suggestionCount": 0,
@@ -75,9 +59,9 @@
       "cardOrientation": "HORIZONTAL",
       "thumbnailImageAlignment": "LEFT",
       "mediaHeight": "TALL",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/WECARE+SC.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/WECARE+SC.png",
       "forceRefresh": false,
       "title": "Thanks for contacting WECARE.DIGITAL!",
       "titleLength": 37,
@@ -91,7 +75,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -108,14 +92,6 @@
       "type": "text_message",
       "status": "approved",
       "isRichCard": false,
-      "cardOrientation": null,
-      "thumbnailImageAlignment": null,
-      "mediaHeight": null,
-      "mediaUrl": null,
-      "mediaExtension": null,
-      "thumbnailUrl": null,
-      "forceRefresh": null,
-      "title": null,
       "titleLength": 0,
       "bodyLength": 99,
       "suggestionCount": 0,
@@ -136,14 +112,6 @@
       "type": "text_message",
       "status": "approved",
       "isRichCard": false,
-      "cardOrientation": null,
-      "thumbnailImageAlignment": null,
-      "mediaHeight": null,
-      "mediaUrl": null,
-      "mediaExtension": null,
-      "thumbnailUrl": null,
-      "forceRefresh": null,
-      "title": null,
       "titleLength": 0,
       "bodyLength": 59,
       "suggestionCount": 0,
@@ -163,14 +131,6 @@
       "type": "text_message",
       "status": "approved",
       "isRichCard": false,
-      "cardOrientation": null,
-      "thumbnailImageAlignment": null,
-      "mediaHeight": null,
-      "mediaUrl": null,
-      "mediaExtension": null,
-      "thumbnailUrl": null,
-      "forceRefresh": null,
-      "title": null,
       "titleLength": 0,
       "bodyLength": 72,
       "suggestionCount": 0,
@@ -192,11 +152,10 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "SHORT",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
       "title": "Thanks for contacting WECARE.DIGITAL!",
       "titleLength": 37,
@@ -210,7 +169,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -228,11 +187,10 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "SHORT",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
       "title": "Thanks for placing your order with WECARE.DIGITAL!",
       "titleLength": 50,
@@ -246,7 +204,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -264,11 +222,10 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "MEDIUM",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
       "title": "Thanks for contacting WECARE.DIGITAL!",
       "titleLength": 37,
@@ -282,7 +239,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -300,11 +257,10 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "MEDIUM",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
       "title": "Thanks for contacting WECARE.DIGITAL!",
       "titleLength": 37,
@@ -318,7 +274,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -336,11 +292,10 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "MEDIUM",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
-      "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+      "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
       "title": "Thanks for placing your order with WECARE.DIGITAL!",
       "titleLength": 50,
@@ -354,7 +309,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/r/getstarted",
+          "url": "https://r.wecare.digital/getstarted",
           "application": "BROWSER"
         }
       ],
@@ -372,9 +327,8 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "SHORT",
-      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+      "mediaUrl": "https://wecare.digital/get/o/stream/media/m/selfservice.mp4",
       "mediaExtension": "mp4",
       "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
       "forceRefresh": false,
@@ -408,11 +362,9 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "TALL",
       "mediaUrl": "https://wecare.digital/get/o/stream/media/m/wd-card-front-tall.png",
       "mediaExtension": "png",
-      "thumbnailUrl": null,
       "forceRefresh": false,
       "title": "WECARE.DIGITAL",
       "titleLength": 14,
@@ -444,11 +396,9 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "MEDIUM",
       "mediaUrl": "https://wecare.digital/get/o/stream/media/m/wd-card-front-wide.png",
       "mediaExtension": "png",
-      "thumbnailUrl": null,
       "forceRefresh": false,
       "title": "WECARE.DIGITAL",
       "titleLength": 14,
@@ -480,11 +430,9 @@
       "status": "approved",
       "isRichCard": true,
       "cardOrientation": "VERTICAL",
-      "thumbnailImageAlignment": null,
       "mediaHeight": "MEDIUM",
       "mediaUrl": "https://wecare.digital/get/o/stream/media/m/wd-brand-16x9.png",
       "mediaExtension": "png",
-      "thumbnailUrl": null,
       "forceRefresh": false,
       "title": "WECARE.DIGITAL",
       "titleLength": 14,
@@ -498,7 +446,7 @@
           "actionTypes": [
             "openUrlAction"
           ],
-          "url": "https://wecare.digital/submit-request/",
+          "url": "https://wecare.digital/selfservice",
           "application": "BROWSER"
         },
         {
@@ -517,9 +465,7 @@
           "postbackData": "wd_call",
           "actionTypes": [
             "dialAction"
-          ],
-          "url": null,
-          "application": null
+          ]
         }
       ],
       "variables": [],
@@ -529,16 +475,119 @@
       "referencedByCode": false,
       "documentedOnly": false,
       "fingerprint": "184917792fa1ec74"
+    },
+    {
+      "name": "rcsivralert",
+      "type": "rich_card",
+      "status": "approved",
+      "isRichCard": true,
+      "cardOrientation": "VERTICAL",
+      "mediaHeight": "SHORT",
+      "mediaUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794612406491.png",
+      "mediaExtension": "png",
+      "forceRefresh": false,
+      "title": "Thank you for contacting WECARE.DIGITAL!",
+      "titleLength": 40,
+      "bodyLength": 90,
+      "suggestionCount": 1,
+      "actions": [
+        {
+          "kind": "action",
+          "text": "Start here",
+          "postbackData": "rcsivralert",
+          "actionTypes": [
+            "openUrlAction"
+          ],
+          "url": "https://wecare.digital",
+          "application": "BROWSER"
+        }
+      ],
+      "variables": [],
+      "variableSyntax": "none",
+      "hasTrailingBackticks": false,
+      "isCarousel": false,
+      "referencedByCode": false,
+      "documentedOnly": false,
+      "fingerprint": "524592175f50b699"
+    },
+    {
+      "name": "smsalert",
+      "type": "rich_card",
+      "status": "approved",
+      "isRichCard": true,
+      "cardOrientation": "VERTICAL",
+      "mediaHeight": "SHORT",
+      "mediaUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794613013937.png",
+      "mediaExtension": "png",
+      "forceRefresh": false,
+      "title": "Alert",
+      "titleLength": 5,
+      "bodyLength": 142,
+      "suggestionCount": 1,
+      "actions": [
+        {
+          "kind": "action",
+          "text": "Open WhatsApp",
+          "postbackData": "smsalert",
+          "actionTypes": [
+            "openUrlAction"
+          ],
+          "url": "https://wa.me/message/APDM5HUWH26SG1",
+          "application": "BROWSER"
+        }
+      ],
+      "variables": [],
+      "variableSyntax": "none",
+      "hasTrailingBackticks": false,
+      "isCarousel": false,
+      "referencedByCode": false,
+      "documentedOnly": false,
+      "fingerprint": "91bfc1ae04847235"
+    },
+    {
+      "name": "wecareivralert",
+      "type": "rich_card",
+      "status": "approved",
+      "isRichCard": true,
+      "cardOrientation": "VERTICAL",
+      "mediaHeight": "SHORT",
+      "mediaUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794635500942.png",
+      "mediaExtension": "png",
+      "forceRefresh": false,
+      "title": "Thank you for contacting WECARE.DIGITAL!",
+      "titleLength": 40,
+      "bodyLength": 98,
+      "suggestionCount": 1,
+      "actions": [
+        {
+          "kind": "action",
+          "text": "Start here",
+          "postbackData": "wecareivralert",
+          "actionTypes": [
+            "openUrlAction"
+          ],
+          "url": "https://wecare.digital",
+          "application": "BROWSER"
+        }
+      ],
+      "variables": [],
+      "variableSyntax": "none",
+      "hasTrailingBackticks": false,
+      "isCarousel": false,
+      "referencedByCode": false,
+      "documentedOnly": false,
+      "fingerprint": "47d61270a98fdab9"
     }
   ],
   "findings": [
     {
-      "severity": "HIGH",
+      "severity": "MEDIUM",
       "template": "get_started",
       "finding": "HORIZONTAL card orientation with TALL media height",
       "consequence": "TALL is not offered for horizontal cards; the media may be dropped, leaving a card with no video",
       "action": "set mediaHeight to MEDIUM, or cardOrientation to VERTICAL",
-      "needsProviderReadback": true
+      "needsProviderReadback": true,
+      "reachability": "no code path sends this template, so the defect cannot reach a customer today; this escalates to HIGH automatically if a sender starts naming it"
     },
     {
       "severity": "MEDIUM",
@@ -702,16 +751,37 @@
       "action": "confirm the landing page is mobile-legible"
     },
     {
+      "severity": "INFORMATIONAL",
+      "template": "rcsivralert",
+      "finding": "openUrlAction forces application=BROWSER",
+      "consequence": "opens the system browser rather than a webview; acceptable, but the transition is more abrupt on iPhone",
+      "action": "confirm the landing page is mobile-legible"
+    },
+    {
+      "severity": "INFORMATIONAL",
+      "template": "smsalert",
+      "finding": "openUrlAction forces application=BROWSER",
+      "consequence": "opens the system browser rather than a webview; acceptable, but the transition is more abrupt on iPhone",
+      "action": "confirm the landing page is mobile-legible"
+    },
+    {
+      "severity": "INFORMATIONAL",
+      "template": "wecareivralert",
+      "finding": "openUrlAction forces application=BROWSER",
+      "consequence": "opens the system browser rather than a webview; acceptable, but the transition is more abrupt on iPhone",
+      "action": "confirm the landing page is mobile-legible"
+    },
+    {
       "severity": "MEDIUM",
-      "template": "get_started, rcsmenu_apex, test16, test17, wd_card_clean, wd_card_front, wd_card_front_wide, wdorder, wecare_order_update, wecare_test_create, wecare_v2_test, wecaremenu",
-      "finding": "12 approved templates no code path sends",
+      "template": "get_started, rcsivralert, rcsmenu_apex, smsalert, test16, test17, wd_card_clean, wd_card_front, wd_card_front_wide, wdorder, wecare_order_update, wecare_test_create, wecare_v2_test, wecareivralert, wecaremenu",
+      "finding": "15 approved templates no code path sends",
       "consequence": "unused approved surface; several are obvious test leftovers sitting in production",
       "action": "confirm each is intentional, then retire the test templates"
     }
   ],
   "findingCounts": {
-    "HIGH": 1,
-    "MEDIUM": 6,
-    "INFORMATIONAL": 18
+    "HIGH": 0,
+    "MEDIUM": 7,
+    "INFORMATIONAL": 21
   }
 }

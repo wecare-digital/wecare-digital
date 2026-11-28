@@ -1,0 +1,35 @@
+{
+  "component": {
+    "richCard": {
+      "standaloneCard": {
+        "cardContent": {
+          "description": "An important update about your order or request has been sent to your registered WhatsApp. Please check and respond if needed.\n\nWECARE.DIGITAL",
+          "media": {
+            "contentInfo": {
+              "fileUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794613013937.png",
+              "forceRefresh": false
+            },
+            "height": "SHORT"
+          },
+          "suggestions": [
+            {
+              "action": {
+                "openUrlAction": {
+                  "application": "BROWSER",
+                  "url": "https://wa.me/message/APDM5HUWH26SG1"
+                },
+                "postbackData": "smsalert",
+                "text": "Open WhatsApp"
+              }
+            }
+          ],
+          "title": "Alert"
+        },
+        "cardOrientation": "VERTICAL"
+      }
+    }
+  },
+  "name": "smsalert",
+  "status": "approved",
+  "type": "rich_card"
+}

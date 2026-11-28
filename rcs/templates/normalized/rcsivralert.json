@@ -1,0 +1,34 @@
+{
+  "actions": [
+    {
+      "actionTypes": [
+        "openUrlAction"
+      ],
+      "application": "BROWSER",
+      "kind": "action",
+      "postbackData": "rcsivralert",
+      "text": "Start here",
+      "url": "https://wecare.digital"
+    }
+  ],
+  "bodyLength": 90,
+  "cardOrientation": "VERTICAL",
+  "documentedOnly": false,
+  "fingerprint": "524592175f50b699",
+  "forceRefresh": false,
+  "hasTrailingBackticks": false,
+  "isCarousel": false,
+  "isRichCard": true,
+  "mediaExtension": "png",
+  "mediaHeight": "SHORT",
+  "mediaUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794612406491.png",
+  "name": "rcsivralert",
+  "referencedByCode": false,
+  "status": "approved",
+  "suggestionCount": 1,
+  "title": "Thank you for contacting WECARE.DIGITAL!",
+  "titleLength": 40,
+  "type": "rich_card",
+  "variableSyntax": "none",
+  "variables": []
+}
