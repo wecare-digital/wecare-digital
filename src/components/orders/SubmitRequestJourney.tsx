@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { usePublicToast } from '../public/PublicToastProvider';
 import SubmitRequestForm, { type SubmitRequestPaymentState, type SubmitRequestQuote } from './SubmitRequestForm';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -24,7 +25,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
   const [ quoteUnavailable, setQuoteUnavailable ] = useState( false );
   const [ paymentState, setPaymentState ] = useState<SubmitRequestPaymentState>( 'idle' );
   const [ generation, setGeneration ] = useState( 0 );
-  const [ statusMessage, setStatusMessage ] = useState( '' );
+  const { showToast } = usePublicToast();
+  const toastRef = useRef( showToast );
+  useEffect( () => { toastRef.current = showToast; }, [ showToast ] );
   const mounted = useRef( false );
   const checking = useRef( false );
   const starting = useRef( false );
@@ -70,7 +73,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
       setQuoteUnavailable( true );
     }
     changePhase( state.state );
-    setStatusMessage( '' );
+
     return true;
   }, [ changePhase ] );
 
@@ -83,17 +86,17 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
       const state = result.ok ? parseState( result.data, orderNumber ) : null;
       if ( !state ) {
         if ( initial ) setUnavailable( true );
-        else setStatusMessage( 'Status unavailable. Try again.' );
+        else toastRef.current( 'failure' );
         return;
       }
-      if ( !applyState( state ) ) setStatusMessage( 'Payment status is not confirmed yet.' );
+      if ( !applyState( state ) && !initial ) toastRef.current( 'blocked' );
       setReady( true );
       setUnavailable( false );
     }
     catch {
       if ( !mounted.current ) return;
       if ( initial ) setUnavailable( true );
-      else setStatusMessage( 'Status unavailable. Try again.' );
+      else toastRef.current( 'failure' );
     }
     finally { checking.current = false; }
   }, [ applyState, call, orderNumber ] );
@@ -122,7 +125,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     };
   }, [ checkStatus, paymentState ] );
 
-  const review = async () => {
+  const review = useCallback( async () => {
     if ( quoting.current || starting.current || ambiguous.current ) return;
     quoting.current = true;
     // A definitive failure permits a fresh, reviewed click, not a resend of
@@ -144,7 +147,13 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     }
     catch { if ( mounted.current ) setQuoteUnavailable( true ); }
     finally { quoting.current = false; }
-  };
+  }, [ call, orderNumber ] );
+
+  useEffect( () => {
+    if ( !ready || ( paymentState !== 'idle' && paymentState !== 'failed' ) ) return undefined;
+    const timer = window.setTimeout( () => { void review(); }, 0 );
+    return () => window.clearTimeout( timer );
+  }, [ ready, generation, paymentState, review ] );
 
   const pay = async ( input: { orderNumber: string; note: string; expectedTotalPaise: number } ) => {
     if ( starting.current || checking.current || quoting.current || ambiguous.current
@@ -153,7 +162,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     starting.current = true;
     acceptedKey.current = '';
     changePhase( 'starting' );
-    setStatusMessage( '' );
+
     try {
       const result = await call( 'request-service-web-start', {
         requestKey: requestKey.current, note: input.note, expectedTotalPaise: input.expectedTotalPaise,
@@ -199,7 +208,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     ambiguous.current = false;
     setQuote( null );
     setQuoteUnavailable( false );
-    setStatusMessage( '' );
+
     setGeneration( value => value + 1 );
     changePhase( 'idle' );
   };
@@ -211,7 +220,6 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
           quoteUnavailable={ quoteUnavailable } paymentState={ paymentState }
           onReview={ () => { void review(); } } onPay={ input => { void pay( input ); } }
           onCheckStatus={ () => { void checkStatus(); } } onDone={ onDone } onNewRequest={ newRequest } />
-        { statusMessage && <p className="sr-journey-status" role="status">{ statusMessage }</p> }
       </> : <section className="sr-journey-loading" aria-label="Submit Request">
         <h2>Submit Request</h2>
         <p role="status">{ unavailable ? 'Submit Request is temporarily unavailable.' : 'Checking request status…' }</p>
@@ -222,8 +230,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
         .sr-journey{width:100%;max-width:440px;min-width:0;margin:0 auto}
         .sr-journey-loading{padding:24px 22px;margin:0 auto;color:var(--public-brand-green)}
         .sr-journey-loading h2{font-size:26px;margin:0 0 12px}
-        .sr-journey-loading p,.sr-journey-status{color:var(--public-text);font-size:15px;line-height:1.5}
-        .sr-journey-status{margin:0 auto 24px;padding:0 22px;max-width:440px}
+        .sr-journey-loading p{color:var(--public-text);font-size:15px;line-height:1.5}
         .sr-journey-action{display:flex;align-items:center;justify-content:center;min-height:52px;width:100%;margin-top:10px;padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;cursor:pointer}
         @media(hover:hover) and (pointer:fine){.sr-journey-action:hover{background:var(--public-button-hover)}}
         .sr-journey-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
