@@ -1837,7 +1837,8 @@ def _process_message(
                     'requestId': request_id
                 }))
     
-    # Log full message for unsupported or unrecognized types to help debug
+    # Log the shape of an unsupported or unrecognized type to help debug: type, key names
+    # and a masked sender only. The message itself carries text, names, numbers, places.
     if msg_type in ('unsupported', 'unknown') or msg_type not in (
         'text', 'image', 'video', 'audio', 'document', 'sticker',
         'location', 'contacts', 'reaction', 'interactive', 'button',
@@ -1845,13 +1846,14 @@ def _process_message(
         'referral', 'ad_click', 'product', 'product_inquiry', 'poll',
         'edit', 'revoke',
     ):
+        _typed = message.get(str(message.get('type') or ''))
         logger.warning(json.dumps({
             'event': 'unsupported_or_new_message_type',
             'senderPhone': mask_phone(sender_phone),
             'whatsappMessageId': whatsapp_message_id,
             'messageType': msg_type,
             'messageKeys': list(message.keys()),
-            'fullMessage': message,
+            'typeKeys': sorted(str(k) for k in _typed.keys())[:30] if isinstance(_typed, dict) else [],
             'requestId': request_id
         }))
     
