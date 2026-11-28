@@ -152,7 +152,7 @@ export default function AppointmentPlanner (): React.ReactElement {
       <p>WECARE will review your preferences and contact you about the next steps. Your appointment is confirmed only when the hospital accepts it and the details are shared with you.</p>
       <p>No payment was collected for this submission.</p>
       <div className={ styles.actions }><button type="button" onClick={ () => { pending.current = null; setReceipt( null ); setForm( EMPTY ); setError( '' ); } }>Start another request</button></div>
-    </div> : <form onSubmit={ event => { void submit( event ); } }>
+    </div> : <form method="post" onSubmit={ event => { void submit( event ); } }>
       <fieldset className={ styles.requestFields } disabled={ busy || uncertain }>
         <legend>Hospital and appointment preferences</legend>
         <p className={ styles.help }>* Indicates mandatory fields. Dates and times are preferences to be checked with the hospital.</p>
