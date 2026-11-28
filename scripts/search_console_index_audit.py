@@ -76,7 +76,7 @@ DEFAULT_PATHS = [
     "/blog/page/2/",            # a paginated index - tests whether pagination is reachable
     "/post/moar-kali/",         # an individual article
     "/anew/",                   # a marketing route
-    "/grahak-os/",              # carries its own product-level SoftwareApplication schema
+    "/relay-os/",               # current platform page
     "/contact/",                # ContactPage, the conversion route
     "/llms.txt",                # the AI surface, to see if Google treats it as a page
     "/terms/",                  # a thin legal page, the most likely to be declined on merit

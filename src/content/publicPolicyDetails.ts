@@ -23,11 +23,6 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
   '/anew',
   '/hunar/kaushal',
   '/hunar/prastuti',
-  '/submit-request',
-  '/request-amendment',
-  '/drop-docs',
-  '/shipments/track',
-  '/request-pickup',
   '/orders',
 ] );
 
@@ -159,12 +154,6 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     returns: 'Return and replacement eligibility depends on the purchased item or service and disclosed conditions. Statutory remedies remain available.',
     refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
     disclaimer: 'Keep your order and payment reference for enquiries. Contact customer care if the confirmation differs from your purchase.',
-  },
-  '/get': {
-    shipping: 'Authorised files are supplied digitally under the applicable access conditions.',
-    returns: 'Contact customer care if a supplied digital file is incorrect or incomplete. Statutory remedies remain available.',
-    refunds: 'Refund and cancellation eligibility for a paid file or service follows its disclosed terms and applicable law.',
-    disclaimer: 'Access may require verification and may expire or be withdrawn when no longer authorised. Protect shared file links.',
   },
 };
 

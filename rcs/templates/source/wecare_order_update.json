@@ -1,6 +1,6 @@
 {
   "component": {
-    "text": "Your order {{order_id}} has been updated. Status: {{status}}. Track at https://wecare.digital/orders/"
+    "text": "Your order {{order_id}} has been updated. Status: {{status}}. Track at https://wecare.digital/track"
   },
   "name": "wecare_order_update",
   "status": "approved",

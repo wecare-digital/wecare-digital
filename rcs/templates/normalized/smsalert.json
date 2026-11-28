@@ -1,0 +1,34 @@
+{
+  "actions": [
+    {
+      "actionTypes": [
+        "openUrlAction"
+      ],
+      "application": "BROWSER",
+      "kind": "action",
+      "postbackData": "smsalert",
+      "text": "Open WhatsApp",
+      "url": "https://wa.me/message/APDM5HUWH26SG1"
+    }
+  ],
+  "bodyLength": 142,
+  "cardOrientation": "VERTICAL",
+  "documentedOnly": false,
+  "fingerprint": "91bfc1ae04847235",
+  "forceRefresh": false,
+  "hasTrailingBackticks": false,
+  "isCarousel": false,
+  "isRichCard": true,
+  "mediaExtension": "png",
+  "mediaHeight": "SHORT",
+  "mediaUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794613013937.png",
+  "name": "smsalert",
+  "referencedByCode": false,
+  "status": "approved",
+  "suggestionCount": 1,
+  "title": "Alert",
+  "titleLength": 5,
+  "type": "rich_card",
+  "variableSyntax": "none",
+  "variables": []
+}

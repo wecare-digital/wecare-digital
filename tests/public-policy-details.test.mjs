@@ -21,7 +21,7 @@ function check(copy) {
 test('all registered public routes receive a policy or own an embedded disclosure', async () => {
   const { publicPolicyDetailsForRoute: resolve, EMBEDDED_POLICY_ROUTES: embedded, ORDERS_POLICY_DETAILS: orders } = await load('src/content/publicPolicyDetails.ts');
   const { pages } = JSON.parse(read('config/public-pages.json'));
-  for (const path of [...pages.map(page => page.path), '/get-kosh', '/udyam-bids', '/auth', '/vault', '/checkout', '/checkout/status', '/checkout/success', '/get', '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]', '/post/[slug]', '/shop/page/[page]']) {
+  for (const path of [...pages.map(page => page.path), '/get-kosh', '/udyam-bids', '/auth', '/vault', '/checkout', '/checkout/status', '/checkout/success', '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]', '/post/[slug]', '/shop/page/[page]']) {
     if (path === '/' || embedded.has(path)) assert.equal(resolve(path), null, path);
     else check(resolve(path));
   }

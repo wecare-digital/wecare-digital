@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * Do not accidentally resurrect unassigned public marketing/transaction landing pages.
- * Previously retired names may be deliberately registered for new public pages.
+ * Validate current public route registration, protected namespaces and commerce contracts.
+ * No historical public URL registry is needed.
  *
  * Customer functions (Orders, WhatsApp, paid service records, and the exact-file
  * /vault/?file= link) remain supported. This guards only obsolete public pages
@@ -12,11 +12,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const history = JSON.parse(fs.readFileSync(path.join(root, 'config/historical-route-paths.json'), 'utf8'));
-const retired = history.publicPaths;
-const retiredWorkspaceRoutes = history.workspacePaths;
-const infrastructureAdjacent = new Set(history.infrastructureAdjacent);
-// Historical public names are not reserved. Workspace aliases remain protected.
 const deadModules = [
   'src/content/customerservice.ts',
   'src/content/shipments.ts',
@@ -41,36 +36,19 @@ if (!block) {
   }
 }
 
-// Historical names are not permanently reserved. Intentional reuse must pass
-// the same explicit catalogue + crawl registration as every other public page.
-// Until then a stale source file, or a one-sided registration, still fails.
-for (const route of retired) {
-  const base = 'src/pages/' + route.slice(1);
-  const candidates = [
-    base + '.tsx', base + '.ts', base + '.jsx', base + '.js',
-    base + '/index.tsx', base + '/index.ts', base + '/index.jsx', base + '/index.js',
-  ];
-  const registered = approvedPublicRoutes.has(route) && catalogueRoutes.has(route);
-  if (registered && !infrastructureAdjacent.has(route)) {
-    if (!candidates.some(exists)) failures.push('Reassigned public page has no source: ' + route);
-    continue;
-  }
-  if (approvedPublicRoutes.has(route) || catalogueRoutes.has(route)) {
-    failures.push('Historical or infrastructure-adjacent path registered without approved public source: ' + route);
-  }
-  for (const candidate of candidates) {
-    if (exists(candidate)) failures.push('Unassigned historical public page reappeared: ' + candidate);
-  }
+// Current registration is the only public-page authority. Missing names are
+// free for reuse; infrastructure and authenticated namespaces are not.
+const reserved = route => ['/get', '/api', '/r', '/mcp', '/workspace', '/ws'].some(
+  prefix => route === prefix || route.startsWith(prefix + '/'))
+  || ['/auth/state', '/auth/step'].includes(route);
+for (const route of approvedPublicRoutes) {
+  if (reserved(route)) failures.push('Infrastructure or authenticated route advertised as public: ' + route);
+  if (!catalogueRoutes.has(route)) failures.push('Crawl route missing from public catalogue: ' + route);
 }
-for (const route of retiredWorkspaceRoutes) {
-  const base = 'src/pages' + route;
-  for (const candidate of [
-    base + '.tsx', base + '.ts', base + '.jsx', base + '.js',
-    base + '/index.tsx', base + '/index.ts', base + '/index.jsx', base + '/index.js',
-  ]) {
-    if (exists(candidate)) failures.push('Retired Workspace redirect reappeared: ' + candidate);
-  }
+for (const route of catalogueRoutes) {
+  if (!approvedPublicRoutes.has(route)) failures.push('Public catalogue route missing from crawl registry: ' + route);
 }
+
 for (const relative of deadModules) {
   if (exists(relative)) failures.push('Retired page-only module reappeared: ' + relative);
 }
@@ -134,6 +112,10 @@ const publicPageFiles = listFiles('src/pages')
   .filter(file => /\.(tsx|ts|jsx|js)$/.test(file))
   .filter(file => !file.startsWith('src/pages/workspace/')
     && !file.startsWith('src/pages/api/'));
+const publicFileRoutes = new Set(publicPageFiles.map(nextPageRoute));
+for (const route of catalogueRoutes) {
+  if (!publicFileRoutes.has(route)) failures.push('Registered public page has no source: ' + route);
+}
 for (const file of publicPageFiles) {
   const route = nextPageRoute(file);
   if (AUTHENTICATED_WS_ROUTES.has(route)) {
@@ -144,6 +126,9 @@ for (const file of publicPageFiles) {
     if (approvedPublicRoutes.has(route)) {
       failures.push('Authenticated /ws page must not be included in public sitemap: ' + route);
     }
+  }
+  if (reserved(route) && !AUTHENTICATED_WS_ROUTES.has(route)) {
+    failures.push('Public page source shadows infrastructure: ' + file);
   }
   if (!approvedPublicRoutes.has(route)
       && !ALLOWED_NONINDEXABLE_PAGES.has(route)

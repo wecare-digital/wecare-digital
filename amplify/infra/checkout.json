@@ -690,7 +690,7 @@
     "ServicePricesRoute": {
       "Type": "AWS::ApiGatewayV2::Route",
       "Metadata": {
-        "WECARE::Consumer": "src/lib/servicePricing.ts GETs ${API_BASE}/ecommerce/service-prices from the four public service pages (/submit-request/, /request-amendment/, /drop-docs/, /vault/) so each card shows its own variant's live ProductsTable price. A price changes in the native catalogue with no deploy.",
+        "WECARE::Consumer": "src/lib/servicePricing.ts GETs ${API_BASE}/ecommerce/service-prices for current Orders service actions and the protected Vault journey so each card shows its own variant's live ProductsTable price. A price changes in the native catalogue with no deploy.",
         "WECARE::WhyAnonymous": [
           "This is the ONE route on this function that is not behind require_customer, and the",
           "exemption is deliberate rather than an oversight.",

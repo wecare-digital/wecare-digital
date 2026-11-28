@@ -8,7 +8,7 @@
       "kind": "action",
       "postbackData": "wdorder",
       "text": "Get Started",
-      "url": "https://wecare.digital/r/getstarted"
+      "url": "https://r.wecare.digital/getstarted"
     }
   ],
   "bodyLength": 233,
@@ -21,13 +21,12 @@
   "isRichCard": true,
   "mediaExtension": "mp4",
   "mediaHeight": "SHORT",
-  "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+  "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
   "name": "wdorder",
   "referencedByCode": false,
   "status": "approved",
   "suggestionCount": 1,
-  "thumbnailImageAlignment": null,
-  "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/wecare-digital-rcs-h.png",
+  "thumbnailUrl": "https://app.wecare.digital/stream/media/m/wecare-digital-rcs-h.png",
   "title": "Thanks for placing your order with WECARE.DIGITAL!",
   "titleLength": 50,
   "type": "rich_card",

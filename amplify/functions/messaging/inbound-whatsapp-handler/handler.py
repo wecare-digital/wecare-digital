@@ -170,7 +170,7 @@ CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it an
 # A cart answered with silence reads as "it worked". Every reply says what happened, what the
 # customer can do, and that nothing was charged. No price and no total: those belong to the
 # ORDER_DETAILS message checkout sends, which is the only priced message on this path.
-CART_SIGN_IN_URL = 'https://wecare.digital/account/sign-in/'
+CART_SIGN_IN_URL = 'https://wecare.digital/auth/'
 CART_SHOP_URL = 'https://wecare.digital/shop/'
 CART_REPLY_SIGN_IN = ('Please sign in to your WECARE.DIGITAL customer account and verify this '
                       'WhatsApp number, then send your cart again. Nothing has been charged.')
@@ -5984,15 +5984,15 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
 #: live on WABA 1 only), when the trigger has no Flow, or when FlowRegistry does not show the
 #: Flow live on Meta. Direct destinations, not `/r/` short codes: a code's target lives in
 #: ShortLinksTable and can drift (`sr`, `ar`, `rx`, `ea`, `sub` and `lr` were 2026-07 "recovery"
-#: rows redirecting to google.com until 2026-10-25). Every target below answered HTTP 200
-#: (wa.me: 302 to WhatsApp) on 2026-10-25.
+#: rows redirecting to google.com until 2026-10-25). Current request selections
+#: use the Orders UI's approved request hash; no payment or Flow starts from the URL.
 FLOW_LINKS = {
-    'submit_request': 'https://wecare.digital/submit-request/',
-    'track_request': 'https://wecare.digital/shipments/track/',
-    'amend_request': 'https://wecare.digital/request-amendment/',
+    'submit_request': 'https://wecare.digital/orders/#request=submit-request',
+    'track_request': 'https://wecare.digital/orders/#request=shipments-track',
+    'amend_request': 'https://wecare.digital/orders/#request=request-amendment',
     'schedule_appointment': 'https://wecare.digital/contact/',
     'rx_slot': 'https://wecare.digital/elsewhere/arogya-yatra/',
-    'drop_docs': 'https://wecare.digital/drop-docs/',
+    'drop_docs': 'https://wecare.digital/orders/#request=drop-docs',
     'enterprise_assist': 'https://wecare.digital/contact/',
     # Both review doors share one Meta Flow, so they share the owner's verified review link.
     'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',

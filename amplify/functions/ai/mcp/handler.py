@@ -185,10 +185,6 @@ _DYNAMIC_SITEMAP_PREFIXES = (
 
 _START_PATHS = {"/", "/contact", "/blog", "/shop", "/orders"}
 _PLATFORM_PATHS = {"/relay-os", "/atmos/nano-climate", "/atmos/green-ledger"}
-_CUSTOMER_SERVICE_PATHS = {
-    "/submit-request", "/request-amendment", "/drop-docs", "/vault",
-    "/request-pickup",
-}
 _LEGAL_PATHS = {"/privacy", "/terms"}
 
 
@@ -273,8 +269,6 @@ def _fallback_group(path: str) -> str:
         return "start"
     if path in _PLATFORM_PATHS:
         return "platform"
-    if path in _CUSTOMER_SERVICE_PATHS:
-        return "customerservice"
     if path in _LEGAL_PATHS:
         return "legal"
     return "services"

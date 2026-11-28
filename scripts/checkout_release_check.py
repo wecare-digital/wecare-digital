@@ -13,7 +13,7 @@ import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit, unquote
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +45,7 @@ class Page(HTMLParser):
             self.links.append(dict(attrs).get('href', ''))
 
 
-def check_html(path, html):
+def check_html(path, html, export_dir=None):
     page = Page()
     page.feed(html)
     failures = [f'{path}: missing {tag}' for tag in ('header', 'footer', 'h1', 'main')
@@ -59,11 +59,25 @@ def check_html(path, html):
             failures.append(f'{path}: public staff link {href}')
     if '/checkout/' not in page.links:
         failures.append(f'{path}: Checkout destination missing')
-    # The retired /cart/ URL must not appear in customer-facing links.
-    if any(urlsplit(href).path.rstrip('/') == '/cart' for href in page.links):
-        failures.append(f'{path}: legacy cart destination linked')
-    if any(urlsplit(href).path.rstrip('/') == '/checkout/whatsapp' for href in page.links):
-        failures.append(f'{path}: removed WhatsApp checkout page linked')
+    # Validate all same-origin page and asset links against the actual export.
+    # Service passthroughs are deliberately not files in the static export.
+    if export_dir is not None:
+        root = export_dir.resolve()
+        for href in page.links:
+            parsed = urlsplit(urljoin('https://wecare.digital' + path, href))
+            if parsed.scheme != 'https' or parsed.netloc != 'wecare.digital':
+                continue
+            destination = unquote(parsed.path)
+            if (any(destination == stem or destination.startswith(stem + '/')
+                    for stem in ('/api', '/get', '/r', '/mcp'))
+                    or destination.rstrip('/') in ('/auth/state', '/auth/step')):
+                continue
+            target = (root / destination.lstrip('/')).resolve()
+            if (target != root and root not in target.parents):
+                failures.append(f'{path}: invalid same-origin link {href}')
+            elif not (target.is_file() or (target / 'index.html').is_file()
+                      or target.with_suffix('.html').is_file()):
+                failures.append(f'{path}: missing exported destination {href}')
     if 'https://wa.me/message/APDM5HUWH26SG1' not in page.links:
         failures.append(f'{path}: default WhatsApp widget missing')
     return failures
@@ -72,8 +86,6 @@ def check_html(path, html):
 def check_checkout_basket_source():
     """Canonical checkout must keep the owner-scoped one-shot basket handoff."""
     failures = []
-    if (ROOT / 'src/pages/cart.tsx').exists():
-        failures.append('cart: retired standalone page reappeared')
     body = (ROOT / 'src/components/cart/CartPage.tsx').read_text(encoding='utf-8')
     if ('basketTokenFromUrl()' not in body
             or 'rememberBasketToken( token );' not in body
@@ -231,7 +243,7 @@ def main():
                     html = response.read().decode('utf-8')
             else:
                 html = (args.export_dir / path.lstrip('/') / 'index.html').read_text()
-            return check_html(path, html)
+            return check_html(path, html, args.export_dir)
         except Exception as error:
             return [f'{path}: {type(error).__name__}']
 

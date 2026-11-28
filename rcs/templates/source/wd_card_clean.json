@@ -16,7 +16,7 @@
               "action": {
                 "openUrlAction": {
                   "application": "BROWSER",
-                  "url": "https://wecare.digital/submit-request/"
+                  "url": "https://wecare.digital/selfservice"
                 },
                 "postbackData": "wd_get_started",
                 "text": "Get Started"

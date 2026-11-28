@@ -8,7 +8,7 @@
       "kind": "action",
       "postbackData": "get_started",
       "text": "Get Started",
-      "url": "https://wecare.digital/r/getstarted"
+      "url": "https://r.wecare.digital/getstarted"
     }
   ],
   "bodyLength": 200,
@@ -21,13 +21,13 @@
   "isRichCard": true,
   "mediaExtension": "mp4",
   "mediaHeight": "TALL",
-  "mediaUrl": "https://wecare.digital/get/o/stream/media/m/customerservice.mp4",
+  "mediaUrl": "https://app.wecare.digital/stream/media/m/selfservice.mp4",
   "name": "get_started",
   "referencedByCode": false,
   "status": "approved",
   "suggestionCount": 1,
   "thumbnailImageAlignment": "LEFT",
-  "thumbnailUrl": "https://wecare.digital/get/o/stream/media/m/WECARE+SC.png",
+  "thumbnailUrl": "https://app.wecare.digital/stream/media/m/WECARE+SC.png",
   "title": "Thanks for contacting WECARE.DIGITAL!",
   "titleLength": 37,
   "type": "rich_card",

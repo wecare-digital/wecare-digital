@@ -1,0 +1,35 @@
+{
+  "component": {
+    "richCard": {
+      "standaloneCard": {
+        "cardContent": {
+          "description": "Submit your request at https://wecare.digital. Our team will review and respond if needed.",
+          "media": {
+            "contentInfo": {
+              "fileUrl": "https://jfxv.akamaized.net/PublicStorage/Bot/69e0b2c980cbf50614ffa5fd/1794612406491.png",
+              "forceRefresh": false
+            },
+            "height": "SHORT"
+          },
+          "suggestions": [
+            {
+              "action": {
+                "openUrlAction": {
+                  "application": "BROWSER",
+                  "url": "https://wecare.digital"
+                },
+                "postbackData": "rcsivralert",
+                "text": "Start here"
+              }
+            }
+          ],
+          "title": "Thank you for contacting WECARE.DIGITAL!"
+        },
+        "cardOrientation": "VERTICAL"
+      }
+    }
+  },
+  "name": "rcsivralert",
+  "status": "approved",
+  "type": "rich_card"
+}

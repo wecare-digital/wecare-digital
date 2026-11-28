@@ -426,7 +426,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   // Was '[retired public path]'. The public page was deleted on owner instruction; the faq-handler backend
   // and SystemConfig table are unchanged and are driven from the dashboard route.
   { path: '/workspace/service?view=requests&action=faq', label: 'FAQ', backend: 'faq-handler', tables: 'SystemConfig' },
-  { path: '/grahak-os', label: 'Grahak OS', backend: '(public product page)', tables: '-' },
+  { path: '/relay-os', label: 'Relay OS', backend: '(public product page)', tables: '-' },
   // '/studio' REMOVED on owner instruction. The slug is retired and no page exists for it
   // in src/pages, so listing it here described a route that 404s - and this table is read
   // as the map of what the system actually serves. Header.test.tsx separately guards

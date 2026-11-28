@@ -339,7 +339,7 @@ def _dropdocs_attach_enabled() -> bool:
 
     Read per call, not captured at import: a posture switch that only takes effect once
     every warm sandbox recycles is not much of a switch. There is no UI
-    for this in Phase O-2 - ``/drop-docs`` sells the service, and the route that registers
+    for this in Phase O-2 - Orders exposes the service, and the route that registers
     a document exists but is switched off.
     """
     return str(os.environ.get("DROPDOCS_ATTACH_ENABLED", "")).strip().lower() in (
