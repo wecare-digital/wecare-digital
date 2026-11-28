@@ -629,11 +629,24 @@ def _do_topup_order(event: dict, body: dict, origin: str):
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             data = json.loads(r.read().decode('utf-8'))
-        return cors_response(200, {'success': True, 'shortUrl': data.get('short_url'), 'id': data.get('id')}, origin)
     except urllib.error.HTTPError as e:
         return cors_response(502, {'success': False, 'error': (e.read().decode()[:200] if e.fp else str(e))}, origin)
     except Exception as e:  # noqa: BLE001
         return cors_response(502, {'success': False, 'error': str(e)}, origin)
+    # The webhook credits only a capture Razorpay lists under THIS link, so the link id goes on
+    # the intent before anyone is handed the URL. An unbound link could never be credited.
+    link_id = str(data.get('id') or '')
+    try:
+        if not link_id or not order_keys.bind_topup_payment_link(
+                keys_table, reference_id=reference_id, payment_link_id=link_id):
+            raise ValueError('payment link not bound to the intent')
+    except Exception as e:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'partner_topup_link_bind_failed',
+                                 'alert': 'TOPUP_LINK_UNBOUND', 'error': type(e).__name__,
+                                 'wabaId': waba_id}))
+        return cors_response(502, {'success': False,
+                                   'error': 'Could not record the top-up payment link'}, origin)
+    return cors_response(200, {'success': True, 'shortUrl': data.get('short_url'), 'id': link_id}, origin)
 
 
 def handler(event, context):

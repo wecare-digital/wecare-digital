@@ -1384,15 +1384,18 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
          (`reserve_topup_intent`) before the payment link is created, carrying the WABA and amount
          the business actually asked for. No intent -> this is not an authorised top-up -> credit
          nothing. The event notes are never the authority for who or how much.
-      2. The captured amount is VERIFIED against Razorpay's API (`payment_is_captured`), never read
-         from the event, and must equal the stored intent's amount in INR to the paise.
-      3. An idempotency marker (`claim_topup_credit`, keyed by payment id, conditional) is claimed
-         BEFORE the credit, so one captured payment credits exactly once and a redelivery credits
-         nothing.
+      2. The captured amount is VERIFIED against Razorpay's API (`payment_capture_details`), never
+         read from the event, and must equal the stored intent's amount in INR to the paise. The
+         payment must also be one Razorpay lists under the payment link stored on the intent
+         (`paymentLinkId`), on that link's order.
+      3. The intent flips to credited conditionally (`mark_topup_intent_credited`), so one intent
+         credits once, and a per-payment marker (`claim_topup_credit`) is claimed BEFORE the
+         credit, so a redelivery credits nothing.
 
-    Never raises: a non-2xx makes Razorpay retry the whole event, and nothing here is worth that.
-    Returns a narrow authoritative settlement projection so the caller can persist the capture in
-    PaymentsTable without trusting the webhook body's amount or WABA attribution.
+    Raises only `RazorpayUnavailable`, from the readbacks before anything is written, so Razorpay
+    retries. Every other failure is parked. Returns a narrow authoritative settlement projection
+    so the caller can persist the capture in PaymentsTable without trusting the webhook body's
+    amount or WABA attribution.
     """
     from decimal import Decimal
     from lambda_utils.ecommerce import order_keys
@@ -1448,10 +1451,34 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
 
+        # The intent must name the payment link it was created with; an intent without one
+        # (created before links were recorded) is credited by a human, never by an event.
+        link_id = str(intent.get('paymentLinkId') or '')
+        if not link_id:
+            logger.error(json.dumps({'event': 'partner_wallet_topup_intent_unbound',
+                                     'alert': 'TOPUP_INTENT_UNBOUND', 'paymentId': payment_id,
+                                     'referenceId': reference_id or None, 'stage': 'wallet_topup',
+                                     'requestId': request_id}))
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+
         # Gate 2: authoritative provider verification of the captured amount. Never the event body.
-        captured, provider_paise, provider_currency = razorpay_verify.payment_is_captured(
-            payment_id)
+        captured, provider_paise, provider_currency, provider_order_id = (
+            razorpay_verify.payment_capture_details(payment_id))
         if not captured or str(provider_currency or '') != 'INR':
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+        # ...and that THIS payment was made on the intent's link: Razorpay lists the link's
+        # captured payments and its order. Same amount and same reference are not enough.
+        link = razorpay_verify.payment_link_entity(link_id)
+        link_payment_ids = {str(row.get('payment_id') or '') for row in (link.get('payments') or [])
+                            if isinstance(row, dict) and row.get('status') == razorpay_verify.CAPTURED}
+        link_order_id = str(link.get('order_id') or '')
+        if payment_id not in link_payment_ids or (link_order_id and link_order_id != provider_order_id):
+            logger.error(json.dumps({'event': 'partner_wallet_topup_payment_not_for_intent',
+                                     'alert': 'TOPUP_PAYMENT_NOT_FOR_INTENT',
+                                     'paymentId': payment_id, 'referenceId': reference_id or None,
+                                     'stage': 'wallet_topup', 'requestId': request_id}))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
         try:
@@ -1468,11 +1495,32 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
             return {'settled': False}
 
-        # Gate 3: idempotency. Claim the credit BEFORE applying it, so a duplicate delivery that
-        # loses the claim credits nothing. A lost claim is the normal duplicate case, not an error.
+        # Gate 3: idempotency, BEFORE the credit. The intent flips to credited conditionally, so
+        # one intent credits once; a redelivery of the payment that flipped it is the normal
+        # duplicate case, and any other payment is parked.
+        flipped, credited_by = order_keys.mark_topup_intent_credited(
+            table, reference_id=reference_id, payment_id=payment_id)
+        if not flipped and credited_by != payment_id:
+            logger.error(json.dumps({'event': 'partner_wallet_topup_intent_already_credited',
+                                     'alert': 'TOPUP_INTENT_ALREADY_CREDITED',
+                                     'paymentId': payment_id, 'referenceId': reference_id or None,
+                                     'stage': 'wallet_topup', 'requestId': request_id}))
+            _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+            return {'settled': False}
+        # The per-payment claim, taken just before the credit. Lost on a redelivery of this
+        # payment (a duplicate); won after a crash between the flip and here (finish the credit).
         if not order_keys.claim_topup_credit(
                 table, payment_id=payment_id, reference_id=reference_id,
                 waba_id=intent_waba, amount_paise=intent_paise):
+            if flipped:
+                # This intent was never credited, yet the payment already credited something.
+                logger.error(json.dumps({'event': 'partner_wallet_topup_payment_already_credited',
+                                         'alert': 'TOPUP_INTENT_ALREADY_CREDITED',
+                                         'paymentId': payment_id,
+                                         'referenceId': reference_id or None,
+                                         'stage': 'wallet_topup', 'requestId': request_id}))
+                _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
+                return {'settled': False}
             logger.info(json.dumps({'event': 'partner_wallet_topup_duplicate_skipped',
                                     'paymentId': payment_id, 'referenceId': reference_id or None,
                                     'stage': 'wallet_topup', 'requestId': request_id}))
@@ -1491,11 +1539,19 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, A
                                 'stage': 'wallet_topup', 'requestId': request_id}, default=str))
         return {'settled': True, 'duplicate': False, 'referenceId': reference_id,
                 'amountPaise': intent_paise, 'currency': 'INR'}
+    except razorpay_verify.RazorpayUnavailable:
+        # Only the readbacks before Gate 3 call Razorpay, so nothing is written yet: answer
+        # non-2xx and let Razorpay retry instead of dropping a genuine top-up.
+        logger.error(json.dumps({'event': 'partner_wallet_topup_unverified',
+                                 'alert': 'PAYMENT_EVENT_UNVERIFIED', 'paymentId': payment_id,
+                                 'stage': 'wallet_topup', 'requestId': request_id}))
+        raise
     except Exception as e:  # noqa: BLE001
         # Type only. A ClientError / provider error message can echo request content.
         logger.error(json.dumps({'event': 'partner_wallet_topup_error',
                                  'error': type(e).__name__, 'paymentId': payment_id,
                                  'stage': 'wallet_topup', 'requestId': request_id}))
+        _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
         return {'settled': False}
 
 
