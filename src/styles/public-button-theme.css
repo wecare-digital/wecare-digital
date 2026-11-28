@@ -129,22 +129,22 @@
   border-radius: var(--public-search-radius);
 }
 
-/* Cart/menu retain the component-owned 10px resting chips and colours;
- * only their shared transient hover treatment uses the smaller radius. */
-:root:has([data-public-auth-button-theme="active"]) :is(.hdr-cart, .nav-trigger) {
+/* Cart retains its existing scoped hover treatment. Header navigation
+ * owns all of its original panel, row, trigger and group-link radii.
+ * Its search field still participates in the shared search rule above. */
+:root:has([data-public-auth-button-theme="active"]) .hdr-cart {
   --public-hover-radius: var(--public-option-radius);
 }
 
 /* Only actual public dropdown panels, not arbitrary ui-popover portals. */
 :root:has([data-public-auth-button-theme="active"]) :is(
-  .nav-menu, .nav-dropdown[data-nav-tight="true"] .nav-menu, .wc-panel,
-  .ps-menu, .orm-menu, .ui-popover.public-checkout-select,
+  .wc-panel, .ps-menu, .orm-menu, .ui-popover.public-checkout-select,
   .vl-live-search-results, .vl-live-utility-results, .vl-live-utility-empty
 ) {
   border-radius: var(--public-popover-radius);
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
-  .nav-item, .nav-section-toggle, .nav-group-link, .orm-item, .orm-family-title,
+  .orm-item, .orm-family-title,
   .wc-row, .ps-menu-item, .lgd-toc-link, .lgd-toc-summary, .lgd-toc-group-summary,
   .public-checkout-select .ui-select-option,
   .vl-live-search-results li, .vl-live-utility-results li

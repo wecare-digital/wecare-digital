@@ -61,7 +61,7 @@ test('explicit labelled actions retain the Auth visual contract',()=>{
 test('no wildcard can recolour component-owned controls or override cards',()=>{
   assert.doesNotMatch(css,/button:not\(|--public-card-radius\s*:|--public-hover-radius:\s*6px/);
   assert.doesNotMatch(css,/\.wc-wa\b|\.wc-chip\b|\.ps-action\b|\.pager-arrow\b|\.pp-tab\b|\.vl-ui-icon-action\b|\.eta-send\b/);
-  const header=css.match(/:is\(\.hdr-cart, \.nav-trigger\)\s*\{([^}]+)\}/);
+  const header=css.match(/\.hdr-cart\s*\{([^}]+)\}/);
   assert.ok(header);
   assert.match(header[1],/--public-hover-radius: var\(--public-option-radius\)/);
   assert.doesNotMatch(header[1],/background|border-radius|padding|width|height/);

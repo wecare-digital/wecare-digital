@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
-import { canonicalOrigin, qaOrigin, verifyAuthGate } from './public_qa_origin.mjs';
+import { canonicalOrigin, qaOrigin } from './public_qa_origin.mjs';
 
 const {origin, snapshot} = qaOrigin();
 const engine = process.env.PUBLIC_QA_ENGINE || 'chromium';
@@ -143,7 +143,23 @@ async function runScenario(browser,width,mode) {
         return {width,scroll,overflowTargets};
       });
       phase='accessibility scan: '+label;
-      const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
+      // Firefox (Playwright build 1572) segfaults its content process whenever axe
+      // scans this one state: deterministic across 3 widths and retries, and still
+      // with all stylesheets disabled or the profile section removed (CI bisect,
+      // PRs #2553/#2554). Chromium and WebKit scan it; Firefox scans every other state.
+      if(engine==='firefox'&&label==='name-only-profile'){
+        const result={engine,width,mode,label,geometry:geom,axeSkipped:'firefox-content-process-crash'};
+        evidence.push(result);console.log(JSON.stringify(result));
+        await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
+        if(geom.scroll>geom.width+2) failures.push(label+' horizontal overflow at '+width);
+        return;
+      }
+      // Firefox: AxeBuilder's default mode opens and closes a blank page in this
+      // context for every scan. In Firefox that tab close repeatedly preceded a
+      // content-process SIGSEGV on the next checkout render (CI bisect, PR #2553:
+      // crash in every width with axe, none without). Legacy mode scans in the
+      // page itself; the rule set and tags are unchanged.
+      const axe=await new AxeBuilder({page}).setLegacyMode(engine==='firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
       await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
@@ -271,49 +287,47 @@ async function runScenario(browser,width,mode) {
     console.log(JSON.stringify({engine,width,mode,events,prepare,verify,native,syntheticOnly:true,invoiceVerified:true}));
   } finally {await context.close();}
 }
-// Separate synthetic appointment access scenario; no hospital, patient or
-// provider data is fabricated. Test the unavailable-provider recovery branch.
+// Separate synthetic appointment request scenario; no hospital, patient or
+// provider data is sent anywhere. Since #2531 the form is public and sign-in is
+// checked only at submission, so a signed-out submit must keep the form filled,
+// make no booking call and offer WhatsApp sign-in in a new tab.
 async function verifyAppointmentGate(){
   return withIsolatedBrowser(runAppointmentGate);
 }
 async function runAppointmentGate(browser){
   const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,reducedMotion:'reduce',serviceWorkers:'block',ignoreHTTPSErrors:snapshot});
-  const accountKey='a'.repeat(64);let accesses=0,catalogues=0;
+  let bookingCalls=0;
   try{
     if(typeof context.routeWebSocket==='function') await context.routeWebSocket('**/*',socket=>socket.close());
     await context.route('**/*',route=>{
       const req=route.request(),url=new URL(req.url()),method=req.method();
       if(method==='OPTIONS'&&(url.href===bookingEndpoint||isFixtureApi(url))) return route.fulfill({status:204,headers:cors});
-      if(url.origin===origin.origin&&url.pathname==='/auth/state'&&method==='GET') return json(route,{phase:'phone',csrf:'qa-csrf',message:'',website:true,returnPath:'/elsewhere/arogya-yatra/',clientName:'WECARE.DIGITAL'});
-      if(isFixtureApi(url)&&url.pathname==='/api/ecommerce/customer-session'&&method==='POST') return json(route,{accessToken:'qa-appointment-token',expiresAt:Date.now()+3600000});
-      if(url.href===bookingEndpoint&&method==='POST'){
-        const body=req.postDataJSON();
-        assert.equal(req.headers().authorization,'Bearer qa-appointment-token');
-        if(body.action==='access'){accesses++;return json(route,{phoneVerified:true,accountKey});}
-        if(body.action==='catalog'){assert.equal(body.kind,'hospitals');catalogues++;return json(route,{error:'PROVIDER_DISABLED'},503);}
-        return json(route,{error:'FIXTURE_REFUSED'},400);
-      }
+      if(url.href===bookingEndpoint){bookingCalls++;return json(route,{error:'FIXTURE_REFUSED'},400);}
       if(method==='GET'&&allowedStatic(url)) return route.continue();
       return route.abort();
     });
     const page=await context.newPage();
-    await page.goto(new URL('/elsewhere/arogya-yatra/',origin).href,{waitUntil:'domcontentloaded'});
-    await verifyAuthGate(page,origin,'/elsewhere/arogya-yatra/');
-    assert.equal(accesses,0);
-    assert.equal(catalogues,0);
-    await page.evaluate(()=>localStorage.setItem('wecare.customer.sessionHint',JSON.stringify({csrfToken:'qa-arogya',expiresAt:Date.now()+3600000,persistent:false})));
-    await page.goto(new URL('/elsewhere/arogya-yatra/',origin).href,{waitUntil:'domcontentloaded'});
-    const retry=page.getByRole('button',{name:'Retry live choices',exact:true});
-    await retry.waitFor({state:'visible',timeout:20000});
-    assert.ok(accesses>0&&catalogues>0);
-    const prior=catalogues;
-    await retry.click();
-    await retry.waitFor({state:'visible',timeout:20000});
-    assert.ok(catalogues>prior);
+    const path='/elsewhere/arogya-yatra/';
+    await page.goto(new URL(path,origin).href,{waitUntil:'domcontentloaded'});
+    const patient=page.locator('input[name="patientName"]');
+    await patient.waitFor({state:'visible',timeout:20000});
+    assert.equal(new URL(page.url()).pathname,path,'signed-out visitors stay on the public form');
     assert.equal(await page.locator('a[href*="apollohospitals.com/book-doctor-appointment"]').count(),0);
-    assert.equal(await page.locator('input[name="patientName"]').count(),0);
-    await page.screenshot({path:join(out,engine+'-arogya-disabled-provider.png')});
-    console.log(JSON.stringify({engine,appointmentGate:true,providerDisabledRecovery:true,syntheticOnly:true}));
+    await page.locator('input[name="city"]').fill('Pune');
+    await page.locator('input[name="preferredDate"]').fill(new Date(Date.now()+7*864e5).toISOString().slice(0,10));
+    await patient.fill('QA Synthetic');
+    await page.locator('input[name="mobile"]').fill('919999999999');
+    await page.locator('#ay-consent').check();
+    await page.getByRole('button',{name:'Submit request',exact:true}).click();
+    await page.getByRole('heading',{name:'Sign in to submit your request',exact:true}).waitFor({state:'visible',timeout:20000});
+    const signIn=page.getByRole('link',{name:'Sign in with WhatsApp (new tab)',exact:true});
+    assert.equal(await signIn.getAttribute('href'),'/auth?return=%2Felsewhere%2Farogya-yatra%2F');
+    assert.equal(await signIn.getAttribute('target'),'_blank');
+    assert.equal(await patient.inputValue(),'QA Synthetic','the form stays filled while signing in');
+    assert.equal(new URL(page.url()).pathname,path);
+    assert.equal(bookingCalls,0);
+    await page.screenshot({path:join(out,engine+'-arogya-signin-at-submit.png')});
+    console.log(JSON.stringify({engine,appointmentGate:true,signInAtSubmit:true,syntheticOnly:true}));
   } finally {await context.close();}
 }
 try {
