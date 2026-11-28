@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { indiaDate } from '../../lib/appointmentPlan';
-import { getSession, restoreSession } from '../../lib/customerAuth';
+import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import { appointmentDraftAction, AppointmentApiError } from '../../lib/arogyaBooking';
 import { HOSPITAL_CHOICES, REQUEST_TYPES, TIME_WINDOWS, isAssistanceReceipt,
   type HospitalAssistanceRequest, type AssistanceReceipt } from '../../lib/hospitalAssistance';
@@ -14,10 +14,10 @@ const EMPTY: HospitalAssistanceRequest = {
   patientName: '', mobile: '', email: '', notes: '', consent: false,
 };
 
-/** Authenticated assistance intake for any hospital; no provider catalogue calls. */
-export default function AppointmentPlanner ( { accountKey, onAccountChanged, onSessionExpired }: {
-  accountKey: string; onAccountChanged: () => void; onSessionExpired: () => void;
-} ): React.ReactElement {
+const AUTH_URL = '/auth?return=%2Felsewhere%2Farogya-yatra%2F';
+
+/** Public form. Verify the customer only when they submit or request history. */
+export default function AppointmentPlanner (): React.ReactElement {
   const [ form, setForm ] = useState<HospitalAssistanceRequest>( EMPTY );
   const [ today, setToday ] = useState( '' );
   const [ busy, setBusy ] = useState( false );
@@ -25,40 +25,54 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
   const [ receipt, setReceipt ] = useState<AssistanceReceipt | null>( null );
   const [ history, setHistory ] = useState<AssistanceReceipt[]>( [] );
   const [ historyError, setHistoryError ] = useState( '' );
+  const [ historyLoaded, setHistoryLoaded ] = useState( false );
   const [ nextAfter, setNextAfter ] = useState<string | null>( null );
   const [ uncertain, setUncertain ] = useState( false );
-  const pending = useRef<{ requestId: string; request: HospitalAssistanceRequest } | null>( null );
+  const [ needsSignIn, setNeedsSignIn ] = useState( false );
+  const pending = useRef<{ accountKey: string; requestId: string; request: HospitalAssistanceRequest } | null>( null );
+  const verifiedOwner = useRef( '' );
   const submitting = useRef( false );
   const receiptHeading = useRef<HTMLHeadingElement>( null );
-  const [ historyAttempt, setHistoryAttempt ] = useState( 0 );
-
-  function handleFailure ( failure: unknown ): void {
-    if ( failure instanceof AppointmentApiError && failure.code === 'ACCOUNT_CHANGED' ) onAccountChanged();
-    else if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) onSessionExpired();
-  }
+  const signInHeading = useRef<HTMLHeadingElement>( null );
 
   useEffect( () => { setToday( indiaDate() ); }, [] );
   useEffect( () => { if ( receipt ) receiptHeading.current?.focus(); }, [ receipt ] );
+  useEffect( () => { if ( needsSignIn ) signInHeading.current?.focus(); }, [ needsSignIn ] );
   useEffect( () => {
-    let active = true;
-    void ( async () => {
-      try {
-        const session = getSession() || await restoreSession();
-        if ( !session ) { if ( active ) onSessionExpired(); return; }
-        const value = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'myRequests', accountKey } );
-        if ( !active ) return;
-        if ( getSession()?.accessToken !== session.accessToken ) { onAccountChanged(); return; }
-        if ( !Array.isArray( value.requests ) || !value.requests.every( isAssistanceReceipt ) ) throw new Error( 'Invalid request history.' );
-        setHistory( value.requests ); setNextAfter( value.nextAfter || null ); setHistoryError( '' );
-      } catch ( failure ) {
-        if ( !active ) return;
-        if ( failure instanceof AppointmentApiError && failure.code === 'ACCOUNT_CHANGED' ) onAccountChanged();
-        else if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) onSessionExpired();
-        else setHistoryError( 'Your request history could not be loaded. You can retry it below.' );
+    const changed = ( event: StorageEvent ) => {
+      if ( event.key === 'wecare.customer.sessionHint' || event.key === null ) {
+        setHistory( [] ); setHistoryLoaded( false ); setNextAfter( null ); setReceipt( null );
       }
-    } )();
-    return () => { active = false; };
-  }, [ accountKey, onAccountChanged, onSessionExpired, historyAttempt ] );
+    };
+    window.addEventListener( 'storage', changed );
+    return () => window.removeEventListener( 'storage', changed );
+  }, [] );
+
+  function accountChanged (): void {
+    pending.current = null; verifiedOwner.current = ''; setForm( EMPTY ); setReceipt( null );
+    setHistory( [] ); setHistoryLoaded( false ); setNextAfter( null ); setUncertain( false );
+    setError( 'Your signed-in account changed. Enter the request details again before submitting.' );
+  }
+
+  async function verifyAtAction () {
+    const session = getSession() || await restoreSession();
+    if ( !session ) { setNeedsSignIn( true ); return null; }
+    const access = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'access' } );
+    if ( access.phoneVerified !== true || typeof access.accountKey !== 'string' || !/^[a-f0-9]{64}$/.test( access.accountKey ) ) throw new Error( 'Account verification is temporarily unavailable.' );
+    if ( getSession()?.accessToken !== session.accessToken ) { setNeedsSignIn( true ); return null; }
+    if ( verifiedOwner.current && verifiedOwner.current !== access.accountKey ) { accountChanged(); return null; }
+    verifiedOwner.current = access.accountKey;
+    setNeedsSignIn( false );
+    return { accessToken: session.accessToken, accountKey: access.accountKey };
+  }
+
+  function authenticationFailure ( failure: unknown ): boolean {
+    if ( failure instanceof AppointmentApiError && failure.code === 'ACCOUNT_CHANGED' ) { accountChanged(); return true; }
+    if ( failure instanceof AppointmentApiError && [ 401, 403 ].includes( failure.status ) ) {
+      clearSession(); setNeedsSignIn( true ); return true;
+    }
+    return false;
+  }
 
   function update ( key: keyof HospitalAssistanceRequest, value: string | boolean ): void {
     setForm( current => ( { ...current, [key]: value, ...( key === 'hospitalChoice' ? { hospitalName: '' } : {} ) } ) ); setError( '' );
@@ -68,40 +82,48 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
     event?.preventDefault();
     if ( submitting.current || receipt ) return;
     if ( !pending.current && form.preferredDate < indiaDate() ) { setError( 'Choose today or a future date in India Standard Time.' ); return; }
-    if ( !pending.current ) pending.current = { requestId: crypto.randomUUID(), request: { ...form } };
     submitting.current = true; setBusy( true ); setError( '' );
     try {
-      const session = getSession() || await restoreSession();
-      if ( !session ) { onSessionExpired(); return; }
-      const value = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken,
-        { action: 'submitRequest', accountKey, ...pending.current } );
-      if ( getSession()?.accessToken !== session.accessToken ) { onAccountChanged(); return; }
+      const access = await verifyAtAction();
+      if ( !access ) return;
+      if ( !pending.current ) pending.current = { accountKey: access.accountKey, requestId: crypto.randomUUID(), request: { ...form } };
+      if ( pending.current.accountKey !== access.accountKey ) { accountChanged(); return; }
+      const value = await appointmentDraftAction( bookingConfig.endpoint, access.accessToken,
+        { action: 'submitRequest', ...pending.current } );
+      if ( getSession()?.accessToken !== access.accessToken ) {
+        setUncertain( true ); setError( 'Your session changed while sending. Retry the same request to check its receipt.' ); return;
+      }
       if ( !isAssistanceReceipt( value.request ) || value.request.requestId !== pending.current.requestId ) throw new Error( 'Receipt could not be verified.' );
-      setReceipt( value.request ); setUncertain( false ); setHistoryAttempt( value => value + 1 );
+      const saved = value.request;
+      setReceipt( saved ); setUncertain( false );
+      setHistory( rows => [ saved, ...rows.filter( row => row.requestId !== saved.requestId ) ] );
     } catch ( failure ) {
-      handleFailure( failure );
+      if ( authenticationFailure( failure ) ) { if ( pending.current ) setUncertain( true ); return; }
       const rejected = failure instanceof AppointmentApiError && [ 400, 409 ].includes( failure.status );
       if ( rejected ) pending.current = null;
-      setUncertain( !rejected );
-      setError( rejected && failure instanceof Error ? failure.message
-        : 'We could not verify receipt of your request. Retry the same request below; the reference prevents a duplicate.' );
+      setUncertain( !rejected && !!pending.current );
+      setError( rejected && failure instanceof Error ? failure.message : pending.current
+        ? 'We could not verify receipt of your request. Retry the same request below; the reference prevents a duplicate.'
+        : 'We could not check sign-in. Your form is still here. Please try Submit request again.' );
     } finally { submitting.current = false; setBusy( false ); }
   }
 
-  async function loadMore (): Promise<void> {
-    if ( !nextAfter || busy ) return;
+  async function loadHistory ( more = false ): Promise<void> {
+    if ( busy ) return;
     setBusy( true );
     try {
-      const session = getSession() || await restoreSession();
-      if ( !session ) { onSessionExpired(); return; }
-      const value = await appointmentDraftAction( bookingConfig.endpoint, session.accessToken, { action: 'myRequests', accountKey, after: nextAfter } );
-      if ( getSession()?.accessToken !== session.accessToken ) { onAccountChanged(); return; }
+      const access = await verifyAtAction();
+      if ( !access ) return;
+      const value = await appointmentDraftAction( bookingConfig.endpoint, access.accessToken,
+        { action: 'myRequests', accountKey: access.accountKey, ...( more && nextAfter ? { after: nextAfter } : {} ) } );
+      if ( getSession()?.accessToken !== access.accessToken ) { setHistory( [] ); setHistoryLoaded( false ); return; }
       if ( !Array.isArray( value.requests ) || !value.requests.every( isAssistanceReceipt ) ) throw new Error( 'Invalid history.' );
-      const more = value.requests;
-      setHistory( rows => [ ...rows, ...more.filter( row => !rows.some( existing => existing.requestId === row.requestId ) ) ] );
-      setNextAfter( value.nextAfter || null ); setHistoryError( '' );
-    } catch ( failure ) { handleFailure( failure ); setHistoryError( 'More requests could not be loaded. Retry using Show more requests.' ); }
-    finally { setBusy( false ); }
+      const rows = value.requests;
+      setHistory( current => more ? [ ...current, ...rows.filter( row => !current.some( existing => existing.requestId === row.requestId ) ) ] : rows );
+      setHistoryLoaded( true ); setNextAfter( value.nextAfter || null ); setHistoryError( '' );
+    } catch ( failure ) {
+      if ( !authenticationFailure( failure ) ) setHistoryError( 'Your request history could not be loaded. Retry below.' );
+    } finally { setBusy( false ); }
   }
 
   const input = ( key: Exclude<keyof HospitalAssistanceRequest, 'consent'>, label: string, required = false, type = 'text', placeholder?: string ) => (
@@ -162,14 +184,19 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
         : <div className={ styles.actions }><button type="submit" disabled={ busy }>{ busy ? 'Submitting…' : 'Submit request' }</button></div> }
       <p className={ styles.help }>Submission is free. We explain any service charges before you agree to paid assistance. Hospital acceptance is required for an appointment.</p>
     </form> }
+    { needsSignIn && <section className={ styles.panel } aria-labelledby="ay-signin-title">
+      <h3 id="ay-signin-title" ref={ signInHeading } tabIndex={ -1 }>Sign in to submit your request</h3>
+      <p>Your form stays open here. Complete WhatsApp sign-in in a new tab, return to this tab, then press Submit request again.</p>
+      <div className={ styles.actions }><a className={ styles.signInLink } href={ AUTH_URL } target="_blank" rel="noopener noreferrer">Sign in with WhatsApp (new tab)</a></div>
+    </section> }
     <section className={ styles.panel } aria-labelledby="ay-history">
       <h3 id="ay-history">Your submitted requests</h3>
       { historyError && <PublicNotice mode="inline" tone="error" message={ historyError } /> }
-      { !history.length && !historyError && <p className={ styles.help }>Your submitted requests will appear here for 30 days.</p> }
+      { historyLoaded && !history.length && !historyError && <p className={ styles.help }>Your submitted requests will appear here for 30 days.</p> }
       <ul className={ styles.requestList }>{ history.map( item => <li key={ item.requestId }><span className={ styles.reference }>{ item.requestId }</span><br />Awaiting review · { new Date( item.createdAt * 1000 ).toLocaleDateString( 'en-IN', { timeZone: 'Asia/Kolkata' } ) }</li> ) }</ul>
       <div className={ styles.actions }>
-        { nextAfter && <button type="button" disabled={ busy } onClick={ () => { void loadMore(); } }>Show more requests</button> }
-        { historyError && <button type="button" onClick={ () => setHistoryAttempt( value => value + 1 ) }>Refresh request history</button> }
+        { nextAfter && <button type="button" disabled={ busy } onClick={ () => { void loadHistory( true ); } }>Show more requests</button> }
+        <button type="button" disabled={ busy } onClick={ () => { void loadHistory(); } }>{ historyLoaded ? 'Refresh request history' : 'View my submitted requests' }</button>
       </div>
     </section>
   </section>;
