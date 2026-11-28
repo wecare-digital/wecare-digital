@@ -84,9 +84,8 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # remains readable through its persisted key; no migration or public fallback here.
 MEDIA_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
 
-# AI Lambda function names. Every invoke target is the `live` alias: an unqualified name runs
+# Every Lambda invoke target below is the `live` alias: an unqualified name runs
 # $LATEST, which an upload reaches before it is published and verified.
-
 
 # WhatsApp Voice Lambda function name (TTS via Amazon Polly)
 WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice:live')
@@ -328,7 +327,7 @@ def _ingest_replay_message(message: Dict, user_phone: str, business_phone: str,
                            *, phase: Any = None, chunk_order: Any = None) -> bool:
     """Project one history/Business-App echo into MessagesTable only.
 
-    This intentionally does NOT call `_process_message`: no keyword/AI/welcome/payment action,
+    This intentionally does NOT call `_process_message`: no keyword/welcome/payment action,
     no media download, no consent mutation, and no 24-hour service-window timestamp update.
     The Meta wamid is the row id, so webhook replay overwrites the same row instead of duplicating.
     """

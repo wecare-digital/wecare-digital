@@ -180,7 +180,6 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-whatsapp-business-api', 'wecare-whatsapp-voice', 'wecare-whatsapp-template-management',
     'wecare-scheduled-messages', 'wecare-bulk-job-create',
     'wecare-bulk-worker', 'wecare-bulk-job-control',
-    'wecare-ai-config-management',
     'wecare-razorpay-webhook', 'wecare-payments-read', 'wecare-invoice-engine',
     'wecare-dlq-replay', 'wecare-contacts', 'wecare-catalog-management',
     'wecare-outbound-sms', 'wecare-outbound-email',

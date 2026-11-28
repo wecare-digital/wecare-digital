@@ -57,7 +57,7 @@ AROGYA_VARIANT_ID = 'BRX5N8Q3'
 
 def reject_unbound_arogya(product_id, variant_id):
     # A normal cart has no verified appointment intent. This is enforced on
-    # the server even if a browser, WhatsApp or MCP caller forges the line.
+    # the server even if a browser or WhatsApp caller forges the line.
     if str(product_id).strip().lower() == AROGYA_PRODUCT_ID or str(variant_id).strip().upper() == AROGYA_VARIANT_ID:
         raise ValueError('Arogya Yatra requires verified appointment checkout')
 

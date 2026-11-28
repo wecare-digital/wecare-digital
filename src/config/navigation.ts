@@ -141,7 +141,6 @@ export const navigationConfig: NavItem[] = [
     label: 'Platform',
     icon: 'dashboard',
     children: [
-      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
       { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
       { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory' },
       { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
@@ -269,8 +268,8 @@ export const settingsConfig: SettingsGroup[] = [
   // indexes, so the gear group is removed rather than repointed.
   // #957 (make Platform a canonical workspace) added a first-class primary Platform
   // sidebar section and re-pointed every Platform deep-link to the identical
-  // /workspace/platform?view=... paths. The gear 'platform' settings group's seven rows
-  // (MCP Connections, Architecture snapshot, Lambda Functions, Code Repo, WA Graph
+  // /workspace/platform?view=... paths. The gear 'platform' settings group's six rows
+  // (Architecture snapshot, Lambda Functions, Code Repo, WA Graph
   // Tools, CORS Settings, Design Reference) therefore became exact duplicates of the
   // primary section, which surfaced as two 'CORS Settings' entries in getAllNavItems()
   // and the command palette. Its "infrastructure reachability via the palette" purpose
@@ -297,11 +296,10 @@ const contextualRoutes: { path: string; label: string; parent: string }[] = [
   { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages', parent: 'Publishing' },
-  { path: '/workspace/automation', label: 'Automation & AI', parent: 'Contextual workflows' },
-  { path: '/workspace/automation?view=agent', label: 'Legacy assistant retired', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=rules', label: 'Rules', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=schedules', label: 'Schedules', parent: 'Automation & AI' },
-  { path: '/workspace/automation?view=knowledge', label: 'Knowledge', parent: 'Automation & AI' },
+  { path: '/workspace/automation', label: 'Automation', parent: 'Contextual workflows' },
+  { path: '/workspace/automation?view=rules', label: 'Rules', parent: 'Automation' },
+  { path: '/workspace/automation?view=schedules', label: 'Schedules', parent: 'Automation' },
+  { path: '/workspace/automation?view=knowledge', label: 'Knowledge', parent: 'Automation' },
 ];
 
 export function getAllNavItems (): { path: string; label: string; parent?: string }[] {

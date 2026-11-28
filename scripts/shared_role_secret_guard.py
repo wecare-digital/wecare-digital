@@ -6,8 +6,8 @@
 allowlist; this Deny stays as a second line. CloudTrail (90 days, 2026-10-15) shows no role
 under it ever read these:
 
-    wecare/github-pat                 readers: wecare-workspace-mcp-runtime (own role), a since-
-                                      deleted webhook receiver role, root, iamuser wecare-admin
+    wecare/github-pat                 readers: a since-deleted webhook receiver role, a
+                                      removed Lambda runtime role, root, iamuser wecare-admin
     wecare/backup/recovery-passphrase readers: root, iamuser wecare-admin
     wecare/aws/iam-access-keys        readers: root, iamuser wecare-admin
 

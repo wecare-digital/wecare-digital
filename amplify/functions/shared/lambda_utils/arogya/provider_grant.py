@@ -2,7 +2,7 @@
 
 Only the deployment-selected staff grant is accessed. There is no scan, caller-selected
 owner, generic Gmail proxy or copy of a staff refresh token. The refresh fence is the
-same one used by workspace MCP, so concurrent refreshes cannot overwrite a newer grant.
+same one used by the retired workspace service, so concurrent refreshes cannot overwrite a newer grant.
 """
 from __future__ import annotations
 
@@ -57,6 +57,8 @@ class VerifiedGmailGrant:
             raise MailboxAccessRequired('Explicit Apollo service grant binding required')
         self.table, self.kms, self.key_arn, self.owner = table, kms, key_arn, owner
         self.key = {'pk': 'connection:' + owner + ':' + PROVIDER}
+        # Kept as 'workspace-mcp' on purpose: it is the KMS encryption context / table name
+        # of data already encrypted. Renaming it would make existing ciphertext undecryptable.
         self.context = {'purpose': 'workspace-mcp', 'owner': owner, 'provider': PROVIDER}
         self.oauth_config, self.clock, self.refresh = oauth_config, clock, refresh
 

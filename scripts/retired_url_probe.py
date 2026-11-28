@@ -66,7 +66,7 @@ def public_path(value):
     if not path.startswith("/") or path.startswith("//"):
         raise argparse.ArgumentTypeError("Use an absolute public page path")
     if any(path == root or path.startswith(root + "/")
-           for root in ("/api", "/get", "/r", "/mcp", "/workspace", "/ws")):
+           for root in ("/api", "/get", "/r", "/workspace", "/ws")):
         raise argparse.ArgumentTypeError("Protected infrastructure/workspace is outside this audit")
     if path in ("/auth/state", "/auth/step"):
         raise argparse.ArgumentTypeError("Auth endpoints are outside this audit")

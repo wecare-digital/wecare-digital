@@ -196,16 +196,10 @@ const messageWabaId = ( m: api.Message ): string => {
 };
 const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
 
-// "AI-managed contact" is a synthetic placeholder written on older rows, not a
-// person's name. Ignore it so a genuine WhatsApp profile name elsewhere in the
-// conversation can win.
-const legacyPlaceholderName = ( name?: string ): boolean =>
-    /^AI-managed(?: WhatsApp)? contact\b/i.test( ( name || '' ).trim() );
-
 const realWhatsAppName = ( m: api.Message ): string => {
     if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
     const name = ( m.senderName || '' ).trim();
-    if ( !name || name.toLowerCase() === 'unknown' || legacyPlaceholderName( name )
+    if ( !name || name.toLowerCase() === 'unknown'
         || /^[+\d\s()-]+$/.test( name ) ) return '';
     return name;
 };
@@ -602,7 +596,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 if ( waba ) existing.wabas.add( waba );
                 if ( !contactNames[ cid ] && realWhatsAppName( m )
                     && ( /^[+\d\s()-]+$/.test( existing.name )
-                        || legacyPlaceholderName( existing.name )
                         || existing.name.startsWith( 'WhatsApp contact #' ) ) )
                     existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
@@ -701,7 +694,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
     // Manual reply is available for real saved contacts with a known WhatsApp
     // recipient (phone or portfolio BSUID) and an exact sender account.
-    // Old standby/AI events no longer impose a separate UI block. The actual
+    // Old standby events no longer impose a separate UI block. The actual
     // outbound API and Meta still enforce their permissions/window rules.
     const canReplyWhatsApp = !!replyTarget.contactId && !!selectedContact
         && !!( selectedContact.phone || selectedContact.bsuid )
@@ -723,7 +716,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
     const handleReply = useCallback( async () => {
         // Let the real WhatsApp send API decide delivery eligibility; don't
-        // refuse a saved, verified contact because of historical AI/standby.
+        // refuse a saved, verified contact because of historical standby.
         if ( replyChannel === 'whatsapp' && !canReplyWhatsApp ) {
             toast.error( 'Choose a saved WhatsApp contact and its sending account. Nothing was sent.' );
             return;

@@ -1,11 +1,11 @@
 {
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 70,
-  "_variables": 482,
+  "_functions": 66,
+  "_variables": 453,
   "_aliases": 0,
   "_alias_variables": 0,
-  "_fingerprinted": 22,
+  "_fingerprinted": 12,
   "aliases": {},
   "functions": {
     "stack-wecare-url-shortener": {
@@ -13,15 +13,6 @@
       "SHORT_LINKS_TABLE": "stack-wecare-digital-ShortLinksTable",
       "SHORT_LINK_BASE": "wecare.digital/r",
       "ADMIN_MFA_REQUIRED": "true"
-    },
-    "wecare-ai-config-management": {
-      "ADMIN_MFA_REQUIRED": "true",
-      "AI_INTERACTIONS_TABLE": "stack-wecare-digital-AIInteractionsTable",
-      "AWS_ACCOUNT_ID": "775261844268",
-      "LOG_LEVEL": "INFO",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get",
-      "SYSTEM_CONFIG_TABLE": "stack-wecare-digital-SystemConfigTable"
     },
     "wecare-auth-middleware": {
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
@@ -167,19 +158,6 @@
       "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
       "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable"
     },
-    "wecare-customer-commerce-mcp": {
-      "CHATGPT_APPROVED_PRODUCT_IDS": "sha256:c08fd1bdf0bd",
-      "CUSTOMER_AUTH_ORIGIN": "https://wecare.digital",
-      "CUSTOMER_COMMERCE_ORIGIN": "sha256:52c9c67e8d6b",
-      "CUSTOMER_OAUTH_CLIENTS": "sha256:db5651585f1d",
-      "CUSTOMER_REGISTRATION_ENABLED": "true",
-      "CUSTOMER_SESSIONS_TABLE": "stack-wecare-digital-CustomerSessionsTable",
-      "CUSTOMER_SESSION_KMS_KEY_ID": "arn:aws:kms:us-east-1:775261844268:key/b749509f-f93f-4451-9015-60ec29c4b9c1",
-      "DEPLOYMENT_REVISION": "sha256:f81481068dac",
-      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "SOURCE_SHA256": "sha256:dd4f92bcc07f",
-      "WHATSAPP_PAYMENT_REQUESTS_ENABLED": "true"
-    },
     "wecare-customer-invoice": {
       "CUSTOMER_POOL_ID": "us-east-1_46ULYuukt",
       "INVOICES_BY_REFERENCE_INDEX": "referenceId-index",
@@ -290,12 +268,6 @@
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",
       "WABA1_DISPLAY": "919330994400",
       "WABA2_DISPLAY": "sha256:d3afe2ba8ee0"
-    },
-    "wecare-mcp": {
-      "LOG_LEVEL": "INFO",
-      "MCP_BLOG_API": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/seo-tools/blog-public",
-      "MCP_BLOG_TIMEOUT_SECONDS": "12",
-      "MCP_BLOG_TTL_SECONDS": "900"
     },
     "wecare-media-cleanup": {
       "CLEANUP_AGE_DAYS": "25",
@@ -610,15 +582,6 @@
       "MEDIA_BUCKET": "wecare-digital-get",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
-    },
-    "wecare-workspace-mcp": {
-      "CHAT_API_BASE": "sha256:9bfb8bacb493",
-      "CHAT_API_ID": "sha256:b4f139566391",
-      "CHAT_CLIENT_ID": "sha256:215d60410110",
-      "CHAT_REDIRECT_URI": "sha256:58d4cd707b6c",
-      "GITHUB_TOKEN_FIELD": "token",
-      "REGISTRY_TABLE": "wecare-workspace-mcp",
-      "TOKEN_KEY": "sha256:9cc82c61dad4"
     }
   }
 }

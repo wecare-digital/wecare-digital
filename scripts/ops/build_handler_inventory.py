@@ -223,7 +223,7 @@ def build_inventory() -> Dict[str, Any]:
         # /CDK-owned function is handled separately, outside this walk (see the
         # synthetic entries appended below), because such functions do not carry
         # a SPECS row. A handler with NO SPECS row is NOT asserted script-managed:
-        # several (the MCP functions, the image-package docs-scraper) are
+        # several (the image-package docs-scraper) are
         # delegated to a dedicated script or a CloudFormation stack. Asserting
         # "script-managed" for a CloudFormation-owned resource is exactly the
         # mislabel the audit section 7 guardrail 4 guards against, so unmapped

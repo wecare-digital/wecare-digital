@@ -93,7 +93,6 @@ ALWAYS = {
     "wecare-customer-invoice": "paid-customer invoice download; an error strands the statutory document",
     "wecare-outbound-whatsapp": "payment request and paid-invoice messaging; send errors must reach an operator",
     "wecare-secure-files": "paid file delivery; a failure is a customer who paid and got nothing",
-    "wecare-mcp": "public unauthenticated endpoint; nothing else would report it failing",
     "wecare-cognito-custom-message": "sends the sign-in email; failing it locks people out",
     "wecare-notification-worker": "SQS-driven, so a failure shows up as silence",
     "wecare-outbound-email": "low volume by design; failure is invisible without this",

@@ -113,10 +113,10 @@ test( 'VayuLok HTML and globe stay no-store', () => {
   }
 } );
 
-test( 'proxied API, auth, MCP and private media responses are never made cacheable', () => {
+test( 'proxied API, auth and private media responses are never made cacheable', () => {
   for ( const url of [
     '/api/contacts', '/api/customer/orders/', '/api/site-language/languages', '/auth/', '/auth/state',
-    '/auth/step', '/mcp', '/mcp/', '/get/secure/d/public/whatsapp/incoming/a.jpg', '/get/',
+    '/auth/step', '/get/secure/d/public/whatsapp/incoming/a.jpg', '/get/',
     '/manifest.json', '/robots.txt', '/sitemap.xml', '/vendor/amplify-ui.css',
   ] ) assertCache( url, NO_STORE );
 } );

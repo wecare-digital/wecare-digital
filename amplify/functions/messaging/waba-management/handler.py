@@ -56,7 +56,7 @@ _meta = MetaGraphClient()
 # `79g3bbufdh` ("wecare-api") was removed from this default on 2026-09-21 when the
 # API itself was deleted. It was a dead duplicate: no custom domain mapped to it,
 # it recorded zero requests in 30 days while the live API served 84,301, and its
-# single route POST /ai/generate duplicated the live API's route while pointing at
+# single route duplicated the live API's route while pointing at
 # unqualified $LATEST rather than the `live` alias. It also carried
 # AllowOrigins ["*"]. Listing a deleted api id here would make every CORS save
 # attempt fail on a NotFoundException.

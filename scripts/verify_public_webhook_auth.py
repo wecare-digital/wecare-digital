@@ -63,8 +63,6 @@ PROBES = [
      "leaked SEND_MODE anonymously"),
     ("product image preview, no token", "GET", "/store/preview-product-image",
      None, 401, "image generation costs money per call"),
-    ("ai generate, no token", "POST", "/ai/generate", {"messageContent": "probe"},
-     401, "spent model tokens anonymously on both HTTP APIs"),
 
     # --- AUTH_SKIP_PATHS narrowed on 2026-09-21 (SEC-ROUTE-009) ---
     # `/wa-business/webhooks` was exempt from auth on the stated grounds that it

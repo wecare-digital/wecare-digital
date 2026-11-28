@@ -629,7 +629,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // NOT in PUBLIC_PAGE_META, because entries there acquire WebPage structured data and a
   // sitemap entry, and advertising a redirect stub to a crawler is the opposite of the
   // intent. The page sets its own robots noindex and canonicals to the destination.
-  // The machine-readable AI surfaces are documented by MCP and the generated discovery
+  // The machine-readable surfaces are documented by the generated discovery
   // files; there is no separate public HTML documentation route to keep in sync.
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'

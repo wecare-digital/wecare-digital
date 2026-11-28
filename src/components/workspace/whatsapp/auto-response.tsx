@@ -50,9 +50,11 @@ const AutoResponsePageBody: React.FC<Props> = () => {
   // Loaders
   const loadTriggers = useCallback(async () => {
     setTrigLoading(true);
-    try { const r = await api.getSystemConfig('flow_triggers_config'); if (r) setTriggers(r as any); } catch {}
+    const r = await api.getSystemConfigResult('flow_triggers_config');
+    if (!r.ok) toast.error(r.failure.message || 'Flow triggers could not be loaded.');
+    else if (r.data.config) setTriggers(r.data.config as any);
     setTrigLoading(false);
-  }, []);
+  },[toast]);
   useEffect(() => {
     if (tab === 'triggers') loadTriggers();
   }, [tab, loadTriggers]);

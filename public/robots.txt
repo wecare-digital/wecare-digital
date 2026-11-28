@@ -94,13 +94,3 @@ Sitemap: https://wecare.digital/sitemap.xml
 #
 #   https://wecare.digital/llms.txt        curated map of the public pages
 #   https://wecare.digital/llms-full.txt   the same plus every article title and summary
-#
-# An agent that speaks Model Context Protocol should prefer the live query interface over
-# either file, because it can search on demand instead of reading a snapshot:
-#
-#   https://wecare.digital/mcp             read-only MCP server, Streamable HTTP
-#
-# The endpoint describes itself: `initialize` returns an instructions string, `tools/list`
-# returns the five tools with their schemas, and get_site_summary returns the citation terms.
-# /llms.txt above repeats all of it in prose, including the client config snippet. Machine
-# discovery therefore has no separate human-readable route to maintain or redirect.

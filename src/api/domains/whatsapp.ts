@@ -1051,47 +1051,27 @@ export interface SystemConfig {
   [ key: string ]: any;
 }
 
-/**
- * Get system configuration by key
- * Settings API Lambda: wecare-ai-config-management (GET/PUT /ai/config?key=)
- */
-export async function getSystemConfig ( configKey: string ): Promise<SystemConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}`, {cache:'no-store'} );
-  if ( data && data.config )
-  {
-    return data.config;
-  }
+// The settings API (GET/PUT /ai/config) was removed with its Lambda. These three
+// functions keep their signatures so existing settings screens compile, and they
+// report the setting as unavailable instead of calling a route that no longer exists.
+const SETTINGS_API_REMOVED = 'The settings API has been removed.';
+
+/** Always resolves to null: there is no settings API to read from. */
+export async function getSystemConfig ( _configKey: string ): Promise<SystemConfig | null> {
   return null;
 }
 
-/** Distinguish a missing setting from a failed read before offering an editor. */
-export async function getSystemConfigResult ( configKey: string ): Promise<ApiResult<{ config: SystemConfig | null }>> {
-  return apiCallResult<{ config: SystemConfig | null }>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}`, {cache:'no-store'} );
+/** Always resolves to a not-found failure, so editors stay disabled. */
+export async function getSystemConfigResult ( _configKey: string ): Promise<ApiResult<{ config: SystemConfig | null }>> {
+  return {
+    ok: false,
+    failure: { kind: 'not-found', status: 404, message: SETTINGS_API_REMOVED, url: '', retryable: false, at: Date.now() },
+  };
 }
 
-// The backend merges object settings, so retained keys are allowed. Arrays are
-// ordered values: a different element or length means the requested save is unconfirmed.
-function containsConfig ( stored: any, requested: any ): boolean {
-  if ( Array.isArray( requested ) )
-    return Array.isArray( stored ) && stored.length === requested.length
-      && requested.every( ( value, index ) => containsConfig( stored[ index ], value ) );
-  if ( requested !== null && typeof requested === 'object' )
-    return stored !== null && typeof stored === 'object' && !Array.isArray( stored )
-      && Object.keys( requested ).every( key => Object.prototype.hasOwnProperty.call( stored, key )
-        && containsConfig( stored[ key ], requested[ key ] ) );
-  return stored === requested;
-}
-
-/**
- * Update system configuration
- * Settings API Lambda: wecare-ai-config-management (GET/PUT /ai/config?key=)
- */
-export async function updateSystemConfig ( configKey: string, config: any ): Promise<boolean> {
-  const body = JSON.stringify( { key: configKey, config } );
-  const data = await apiCall<any>( `${API_BASE}/ai/config`, { method: 'PUT', body } );
-  if ( data?.success !== true ) return false;
-  const stored = await getSystemConfig( configKey );
-  return stored !== null && containsConfig( stored, JSON.parse( body ).config );
+/** Always resolves to false: nothing is saved. */
+export async function updateSystemConfig ( _configKey: string, _config: any ): Promise<boolean> {
+  return false;
 }
 
 

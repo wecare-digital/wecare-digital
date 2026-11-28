@@ -219,6 +219,7 @@ def validate_provider_config(config, owner):
     return config
 
 
+# 'wecare-workspace-mcp' is the live table name and KMS context of existing data; do not rename.
 def _runtime_store():
     table_name = os.environ.get('APOLLO_REGISTRY_TABLE')
     key_arn = os.environ.get('APOLLO_TOKEN_KEY_ARN')

@@ -421,9 +421,6 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-bulk-worker': [ 'common', 'sqs', 'whatsapp', 'sms', 'email' ],
   'wecare-bulk-job-control': [ 'common', 'sqs', 's3' ],
 
-  // === Settings API (generic SystemConfig; no AI) ===
-  'wecare-ai-config-management': [ 'common' ],
-
   // === Operations ===
   'wecare-dlq-replay': [ 'common', 'sqs', 'sns' ],
   'wecare-billing': [ 'common', 'billing' ],

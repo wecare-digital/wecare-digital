@@ -100,7 +100,6 @@ EXPLICIT_TABLE: dict[str, str] = {
     "SystemEvent": "SystemEventTable",
     "CatalogCache": "CatalogCacheTable",
     "CommerceKey": "CommerceKeys",
-    "ConversationHistory": "ConversationHistoryTable",
     "TemplateAnalytics": "TemplateAnalyticsTable",
     "FlowRegistry": "FlowRegistryTable",
     "FlowSubmission": "FlowSubmissionTable",
@@ -126,7 +125,6 @@ EXPLICIT_TABLE: dict[str, str] = {
     "CrmLead": "CrmLeads",
     "CrmOpportunity": "CrmOpportunities",
     "CrmActivity": "CrmActivities",
-    "AIInteraction": "AIInteractionsTable",
 }
 
 # ---------------------------------------------------------------------------
@@ -152,7 +150,15 @@ UNDECLARED_ALLOWED: dict[str, str] = {
     "AgentApprovalsTable":
         "Retained live table from the removed agent action approval path (its "
         "provisioner and code were deleted). Not modelled here: it is historical "
-        "operational state with a TTL, not part of the CRM data model.",
+        "operational state, not part of the CRM data model.",
+    "ConversationHistoryTable":
+        "Retained live table of the removed conversation-context feature. Its model was "
+        "removed from amplify/data/resource.ts; the table was never created by Amplify, so "
+        "it was not deleted. Kept as historical data.",
+    "AIInteractionsTable":
+        "Retained live table of the removed query/response log. Its model was removed "
+        "from amplify/data/resource.ts; the table was never created by Amplify, so it "
+        "was not deleted. Kept as historical data.",
     "CartTable":
         "AWS-native working cart owned by amplify/catalog-resources.ts and "
         "lambda_utils/ecommerce/native_cart.py. It is checkout infrastructure, "

@@ -46,15 +46,13 @@ class BuildHandlerInventoryTest(unittest.TestCase):
 
     def test_summary_counts_reconcile(self):
         summary = self.report["summary"]
-        # Production added collect_contract.py and collect_receipts.py during
-        # this branch's development; both are shared modules, not new Lambdas.
-        self.assertEqual(summary["total_py_files"], 320)
-        self.assertEqual(summary["shared_modules"], 192)
+        self.assertEqual(summary["total_py_files"], 318)
+        self.assertEqual(summary["shared_modules"], 205)
         # The shared modules must dominate the standalone handler count: this is
         # the 320-vs-~76 drift signal.
         self.assertGreater(summary["shared_modules"], summary["standalone_handlers"])
-        self.assertEqual(summary["manifest_functions"], 72)
-        self.assertGreaterEqual(summary["specs_total"], 60)
+        self.assertEqual(summary["manifest_functions"], 65)
+        self.assertGreaterEqual(summary["specs_total"], 55)
 
     def test_specs_mapped_count_fields_are_unambiguous(self):
         # The 62-vs-63 ambiguity must be resolved by two explicit fields whose
@@ -131,7 +129,7 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         shared_entries = self.report["domains"].get("shared", [])
         self.assertEqual(shared_entries, [],
                          "shared/ files must be modules, not standalone handlers")
-        self.assertEqual(self.report["summary"]["shared_modules"], 192)
+        self.assertEqual(self.report["summary"]["shared_modules"], 205)
         # And no emitted handler path lives under shared/.
         for entries in self.report["domains"].values():
             for entry in entries:
@@ -170,9 +168,7 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         # owned functions). They are emitted as unclassified with a null name.
         # This fails if the blanket script-managed default is reinstated.
         expected_unclassified = {
-            "amplify/functions/ai/customer-commerce-mcp/handler.py",
-            "amplify/functions/ai/mcp/handler.py",
-            "amplify/functions/ai/workspace-mcp/handler.py",
+            "amplify/functions/ecommerce/arogya-booking/handler.py",
             "amplify/functions/ecommerce/catalog-media/handler.py",
             "amplify/functions/ecommerce/native-catalog-admin/handler.py",
             "amplify/functions/edge/get-miss-redirect/handler.py",
@@ -213,14 +209,12 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         self.assertNotIn("arn:aws", blob)
         # A known recorded VALUE from the manifest must not be present...
         self.assertNotIn("stack-wecare-digital-ContactsTable", blob)
-        # ...while the KEY name for it should be (ai-config-management references it).
-        agent = self._find("ai", "wecare-ai-config-management")
-        if agent is not None:
-            self.assertIn("SYSTEM_CONFIG_TABLE", agent["manifest_env_keys"])
-            for key in agent["manifest_env_keys"]:
-                # key names are upper snake identifiers, not resource values
-                self.assertNotIn(":", key)
-                self.assertNotIn("/", key)
+        # ...while key names stay upper snake identifiers, not resource values.
+        for entries in self.report["domains"].values():
+            for entry in entries:
+                for key in entry.get("manifest_env_keys", []):
+                    self.assertNotIn(":", key)
+                    self.assertNotIn("/", key)
 
     def test_cli_writes_to_scratch_and_refuses_outside(self):
         # Default path lands in .scratch/.

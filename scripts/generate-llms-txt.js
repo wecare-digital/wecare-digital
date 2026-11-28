@@ -17,9 +17,7 @@
  *
  * So the value here is cheap insurance plus one thing that is certain: it is a correct,
  * machine-readable statement of what this site publishes and how it may be cited, which is
- * useful to a human reviewer and to any agent pointed at it explicitly - including our own
- * MCP server at /mcp, which is the surface that actually has clients rather than hoping for
- * them. Treat /mcp as the load-bearing one and this as the fallback.
+ * useful to a human reviewer and to any reader pointed at it explicitly.
  *
  * WHY IT IS GENERATED RATHER THAN COMMITTED
  * -----------------------------------------
@@ -28,12 +26,12 @@
  * site. Not one of those paths exists now. A hand-maintained file describing a site
  * that changes is a file that will be wrong, and wrong quietly.
  *
- * config/public-pages.json is the single source, shared with the MCP server's zip, and
+ * config/public-pages.json is the single source, and
  * src/test/PublicAiSurface.test.ts fails the build when it drifts from the two allowlists
  * that decide what is actually public.
  *
  * Its `pages` array is itself generated, by scripts/generate-public-pages.js, which runs
- * FIRST in the build chain. So the path from "a page was added" to "llms.txt and /mcp know
+ * FIRST in the build chain. So the path from "a page was added" to "llms.txt knows
  * about it" needs no hand edit at all: the scan picks the route up, this file publishes it.
  *
  * RUN ORDER MATTERS: after generate-blog-search-index.js
@@ -157,52 +155,6 @@ function buildIndex ( catalog, pages, posts ) {
   lines.push( 'carries a trailing slash; the slashless form redirects.' );
   lines.push( '' );
 
-  // The MCP endpoint goes near the top on purpose. An agent that can speak MCP should use
-  // it rather than this file: it can ask a question and get a scoped answer, where this can
-  // only hand over a fixed list.
-  //
-  // This section is the human-readable machine-interface reference for an operator wiring up
-  // a client. Keeping it here avoids a second documentation route with another copy of the
-  // endpoint URL, protocol versions and tool list. It carries the config snippet and tool list,
-  // and the cannot-do list - which puts it in front of the reader who arrives from
-  // robots.txt rather than behind one more hop.
-  lines.push( '## For agents: a live query interface' );
-  lines.push( '' );
-  lines.push( `This site runs a read-only Model Context Protocol server at ${ai.mcp_endpoint} over` );
-  lines.push( `the Streamable HTTP transport (protocol versions ${ai.mcp_protocol_versions.join( ', ' )}).` );
-  lines.push( 'Prefer it over this file: it searches the pages and the published articles on demand,' );
-  lines.push( 'rather than handing over a fixed snapshot. It needs no credentials.' );
-  lines.push( '' );
-  lines.push( linkLine( 'MCP endpoint', ai.mcp_endpoint,
-    'POST JSON-RPC and you get one JSON object back. GET returns 405 by design; this server is stateless and offers no SSE stream.' ) );
-  lines.push( '' );
-  lines.push( 'Add it to an MCP client like this:' );
-  lines.push( '' );
-  // A fenced block, so a consumer that renders this as markdown does not reflow the JSON
-  // into prose. `type: "http"` is the Streamable HTTP transport; the older `sse` type would
-  // attempt the deprecated HTTP+SSE transport, which this server does not implement and
-  // which would fail at the GET.
-  lines.push( '```json' );
-  for ( const line of JSON.stringify( ai.mcp_client_config, null, 2 ).split( '\n' ) ) lines.push( line );
-  lines.push( '```' );
-  lines.push( '' );
-  lines.push( `It exposes ${ai.mcp_tools.length} tools, every one of them a read of content that is already public:` );
-  lines.push( '' );
-  for ( const tool of ai.mcp_tools ) lines.push( `- \`${tool.name}\` — ${tool.summary}` );
-  lines.push( '' );
-  lines.push( `Plus ${ai.mcp_resources.length} resources, both as JSON:` );
-  lines.push( '' );
-  for ( const resource of ai.mcp_resources ) lines.push( `- \`${resource.uri}\` — ${resource.summary}` );
-  lines.push( '' );
-  // Stated plainly rather than left to inference. An agent that assumes a tool endpoint can
-  // act will try, and a refusal it did not expect reads as a fault rather than as a limit.
-  lines.push( 'What it cannot do:' );
-  lines.push( '' );
-  for ( const limit of ai.mcp_cannot ) lines.push( `- ${limit}` );
-  lines.push( '' );
-  lines.push( `${ai.note}` );
-  lines.push( '' );
-
   for ( const group of groups )
   {
     const inGroup = pages.filter( page => page.group === group.id );
@@ -260,8 +212,7 @@ function buildFull ( catalog, index, posts ) {
   // here. A consumer that assumes full body text and finds summaries will quote a summary
   // as though it were the article.
   lines.push( 'This section lists every published article with its own summary. It is an expanded' );
-  lines.push( 'INDEX, not the body text: fetch the article URL for that, or use the MCP endpoint at' );
-  lines.push( `${ai.mcp_endpoint} to search the same corpus.` );
+  lines.push( 'INDEX, not the body text: fetch the article URL for that.' );
   lines.push( '' );
   if ( capped.length < posts.length )
   {

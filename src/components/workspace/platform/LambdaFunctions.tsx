@@ -58,8 +58,6 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   { name: 'media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'EventBridge (Daily)' ], status: 'active' },
   { name: 'push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
 
-  // AI
-  { name: 'ai-config-management', displayName: 'Settings API', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Generic SystemConfig settings API', apiRoute: '/ai/config', envVars: { CONFIG_TABLE: 'BotConfig table' }, triggers: [ 'API Gateway' ], status: 'active' },
 
   // Payments
   { name: 'razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '***', PAYMENTS_TABLE: 'RazorpayWebhookLog table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },

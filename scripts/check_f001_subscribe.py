@@ -49,7 +49,6 @@ TS_SETTINGS = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'subscrib
 TS_FLOW_HUB = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'flow-hub.tsx'
 TS_AUTO_RESPONSE = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'auto-response.tsx'
 TS_INBOX = ROOT / 'src' / 'pages' / 'workspace' / 'engage' / 'inbox' / 'index.tsx'
-AI_CONFIG = ROOT / 'amplify' / 'functions' / 'ai' / 'ai-config-management' / 'handler.py'
 
 PHONE_A = '15550100001'
 PHONE_B = '15550100002'
@@ -420,11 +419,6 @@ def setup() -> None:
                  'validate_flow_json'):
         M[name.split('.')[-1]] = importlib.import_module(name)
     M['bizapi'] = importlib.import_module('handler')
-    # The AI config API is also a module named `handler`, so it is loaded under its own name.
-    import importlib.util
-    ai_spec = importlib.util.spec_from_file_location('ai_config_handler', AI_CONFIG)
-    M['ai_config'] = importlib.util.module_from_spec(ai_spec)
-    ai_spec.loader.exec_module(M['ai_config'])
     # The CRM projection is best-effort and outside F001; record it instead of running it.
     M['crm_calls'] = []
     M['flow_completion'].capture_crm_lead = lambda result, **kw: M['crm_calls'].append(kw) or {'outcome': 'recorded'}
@@ -1366,28 +1360,6 @@ def _() -> None:
                and graph_calls == [(F001_ID(), 'POST')], f'Admin update refused: {graph_calls}')
     finally:
         biz.require_auth, middleware.require_auth, biz._graph_api = saved
-
-
-@check('E8 keyword triggers, Subscribe copy and every other setting need Operator to change')
-def _() -> None:
-    FAKE_DB.reset()
-    ai, middleware = M['ai_config'], M['middleware']
-    config_rows = table(ai.SYSTEM_CONFIG_TABLE).items
-    saved = middleware.require_auth
-    middleware.require_auth = _role_gate
-    try:
-        def put(role: str, key: str) -> int:
-            body = {'key': key, 'config': {'subscribe': {'enabled': True}}}
-            return ai.handler(_staff_event('PUT', '/ai/config', role, body), None)['statusCode']
-        for key in ('flow_triggers_config', 'subscribe_messages_config', 'customerservice_menu_config'):
-            expect(put('Viewer', key) == 403 and key not in config_rows, f'Viewer changed {key}')
-            expect(put('Operator', key) == 200 and key in config_rows, f'Operator could not change {key}')
-        expect(put('Admin', 'catalog_flow_map') == 400 and 'catalog_flow_map' not in config_rows,
-               'a non-settings SystemConfig row was writable through /ai/config')
-        reader = _staff_event('GET', '/ai/config', 'Viewer', params={'key': 'flow_triggers_config'})
-        expect(ai.handler(reader, None)['statusCode'] == 200, 'Viewer can no longer read keyword triggers')
-    finally:
-        middleware.require_auth = saved
 
 
 @check('E9 webhook subscription changes need Admin; Meta sync follows pages, bounded')

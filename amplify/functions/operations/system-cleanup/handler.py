@@ -120,18 +120,6 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-MediaFilesTable',
     },
-    'conversation_history': {
-        'label': 'AI Conversation History',
-        'category': 'AI',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-ConversationHistoryTable',
-    },
-    'ai_interactions': {
-        'label': 'AI Interactions Log',
-        'category': 'AI',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-AIInteractionsTable',
-    },
     'whatsapp_calling': {
         'label': 'WhatsApp Call Logs',
         'category': 'Voice',

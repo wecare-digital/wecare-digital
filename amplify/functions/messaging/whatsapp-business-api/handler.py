@@ -6652,7 +6652,7 @@ def _reconcile_unknown_deliveries(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Bounded read-only operational surface for the Workspace MCP.
+    """Bounded read-only operational surface for staff workspace reads.
 
     No customer message content, form answers, phone numbers, tokens or write action is returned.
     """

@@ -923,7 +923,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "message": "Please pay for contributions on the website.",
                 }, origin)
             # `_create` runs its dedup, one-live-payment and cross-rail guards only for a
-            # request key, and every caller (the cart page, the commerce MCP) sends one. A
+            # request key, and every caller (the cart page) sends one. A
             # create without it is refused rather than allowed past those guards.
             request_key = body.get("requestKey")
             if not isinstance(request_key, str) or not request_key.strip():

@@ -48,8 +48,8 @@ Shape, and why
                         `eventType-index` on RazorpayWebhookLogTable.
 
   No TTL, deliberately. A failed attempt is the record proving no order was created, and payment
-  history has to keep it. Every other short-lived table here (DownloadGrants, PstnSoftphone,
-  AgentApprovals) has TTL because expiry IS the point of the record; here expiry would destroy
+  history has to keep it. Every other short-lived table here (DownloadGrants, PstnSoftphone)
+  has TTL because expiry IS the point of the record; here expiry would destroy
   the evidence. This is stated as an assertion in --verify, not just left unset, so that someone
   enabling TTL later trips a gate instead of quietly losing the history.
 

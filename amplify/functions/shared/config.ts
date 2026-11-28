@@ -21,7 +21,6 @@ export const TABLES = {
   MEDIA_FILES: process.env.MEDIA_FILES_TABLE || 'stack-wecare-digital-MediaFilesTable',
   DLQ_MESSAGES: process.env.DLQ_MESSAGES_TABLE || 'stack-wecare-digital-DLQMessagesTable',
   AUDIT_LOGS: process.env.AUDIT_LOGS_TABLE || 'stack-wecare-digital-AuditLogsTable',
-  AI_INTERACTIONS: process.env.AI_INTERACTIONS_TABLE || 'stack-wecare-digital-AIInteractionsTable',
   RATE_LIMIT: process.env.RATE_LIMIT_TABLE || 'stack-wecare-digital-RateLimitTable',
   SYSTEM_CONFIG: process.env.SYSTEM_CONFIG_TABLE || 'stack-wecare-digital-SystemConfigTable',
   // SMS_AWS removed 2026-09-24: `stack-wecare-digital-SmsAwsTable` does not exist

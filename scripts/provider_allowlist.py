@@ -119,7 +119,6 @@ PROVIDERS: tuple = (
         ),
         webhook_routes=(
             "/pstn/session/events",           # browser softphone session events
-            "/workspace/mcp/oauth/callback",  # workspace MCP OAuth return (PKCE, one-use state)
         ),
         env_namespaces=("APP", "STAFF", "CUSTOMER", "LINK", "SEO"),
         ui_labels=("WECARE.DIGITAL", "Grahak OS"),

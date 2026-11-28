@@ -43,7 +43,7 @@ invokes at the end unless ``--no-publish`` is passed. See
 
 Shared checkout, concurrent deployers
 -------------------------------------
-Many sessions share this checkout, and other deployers (CodeBuild, MCP clients) write the
+Many sessions share this checkout, and other deployers (CodeBuild, other clients) write the
 same functions. Nothing serialises deploys, so:
 
 * A real deploy requires a clean checkout. It packages only regular tracked files exported
@@ -438,8 +438,6 @@ SPECS: List[Spec] = [
     Spec("wecare-scheduled-messages", "messaging/scheduled-messages"),
     # --- messaging / ads + analytics ---
     Spec("wecare-marketing-ads", "messaging/marketing-ads"),
-    # --- settings API (generic SystemConfig; no AI) ---
-    Spec("wecare-ai-config-management", "ai/ai-config-management"),
     # --- operations ---
     Spec("wecare-billing", "operations/billing"),
     Spec("wecare-bulk-job-create", "operations/bulk-job-create"),
@@ -462,18 +460,11 @@ SPECS: List[Spec] = [
 # owns it, along with its table and IAM policy, so it is delegated rather than
 # reimplemented here.
 #
-# wecare-mcp ships config/public-pages.json beside its handler, so its dedicated
-# scripts/deploy_mcp_server.py owns that package and the Amplify Hosting rewrite.
-# wecare-seo-tools likewise remains owned by scripts/deploy_seo_tools.py. These
+# wecare-seo-tools remains owned by scripts/deploy_seo_tools.py. These
 # delegated deployment paths are explicit; no GitHub workflow is an owner.
 DELEGATED = {
     "wecare-blog-public": "scripts/build_blog_public.py (dedicated three-file read-only package; code-only deployment with revision/hash preconditions)",
     "wecare-seo-tools": "scripts/deploy_seo_tools.py",
-    "wecare-mcp": "scripts/deploy_mcp_server.py",
-    # Bundles its own pinned SDK and policy; generic packaging would omit both.
-    "wecare-workspace-mcp": "scripts/build_workspace_mcp.py + scripts/deploy_workspace_mcp.py (CloudFormation, after merge)",
-    # Inline in its own template; see amplify/functions/ai/customer-commerce-mcp/README.md.
-    "wecare-customer-commerce-mcp": "CloudFormation stack wecare-customer-commerce-mcp (amplify/functions/ai/customer-commerce-mcp/template.json)",
 }
 SKIPPED = {"wecare-docs-scraper": "PackageType=Image; deploy separately from the zip Lambda fleet"}
 

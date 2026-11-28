@@ -445,8 +445,7 @@ def build_clear_cookie() -> str:
 
 #: The pair every session-bearing response must carry. `no-store` is the instruction that matters;
 #: `Pragma: no-cache` is included because that is the pair this repo already emits at
-#: `edge/get-miss-redirect/handler.py:83`. `ai/mcp/handler.py:568` and
-#: `core/site-language/handler.py:198` send `no-store` alone - the stricter existing pattern is the
+#: `edge/get-miss-redirect/handler.py:83`. `core/site-language/handler.py:198` sends `no-store` alone - the stricter existing pattern is the
 #: one copied here, because an HTTP/1.0-era intermediary that ignores `Cache-Control` still honours
 #: `Pragma`, and the cost of the extra header is one line.
 NO_STORE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
