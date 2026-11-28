@@ -22,8 +22,8 @@ const SehatPage: React.FC = () => (
   <>
     {/* The title and description restate only what the page itself says - the hero sub and
         the three booking steps below - in the "Name — what it is" shape the other product
-        pages use. They were "Arogya Yatra" and a 42-character sentence, which tools/browser/seocheck.js
-        fails as too thin to describe the page in a result. No clinical claims, by design. */}
+        pages use. They were "Arogya Yatra" and a 42-character sentence, too
+        thin to describe the page in a result. No clinical claims, by design. */}
     <PageMeta
       title="Arogya Yatra — medical travel and appointments"
       description="Arogya Yatra by Elsewhere — plan appointment-related medical travel and request an appointment with a qualified professional. Travel arrangements and clinical decisions remain subject to provider confirmation."

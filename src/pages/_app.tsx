@@ -201,12 +201,12 @@ const FAVICON_URL = `${MEDIA_BASE}/wecare-digital.ico`;
    upload.
    THE CARD TYPE MOVED WITH THE SHAPE. twitter:card is "summary" below, because
    summary_large_image centre-crops anything that is not roughly 1.91:1 and would cut the top and
-   bottom off this mark - the defect the link-preview test in BrandAssets.test.ts exists to catch.
+   bottom off this mark.
    DECLARED AFTER LOGO_URL, not before it. These used to sit above it, and aliasing a const to one
    that is declared later is a temporal-dead-zone error at module evaluation, not a lint warning.
    These two values must equal the real pixels of the object at the URL; the pair once read
    512x512 against a 1080x1080 file. src/config/share.ts holds the same values for the content
-   pages and ShareMeta.test.tsx holds the two copies equal. */
+   pages; keep the two copies equal. */
 const SOCIAL_CARD_URL = LOGO_URL;
 const SOCIAL_CARD_W = '1080';
 const SOCIAL_CARD_H = '1080';
@@ -442,8 +442,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
   // the '/shop' entry in PUBLIC_EXACT in scripts/generate-sitemap.js and the STRUCTURAL entry in
-  // scripts/generate-public-pages.js by src/test/PublicRouteRegistration.test.ts, so the three
-  // move together. src/pages/shop/index.tsx is restored to emit out/shop/index.html.
+  // scripts/generate-public-pages.js; the three must move together. src/pages/shop/index.tsx
+  // is restored to emit out/shop/index.html.
   //
   // THE SEVEN PRODUCT PAGES stay in the isContentPublic chain as '/shop/[slug]', NOT here: this
   // map is keyed on router.pathname, so a dynamic route keyed here would compute every URL from
@@ -454,11 +454,9 @@ const PUBLIC_PAGE_META: Record<string, {
   // every product and service the site sells: most cards now link to /<slug>/ rather than to
   // /shop/<slug>/, so "Individual products live under /shop/<slug>/" had become inaccurate. The
   // same sentence is carried by the STRUCTURAL fallback in scripts/generate-public-pages.js and by
-  // the generated config/public-pages.json, and src/test/PublicAiSurface.test.ts compares the
-  // catalogue to this literal - so rewording it means re-running
+  // the generated config/public-pages.json - so rewording it means re-running
   // `node scripts/generate-public-pages.js`. Keep the single-quoted `name:` then `description:`
-  // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
-  // both parse this block as text and both require literals.
+  // shape: renderAllowlist() in that generator parses this block as text and requires literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   // Shipments is a non-clickable family label; Track and Pickup Request
   // are customer actions, not separate public pages.
@@ -480,9 +478,8 @@ const getPublicPageSchema = ( pathname: string ) => {
      * page's URL, which is a cross-route entity collision: two URLs defining one node with
      * different content is exactly the conflicting-copy case Google's guidance is about.
      *
-     * seocheck.js could not see it. Its @id-clash check is per-route - it looks for the same
-     * @id twice within one page - so a collision ACROSS routes was invisible to it, and /get
-     * is not in its ROUTES list anyway.
+     * A per-route @id-clash check cannot see it: it looks for the same @id twice within one
+     * page, so a collision ACROSS routes is invisible to it.
      *
      * The home page still resolves to `${SITE}/#webpage` and `${SITE}/`, because pathname
      * is '/' there, so its markup is unchanged. Only /get moves, onto its own identity.
@@ -559,8 +556,7 @@ const getPublicPageSchema = ( pathname: string ) => {
    Its documentation - why the sign-in screen is the third place site chrome is mounted, why
    SupportWidget belongs on it, why .ag-shell pads 108px rather than 96px, and why the
    Amplify ThemeProvider's hardcoded dir="ltr" had to be overridden - travelled with the code
-   and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
-   mounts across both files. */
+   and is unchanged there. */
 
 // /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
 // Bare /vault/ navigates Home. All other former standalone request/tracking
@@ -631,8 +627,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   //
   // It was also a duplicate: /contact is the real public contact page, and this one's form
   // resolved a setTimeout and threw the message away. De-listed rather than deleted so the
-  // removal is one reversible line; PublicRouteRegistration.test.ts now fails any public
-  // route that imports Layout, so this shape cannot return.
+  // removal is one reversible line. A public route must never import Layout.
   // '/404' IS PUBLIC, and it has to be listed here rather than in PUBLIC_PAGE_META.
   // Header, Footer and SupportWidget are mounted once, below, inside `if ( isPublic )` - so
   // a page receives the three common pieces by being on this list and by no other means.
@@ -821,15 +816,13 @@ export default function App ( { Component, pageProps }: AppProps ) {
             Measured on the live site before this change: / carried the icon tag, /blog/ and
             /post/<slug>/ carried none, and /favicon.ico returned 404 text/html.
             RENDERED HERE RATHER THAN IN _document.tsx - the obvious sitewide home - because
-            MEDIA_BASE and the URLs derived from it are module-private to this file, and
-            src/test/BrandAssets.test.ts pins those declarations to this file by source string.
+            MEDIA_BASE and the URLs derived from it are module-private to this file.
             Reaching them from the document would mean importing this module into _document or
             restating MEDIA_BASE there, and a second source of truth for the brand asset base is
-            the exact thing that test exists to prevent. Every public route passes through this
+            to be avoided. Every public route passes through this
             branch, so the coverage is the same; the authenticated branch keeps its own pair.
-            The keys are placed after href so the attribute order BrandAssets.test.ts matches on
-            is preserved. next/head dedupes by key, so a page that wants a different icon
-            overrides this one instead of appending a second. */}
+            The keys are placed after href. next/head dedupes by key, so a page that wants a
+            different icon overrides this one instead of appending a second. */}
         <Head>
           <link rel="icon" href={ FAVICON_URL } key="icon" />
           <link rel="apple-touch-icon" href={ LOGO_URL } key="apple-touch-icon" />
@@ -871,8 +864,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
               nothing was going to collapse them. _document.tsx is the right owner because
               the font is sitewide and unconditional, whereas this block is one branch of a
               route test - keeping a copy per branch is how the duplication happened.
-              seocheck.js did not catch it: its "exactly one of each head tag" assertion
-              covers the nine og/twitter/canonical/title/description tags, not <link>. */}
+              A check for exactly one of each og/twitter/canonical/title/description tag would
+              not catch it, because it does not look at <link>. */}
           {/* SITEWIDE FALLBACK, AND IT MUST STAY PRODUCT-NEUTRAL.
               This block is inherited by every public route that does not declare its own, so
               whatever it says becomes the identity of 15 pages. It used to read "Enterprise
@@ -1039,8 +1032,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
-            request log shows it. tagcheck.js now asserts the container loads once and
-            no direct gtag.js accompanies it. */}
+            request log shows it. */}
         {/* Public-only reflow defaults; explicit layout, code and table styles win. */}
         <style jsx global>{`
           :where(main){min-inline-size:0;max-inline-size:100%;overflow-wrap:anywhere}
@@ -1158,8 +1150,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
-            request log shows it. tagcheck.js now asserts the container loads once and
-            no direct gtag.js accompanies it. */}
+            request log shows it. */}
       {/* No Facebook SDK on the staff pages any more (WEB-1). It ran with an empty appId and
           logged CompletedRegistration on every render. */}
       {/* The Amplify UI tree - ThemeProvider, Authenticator.Provider, AuthGate and the

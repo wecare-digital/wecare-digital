@@ -46,7 +46,7 @@ const SHOP_ROOT = `${ORIGIN}/shop/`;
 
 /**
  * THE PAGE-NUMBERED COPY, derived from the one sentence PUBLIC_PAGE_META already publishes for
- * /shop so the page has one voice. Both sit inside the bounds tools/browser/seocheck.js enforces
+ * /shop so the page has one voice. Both sit inside the site's SEO bounds
  * (a title of 15 to 75 characters, a description of 50 to 170) at today's three pages and at two
  * digits.
  */

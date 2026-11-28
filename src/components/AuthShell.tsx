@@ -252,7 +252,7 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
            the [dir='rtl'] rules in Header.tsx and SupportWidget.tsx still matched, because
            those select on the html attribute rather than on computed direction. The nav panel
            then anchored to its rtl edge inside an unmirrored header and landed at
-           left:-504px - off screen on 105 of 125 routes, measured by rtlcheck.js. Public
+           left:-504px - off screen on 105 of 125 routes, measured by an RTL mirror check. Public
            routes were unaffected: they render no Amplify wrapper at all.
            An author declaration beats the dir attribute's presentational hint, so one rule
            puts the subtree back in step with the document. Fixing it here rather than by

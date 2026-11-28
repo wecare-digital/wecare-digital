@@ -72,9 +72,8 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
         30,226-byte PNG, both measured). Fixing the weight means uploading a resized object
         to s3://wecare-digital-get/o/stream/media/m/, which this repo cannot perform - the
         same constraint already recorded for wd-brand-16x9.png in _app.tsx. Repointing this
-        to a repo-local copy is NOT the workaround: BrandAssets.test.ts documents
-        wecaredigital.png as the correct transparent asset for an <img> on our own white
-        page, and moving brand media out of the canonical bucket to save 27 kB would trade a
+        to a repo-local copy is NOT the workaround: wecaredigital.png is the correct
+        transparent asset for an <img> on our own white page (see the brand notes in _app.tsx), and moving brand media out of the canonical bucket to save 27 kB would trade a
         measured problem for an architectural one. */}
     <img
       src={ LOGO_URL }
