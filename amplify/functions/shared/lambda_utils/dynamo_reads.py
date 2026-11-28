@@ -1,13 +1,13 @@
 """Bounded DynamoDB reads. One implementation, no copies.
 
-These began life inside `lambda_utils/agent/governance.py`, written to stop a language
-model paginating a whole table on a whim. The problem is not specific to agents:
+These began life inside an agent governance module (since removed), written to stop a
+language model paginating a whole table on a whim. The problem is not specific to agents:
 `messaging/ad-attribution` had the same shape reached from an ordinary HTTP route,
 and worse in one respect — it passed **no** `Limit` to DynamoDB at all, so asking for
 one item still transferred up to 1 MB per page, and with a `FilterExpression` it
 could read the entire table while collecting almost nothing.
 
-So the helpers live here and `agent.governance` re-exports them. A second copy is how
+So the helpers live here, in one place. A second copy is how
 the stage-prefix rule came back twice before it was given a shared home.
 
 The two rules worth stating

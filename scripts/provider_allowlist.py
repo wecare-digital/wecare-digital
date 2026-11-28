@@ -128,7 +128,7 @@ PROVIDERS: tuple = (
         key="aws",
         name="Amazon Web Services",
         purpose=("Compute, data, delivery and messaging: Lambda, DynamoDB, S3, CloudFront, "
-                 "End User Messaging SMS/voice, Polly, Transcribe, Translate, Bedrock, "
+                 "End User Messaging SMS/voice, Polly, Transcribe, Translate, "
                  "Cognito, SES/SNS/SQS/EventBridge, Amplify hosting/builds, Secrets Manager."),
         domains=("amazonaws.com", "amazoncognito.com", "aws.amazon.com", "aws.com",
                  "community.aws", "awsstatic.com", "cloudfront.net", "amplifyapp.com"),
@@ -139,11 +139,11 @@ PROVIDERS: tuple = (
              # the AWS SDK's own dependency closure, pinned beside it
              "python-dateutil", "six", "urllib3"),
         imports=("boto3", "botocore", "s3transfer", "jmespath", "dateutil", "six", "urllib3"),
-        provider_ids=("aws", "aws-bedrock", "aws-end-user-messaging",
+        provider_ids=("aws", "aws-end-user-messaging",
                       "aws-end-user-messaging-rcs"),
         env_namespaces=("AWS", "COGNITO"),
         ui_labels=("AWS", "Amazon Web Services", "AWS End User Messaging", "Amazon SES",
-                   "Amazon S3", "Amazon Bedrock", "AWS Bedrock", "Amazon Polly",
+                   "Amazon S3", "Amazon Polly",
                    "Amazon Transcribe", "Amazon Translate", "Amazon Cognito",
                    "Amazon CloudFront", "AWS Lambda", "Amazon DynamoDB", "AWS Amplify"),
     ),
@@ -316,7 +316,7 @@ LIBRARIES: tuple = (
 #: AWS SDK clients runtime code may create. SMS goes through End User Messaging
 #: (`pinpoint-sms-voice-v2`) only, so the classic messaging client is not in this set.
 AWS_SERVICES = frozenset({
-    "amplify", "apigatewayv2", "bedrock-agent-runtime", "bedrock-runtime", "cloudfront", "cloudwatch",
+    "amplify", "apigatewayv2", "cloudfront", "cloudwatch",
     "cognito-idp", "dynamodb", "events", "health", "kms", "lambda", "logs",
     "pinpoint-sms-voice-v2", "polly", "s3", "scheduler", "secretsmanager", "ses", "sesv2",
     "sns", "sqs", "ssm", "sts", "support", "transcribe", "translate",

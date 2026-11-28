@@ -171,12 +171,6 @@ export const settingsConfig: SettingsGroup[] = [
     // leads with it.
     mfaPanel: { id: 'mfa', label: 'Sign-in & MFA' },
     items: [
-      // Internal Agent moved here from the Platform group: with the flat sidebar, the
-      // account menu / gear is the ONE place that holds true config, and the redesign
-      // spec names exactly two settings rows — Sign-in & MFA then Internal Agent. It
-      // configures the operator's own admin helper (distinct from the customer-facing
-      // WhatsApp AI Agent under Messaging tools).
-      { path: '/workspace/settings/internal-agent', label: 'Internal Agent configuration' },
       // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
       // and for a signed-in user - the only person who can open this gear - it does
       // nothing but router.replace to /workspace/engage/inbox (access/index.tsx), which is
@@ -214,7 +208,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'Calling' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=cost-controls', label: 'Cost Controls' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'Scripts' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=welcome', label: 'Welcome Message' },
     ],
   },
   {

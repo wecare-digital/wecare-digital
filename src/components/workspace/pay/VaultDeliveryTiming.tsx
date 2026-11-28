@@ -50,7 +50,7 @@ const VaultDeliveryTiming: React.FC = () => {
       if ( !result.ok ) {
         const status = result.failure.status;
         setError( status === 400
-          ? 'The live settings API does not recognize Vault access timing yet (HTTP 400). Update wecare-ai-config-management before saving.'
+          ? 'The live settings API does not recognize Vault access timing yet (HTTP 400). Update the settings API (wecare-ai-config-management) before saving.'
           : status === 401 || status === 403
             ? 'Staff authorization is required to read and save Vault access timing. Check your session and permissions.'
             : 'Vault timing read failed' + ( status ? ' (HTTP ' + status + ')' : '' )

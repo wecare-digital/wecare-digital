@@ -26,7 +26,7 @@ RELEASE_ORDER = (
     "wecare-whatsapp-business-api",  # native exact-file service payment sender
     "wecare-secure-files",           # forward validated offer body {{1}}
     "wecare-service-api",           # UUID file / S3 object names on new uploads
-    "wecare-ai-config-management",  # read-only registry reference for workspace
+    "wecare-ai-config-management",  # settings API (Vault delivery timing) for workspace
 )
 
 

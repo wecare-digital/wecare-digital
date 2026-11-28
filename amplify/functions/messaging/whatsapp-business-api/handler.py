@@ -2000,7 +2000,6 @@ def _get_cost_flags() -> Dict:
         'ENABLE_ATHENA_ANALYTICS': {'risk': 'high', 'service': 'Athena'},
         'ENABLE_GLUE': {'risk': 'high', 'service': 'Glue'},
         'ENABLE_TEXTRACT_IMPORT': {'risk': 'high', 'service': 'Textract'},
-        'ENABLE_BEDROCK_ASSIST': {'risk': 'high', 'service': 'Bedrock'},
         'ENABLE_XRAY': {'risk': 'medium', 'service': 'X-Ray'},
         'ENABLE_ADVANCED_CLOUDWATCH_DASHBOARD': {'risk': 'medium', 'service': 'CloudWatch dashboards'},
         'ENABLE_RAW_WEBHOOK_ARCHIVE': {'risk': 'medium', 'service': 'S3 raw archive'},

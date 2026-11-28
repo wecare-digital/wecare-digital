@@ -1,4 +1,4 @@
-"""Publish AI-generated FAQPage schema to the public site — but only once a human approved it.
+"""Publish approved FAQPage schema to the public site, only once a human approved it.
 
 WHERE THIS SITS, AND WHY IT IS BACKEND RATHER THAN FRONTEND.
 The public site is a static export. It builds by fetching every post from this Lambda's
@@ -10,8 +10,7 @@ FAQ lives in a separate `audit` record, so it never reached the page on its own.
 
 So the chain already existed end to end and was missing exactly one link. This is that link.
 
-    ai.py  -> generates faqSchema        (already existed)
-    handler._run_audit -> stores it as an `audit` record, status pending_review
+    an `audit` record holding faqSchema, status pending_review (no generator remains)
     Admin  -> approve / reject           (already existed)
     THIS   -> serves the APPROVED one on /blog-public/<slug>
     [slug].tsx -> renders it             (already existed)
@@ -51,9 +50,7 @@ logger = logging.getLogger()
 #: What it costs is one DynamoDB query on an existing on-demand table, on an index that eleven
 #: other call sites already use.
 #:
-#: Generation is the part that is off by default, and it is off structurally rather than by flag:
-#: ai.invoke_seo is reachable from exactly one authenticated admin route and nothing schedules
-#: it. Verified with grep across active application and operational source.
+#: Generation no longer exists: nothing in this package creates new FAQ audits.
 #:
 #: Set SEO_FAQ_PUBLISH=0 to stop serving FAQ immediately.
 PUBLISH_ENABLED = os.environ.get('SEO_FAQ_PUBLISH', '1').strip().lower() not in ('0', 'false', 'no')

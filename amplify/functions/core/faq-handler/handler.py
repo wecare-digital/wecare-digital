@@ -2,7 +2,7 @@
 FAQ Handler Lambda Function
 
 Purpose: Keyword-based FAQ search and response system
-Cost: FREE - no external dependencies, no OpenSearch, no Bedrock
+Cost: FREE - no external dependencies, no OpenSearch, no model calls
 """
 
 import os

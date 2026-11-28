@@ -2,29 +2,23 @@
 import hashlib
 import json
 import logging
-import time
-import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from lambda_utils.idempotency import (
-    body_hash, claim_admin_action, make_admin_idempotency_key, release_admin_audit,
+    body_hash, claim_admin_action, make_admin_idempotency_key,
 )
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import (
     cors_headers, cors_response, extract_origin, options_response,
 )
 
-import ai
 import blog_source
 import faq
-import seo_freshness
 import seo_refresh
 import storage
 import page_catalog
 
 logger = logging.getLogger(__name__)
-INPUT_COST_PER_M = 3.0
-OUTPUT_COST_PER_M = 15.0
 
 
 def _method_path(event: Dict[str, Any]) -> Tuple[str, str]:
@@ -181,183 +175,6 @@ def _slug(value: Any) -> str:
     return slug if slug.startswith('/') else '/' + slug
 
 
-def _cost(input_tokens: int, output_tokens: int) -> float:
-    value = (input_tokens / 1_000_000) * INPUT_COST_PER_M
-    value += (output_tokens / 1_000_000) * OUTPUT_COST_PER_M
-    return round(value, 4)
-
-
-def _put_error_log(slug: str, page_type: str, started: float) -> None:
-    storage.put_record({
-        'id': f'log_{uuid.uuid4().hex}',
-        'recordType': 'log',
-        'createdAt': storage.now_iso(),
-        'slug': slug,
-        'blogSlug': slug,
-        'pageType': page_type,
-        'provider': 'aws-bedrock',
-        'model': ai.PRIMARY_MODEL,
-        'status': 'error',
-        'errorMessage': 'SEO generation failed',
-        'inputTokens': 0,
-        'outputTokens': 0,
-        'costEstimate': 0,
-        'durationMs': int((time.monotonic() - started) * 1000),
-    })
-
-
-def _run_audit(
-    page: Dict[str, Any], page_type: str, force: bool = False,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Generate an SEO audit, or return the stored one when the content has not changed.
-
-    THE HASH GATE IS THE COST CONTROL. This used to call ai.invoke_seo unconditionally, so
-    auditing a post twice with nothing changed paid Bedrock twice for the same answer. The
-    repository already hashes content for this purpose in blog_pipeline, blog_gate and
-    blog_sources; the SEO audit path was the one place that did not.
-
-    Placed HERE rather than in the two callers because _blog_audit and _page_audit both funnel
-    through this function - one gate covers both, and a third caller added later inherits it.
-
-    `force` re-runs deliberately, because the hash covers the CONTENT and not the prompt: when
-    ai.py's system prompt or model chain changes, identical content should be re-auditable
-    without editing the post, which is the source mutation this architecture forbids.
-
-    NOTHING ABOUT SOURCE CONTENT IS WRITTEN. The hash is computed from the source and stored on
-    the derived audit record. No updatedAt is touched: a freshness check that stamped what it
-    checked would corrupt sitemap lastmod and make every check look like an edit.
-    """
-    started = time.monotonic()
-    slug = str(page['slug'])
-    try:
-        # A failure to read history must not block an audit - it degrades to "run it", which is
-        # the previous behaviour, rather than to an error.
-        try:
-            history = storage.list_slug_records(slug)
-        except Exception:  # noqa: BLE001
-            logger.exception('audit history read failed for %s; auditing without the hash gate', slug)
-            history = []
-        content_hash, reusable = seo_freshness.decide(page, page_type, history, force)
-        if reusable:
-            logger.info(json.dumps({
-                'event': 'seo_audit_skipped', 'slug': slug, 'pageType': page_type,
-                'auditId': reusable.get('id'), 'reason': 'unchanged_source_hash',
-            }))
-            return reusable, seo_freshness.skip_log(reusable, page_type)
-        generated = ai.invoke_seo(page, page_type)
-        result = generated['result']
-        created_at = storage.now_iso()
-        duration_ms = int((time.monotonic() - started) * 1000)
-        input_tokens = int(generated.get('inputTokens', 0))
-        output_tokens = int(generated.get('outputTokens', 0))
-        estimate = _cost(input_tokens, output_tokens)
-        log = {
-            'id': f'log_{uuid.uuid4().hex}',
-            'recordType': 'log',
-            'createdAt': created_at,
-            'slug': slug,
-            'blogSlug': slug,
-            'pageType': page_type,
-            'provider': 'aws-bedrock',
-            'model': generated.get('model', ai.PRIMARY_MODEL),
-            'status': 'success',
-            'inputTokens': input_tokens,
-            'outputTokens': output_tokens,
-            'costEstimate': estimate,
-            'durationMs': duration_ms,
-        }
-        audit = {
-            'id': f'audit_{uuid.uuid4().hex}',
-            'recordType': 'audit',
-            'createdAt': created_at,
-            'updatedAt': created_at,
-            'slug': slug,
-            'blogSlug': slug,
-            'blogPostId': page.get('id', ''),
-            'blogTitle': page.get('title') or page.get('name') or slug,
-            'pageType': page_type,
-            'currentSeoTitle': page.get('seoTitle') or page.get('currentSeoTitle') or page.get('title', ''),
-            'suggestedSeoTitle': result.get('seoTitle', ''),
-            'currentMetaDescription': page.get('metaDescription', ''),
-            'suggestedMetaDescription': result.get('metaDescription', ''),
-            'focusKeyword': result.get('focusKeyword', ''),
-            'secondaryKeywords': result.get('secondaryKeywords', []),
-            'suggestedTags': result.get('categoryTags', []),
-            'suggestedJsonLd': result.get('jsonLd', {}),
-            'internalLinkSuggestions': result.get('internalLinks', []),
-            'imageAltSuggestions': result.get('imageAltText', []),
-            'seoScoreBefore': result.get('seoScoreBefore', 0),
-            'seoScoreAfter': result.get('seoScoreAfter', 0),
-            'scoreBreakdown': result.get('scoreBreakdown', {}),
-            'warnings': result.get('warnings', []),
-            'fullAiResponse': result,
-            'aiProvider': 'aws-bedrock',
-            'aiModel': generated.get('model', ai.PRIMARY_MODEL),
-            'status': 'pending_review',
-            # The gate above reads this back. An audit without it is always re-run, which is the
-            # correct behaviour for records written before the gate existed.
-            'sourceHash': content_hash,
-        }
-        storage.put_record(log)
-        storage.put_record(audit)
-        return audit, {
-            'inputTokens': input_tokens,
-            'outputTokens': output_tokens,
-            'costEstimate': estimate,
-            'durationMs': duration_ms,
-            'model': log['model'],
-        }
-    except Exception:
-        logger.exception('SEO generation failed')
-        try:
-            _put_error_log(slug, page_type, started)
-        except Exception:
-            logger.exception('SEO error log persistence failed')
-        raise
-
-
-
-def _guarded_audit(page, page_type, body, actor, origin):
-    # Audits write derived results, not source/payment state. A fenced lease prevents
-    # concurrent model calls without treating a failed audit as a completed mutation.
-    action = f'seo.{page_type}.audit.lease'
-    key = make_admin_idempotency_key(actor, action, body_hash({
-        'path': page.get('slug'), 'sourceHash': seo_freshness.source_hash(page, page_type),
-    }))
-    token = uuid.uuid4().hex
-    try:
-        claimed = claim_admin_action(key, actor, action, ttl_seconds=1800, claim_token=token)
-    except Exception:
-        return _response(503, {'ok': False, 'error': 'Audit guard unavailable'}, origin)
-    if not claimed:
-        return _response(409, {'ok': False, 'error': 'This audit is already running'}, origin)
-    try:
-        audit, log = _run_audit(page, page_type, force=bool(body.get('force')))
-        return _response(200, {'ok': True, 'audit': audit, 'log': log}, origin)
-    finally:
-        try:
-            release_admin_audit(key, token)
-        except Exception:
-            logger.exception('Audit lease release failed; lease expiry permits retry')
-
-
-def _page_audit(body: Dict[str, Any], actor: str, origin: str):
-    slug = _slug(body.get('path'))
-    page_type = str(body.get('pageType') or 'page').strip().lower()
-    stored_type = page_type if page_type in {'product', 'system'} else 'page'
-    current = page_catalog.page_seo(slug)
-    page = {
-        **body,
-        **current,
-        'slug': slug,
-        'name': str(body.get('name') or slug.lstrip('/').replace('-', ' ')),
-        'title': current.get('title') or body.get('name') or slug,
-        'url': page_catalog.SITE_BASE + slug,
-        'currentSeoTitle': current.get('title', ''),
-    }
-    return _guarded_audit(page, stored_type, body, actor, origin)
-
-
 def _page_clean(body: Dict[str, Any], actor: str, origin: str):
     slug = _slug(body.get('path'))
     duplicate = _claim({**body, 'path': slug}, actor, 'seo.page.clean', origin)
@@ -453,8 +270,6 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         if duplicate:
             return duplicate
         return _response(200, {'ok': True, **storage.clean_blog_post(slug, actor)}, origin)
-    if path.endswith('/page-audit'):
-        return _page_audit(body, actor, origin)
     if path.endswith('/page-clean'):
         return _page_clean(body, actor, origin)
     if path.endswith('/seo-approve'):

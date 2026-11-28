@@ -17,8 +17,7 @@ with which scopes, or how stale the answer is. Measured 2026-09-23:
     Meta Ads / CTWA        26            wecare/meta-system-user-token
 
 Three of the seven have no adapter, and one of those has no credential either. A
-registry that listed all seven as available would be the same class of lie as the
-Bedrock agent config that claimed a working agent for five months.
+registry that listed all seven as available would claim integrations that do not work.
 
 Three decisions this module exists to enforce
 ---------------------------------------------

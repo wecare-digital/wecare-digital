@@ -68,7 +68,7 @@ MUST_DENY_SECRETS = ("wecare/otp/pepper", "wecare/google-maps", "wecare/meta/pay
 
 #: Every function the role's code invokes. Each is granted bare and qualified (`:live`).
 INVOKE_TARGETS = tuple(f"wecare-{name}" for name in (
-    "ai-query-kb", "billing", "bulk-worker", "checkout", "commerce",
+    "billing", "bulk-worker", "checkout", "commerce",
     "inbound-whatsapp", "outbound-email", "outbound-sms",
     "outbound-whatsapp", "razorpay-webhook", "rcs-send", "scheduled-messages", "secure-files",
     "service-requests", "sms-aws", "voice-aws", "voice-cdr-read", "whatsapp-business-api",

@@ -64,7 +64,6 @@ const FlowPublishPanel = lazyTab<PageProps>( () => import( '../../../components/
 const GroupsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/groups' ) );
 const CostControlsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
 const ScriptsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
-const WelcomePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/welcome' ) );
 
 type SectionId =
   | 'whatsapp'
@@ -96,7 +95,6 @@ type WhatsAppTool =
   | 'migration'
   | 'send-test'
   | 'campaign'
-  | 'welcome'
   | 'auto-response'
   | 'scripts'
   | 'templates'
@@ -182,7 +180,6 @@ const WHATSAPP_GROUPS: Array<{
     items: [
       { id: 'send-test', label: 'Send test', detail: 'Authorized provider test actions' },
       { id: 'campaign', label: 'Campaigns', detail: 'WhatsApp campaign composer' },
-      { id: 'welcome', label: 'Welcome', detail: 'Welcome-message behavior' },
       { id: 'auto-response', label: 'Auto response', detail: 'Keyword and automatic response rules' },
       { id: 'scripts', label: 'Scripts', detail: 'WhatsApp automation script configuration' },
     ],
@@ -265,7 +262,6 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'migration': return <MigrationPanel signOut={ signOut } user={ user } embedded />;
       case 'send-test': return <SendTestPanel signOut={ signOut } user={ user } embedded />;
       case 'campaign': return <CampaignPanel signOut={ signOut } user={ user } embedded />;
-      case 'welcome': return <WelcomePanel signOut={ signOut } user={ user } embedded />;
       case 'auto-response': return <AutoResponsePanel signOut={ signOut } user={ user } embedded />;
       case 'scripts': return <ScriptsPanel signOut={ signOut } user={ user } embedded />;
       case 'templates': return <WhatsAppTemplatesPanel signOut={ signOut } user={ user } embedded />;

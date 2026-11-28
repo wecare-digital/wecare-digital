@@ -60,10 +60,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-voice-aws', category: 'SMS / Email / Voice', name: 'Voice AWS', description: 'AWS Connect voice call handler.', path: 'amplify/functions/messaging/voice-aws/handler.py', type: 'lambda' },
   { id: 'lambda-plivo-answer', category: 'SMS / Email / Voice', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'lambda' },
 
-  // ── AI Lambdas ──
-  { id: 'lambda-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query the static FAQ knowledge base for contextual responses.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'lambda' },
-  { id: 'lambda-ai-config', category: 'AI', name: 'AI Config Management', description: 'AI configuration — system prompts, model settings, knowledge base config.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'lambda' },
-  { id: 'lambda-agent', category: 'AI', name: 'Agent Action Group', description: 'Governed internal agent action handler exposed through the authenticated AI route.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'lambda' },
+  { id: 'lambda-ai-config', category: 'Core', name: 'Settings API', description: 'Generic SystemConfig settings API (GET/PUT /ai/config?key=). No AI behaviour.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'lambda' },
 
   // ── Payments ──
   { id: 'lambda-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'lambda' },
@@ -77,7 +74,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-cleanup', category: 'Operations', name: 'System Cleanup', description: 'Scheduled cleanup — expired data, orphaned records, TTL enforcement.', path: 'amplify/functions/operations/system-cleanup/handler.py', type: 'lambda' },
 
   // ── Ecommerce ──
-  { id: 'lambda-product-img', category: 'Ecommerce', name: 'Product Image Gen', description: 'AI product image generation using Bedrock Titan Image.', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'lambda' },
+  { id: 'lambda-product-img', category: 'Ecommerce', name: 'Product Image Gen', description: 'Branded product image generation (Pillow).', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'lambda' },
 ];
 
 const CATEGORIES = [...new Set(CODE_ASSETS.map(a => a.category))];

@@ -2,8 +2,6 @@ import React from 'react';
 
 const S: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 8, color: '#1a3a2a' };
 const pre: React.CSSProperties = { background: '#0f1117', color: '#a3e635', padding: 12, borderRadius: 8, fontSize: 10, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0, maxHeight: 280, overflowY: 'auto' };
-const thI: React.CSSProperties = { padding: '8px 12px', textAlign: 'left' as const, fontSize: 11, fontWeight: 600 };
-const tdI: React.CSSProperties = { padding: '6px 12px', fontSize: 12 };
 
 function Card ( { title, children }: { title: string; children: React.ReactNode } ) {
   return <div className="card" style={ { padding: 20, marginBottom: 16 } }><h3 style={ S }>{ title }</h3>{ children }</div>;
@@ -29,16 +27,16 @@ export default function InstructionsContent () {
 
       <Card title="Overview">
         <p style={ { fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0 } }>
-          AI-powered SEO for wecare.digital using Claude Sonnet 4.6 via AWS Bedrock.
+          SEO for wecare.digital. SEO values are written by people and derived by deterministic templates; no AI model generates SEO.
           AWS-native blog posts plus public site, product, and system pages.
-          Every page gets clean JSON-LD (no duplicates), meta tags, keywords, FAQ schema, and SEO score.
-          Human approval required. 🧹🤖 = Clean first then Audit. 🤖 = Audit only.
+          Every page gets clean JSON-LD (no duplicates) and meta tags.
+          Existing audit records can still be reviewed and cleaned. Human approval required.
         </p>
       </Card>
 
       {/* ═══ 1. BLOG POST JSON-LD ═══ */ }
       <JCard n="1" title='Blog Post (/post/*) — BlogPosting + BreadcrumbList + FAQPage'
-        desc="AWS-native blog posts. AI can generate BlogPosting, BreadcrumbList and evidence-based FAQPage data; approved SEO is stored with the post and rendered by Amplify."
+        desc="AWS-native blog posts. BlogPosting, BreadcrumbList and approved FAQPage data are served from stored records; approved SEO is stored with the post and rendered by Amplify."
         code={ `// ── 1. BlogPosting ──
 {
   "@context": "https://schema.org",
@@ -69,7 +67,7 @@ export default function InstructionsContent () {
   ]
 }
 
-// ── 3. FAQPage (AI-generated from blog content) ──
+// ── 3. FAQPage (from blog content) ──
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -132,7 +130,7 @@ export default function InstructionsContent () {
   ]
 }
 
-// ── 4. FAQPage (AI-generated from page content) ──
+// ── 4. FAQPage (from page content) ──
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -216,46 +214,25 @@ export default function InstructionsContent () {
 // Login-gated pages → null (not crawlable)` } />
 
       {/* ═══ 5. NEW PAGE ═══ */ }
-      <JCard n="5" title='Any New Page (future) — AI auto-detects type'
-        desc="New blog/page/product created → AI detects type → applies correct schema set."
+      <JCard n="5" title='Any New Page (future)'
+        desc="New blog/page/product created → the deterministic engine applies the correct schema set."
         code={ `// New blog post is saved in the SEO Tools DynamoDB table
-// Admin runs AI audit → BlogPosting + BreadcrumbList + optional FAQPage
-// Saved as pending_review → admin approves → SEO saved back to the AWS BlogPost
+// Deterministic engine derives BlogPosting + BreadcrumbList from the post
+// FAQPage only from an approved stored record
 
-// New site page → manual audit from dashboard
-// AI generates: WebPage + BreadcrumbList + Organization + FAQPage
-
-// New product → manual audit from dashboard
-// AI generates: Product + Offer + BreadcrumbList + FAQPage
+// New site page / product → schema derived from the page catalog
 
 // System page → minimal WebPage or null (noindex)`} />
-
-      {/* Phases */ }
-      <Card title="Phases">
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-          <thead><tr style={ { borderBottom: '2px solid #e5e7eb', background: '#f9fafb' } }>
-            <th style={ thI }>Phase</th><th style={ thI }>Scope</th><th style={ { ...thI, textAlign: 'center' as const } }>Cost</th><th style={ { ...thI, textAlign: 'center' as const } }>Status</th>
-          </tr></thead>
-          <tbody>
-            { [ [ '1. Pilot', 'Stand blog post', '$0.08', '✅ Done' ], [ '2. All Blogs', '108 blog posts', '$6.48', '⏳' ], [ '3. Site Pages', '37 public pages', '$2.22', '⏳' ], [ '4. Products', '5 products', '$0.30', '⏳' ], [ '5. System', '14 system pages', '$0.84', '⏳' ], [ '6. Autopilot', 'New posts auto', '$0.08/post', '✅ Active' ] ].map( ( [ a, b, c, d ] ) => (
-              <tr key={ a } style={ { borderBottom: '1px solid #f3f4f6' } }><td style={ { ...tdI, fontWeight: 600 } }>{ a }</td><td style={ tdI }>{ b }</td><td style={ { ...tdI, textAlign: 'center' as const, fontWeight: 600 } }>{ c }</td><td style={ { ...tdI, textAlign: 'center' as const } }>{ d }</td></tr>
-            ) ) }
-          </tbody>
-        </table>
-      </Card>
 
       {/* Rules */ }
       <Card title="Rules">
         <ul style={ { fontSize: 13, color: '#374151', lineHeight: 2, margin: 0, paddingLeft: 20 } }>
-          <li>🧹🤖 Clean + Audit = wipe all old SEO data first, then run AI audit (recommended for first time)</li>
-          <li>🤖 Audit only = run AI on current state (use for re-audits after content changes)</li>
-          <li>Blog titles: expert-written only — AI suggests but NEVER auto-publishes</li>
-          <li>All AI SEO changes require human approval before they are saved to the published AWS post</li>
-          <li>No monthly refresh — set once, done. Re-audit only on request</li>
+          <li>Clean = wipe stored audit records for a page</li>
+          <li>Blog titles: expert-written only</li>
+          <li>Stored audit records require human approval before they are used</li>
           <li>Focus and secondary keywords are stored with the AWS post and rendered by Amplify metadata</li>
           <li>All old duplicate JSON-LD wiped on Apply — complete replacement</li>
           <li>Author is stored per AWS post; the current Admin identity is the default</li>
-          <li>Model: Claude Sonnet 4.6 via Bedrock — ~$0.05/page (fallback: Nova Pro)</li>
         </ul>
       </Card>
 
@@ -263,17 +240,14 @@ export default function InstructionsContent () {
       <Card title="Architecture">
         <pre style={ { ...pre, lineHeight: 1.8 } }>{ `Dashboard → authenticated wecare.digital/api/seo-tools/*
          → SEO Lambda → AWS-native BlogPost records in SeoToolsTable
-         → AWS Bedrock (Claude Sonnet 4.6, fallback models)
-         → retained DynamoDB audit + AI log records (PITR)
+         → retained DynamoDB audit + log records (PITR)
          → conditional approval → SEO saved to the AWS BlogPost
          → public read API → Amplify static /blog and /post/{slug}
 
 Keywords: focus + secondary keywords are stored on the BlogPost and rendered in public metadata
 JSON-LD: BlogPosting + BreadcrumbList + FAQPage (3 scripts, no duplicates)
 Mutations: fail-closed idempotency claims; actor always comes from Cognito
-Pages/products: audit and review only; apply is intentionally unsupported
-
-Flow: clean or audit → pending_review → approve/reject → blog apply`}</pre>
+Pages/products: review only; apply is intentionally unsupported`}</pre>
       </Card>
     </div>
   );

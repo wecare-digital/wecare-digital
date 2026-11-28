@@ -814,7 +814,7 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
           ═══════════════════════════════════════════════════════════════ */}
                     <section style={ { marginBottom: 56 } }>
                         <h2 style={ { fontSize: 22, fontWeight: 700, color: C.primary, margin: '0 0 8px' } }>22. Floating Agent (AI Chat)</h2>
-                        <p style={ { fontSize: 14, color: C.text2, marginBottom: 20 } }>Bottom-right FAB → slide-out chat panel. Bedrock Nova Lite. Ctrl+. shortcut.</p>
+                        <p style={ { fontSize: 14, color: C.text2, marginBottom: 20 } }>Bottom-right FAB → slide-out chat panel. Ctrl+. shortcut.</p>
                         <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } }>
                             <div className="inner-card">
                                 <h4 style={ { margin: '0 0 12px', fontSize: 15, fontWeight: 600 } }>FAB Button</h4>
@@ -1065,7 +1065,6 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } )
                                 <ul style={ { margin: '8px 0 0', padding: '0 0 0 16px', lineHeight: 2 } }>
                                     <li>Template picker: search + list with status badges</li>
                                     <li>Variable input: numbered fields (①②③④)</li>
-                                    <li>AI suggestions: auto-complete from Bedrock</li>
                                     <li>TTS panel: language + voice dropdowns</li>
                                     <li>Payment dialog: items, GST, phone, order ID</li>
                                     <li>Emoji picker: grid overlay</li>

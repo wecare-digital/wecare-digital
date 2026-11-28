@@ -92,56 +92,6 @@ export const COGNITO_CONFIG = {
   SSO_DOMAIN: 'https://wecare-digital-auth.auth.us-east-1.amazoncognito.com',
 };
 
-// Bedrock AI Configuration
-// Architecture:
-//   - SEO Audit: InvokeModel (Claude Opus 4.6 → Nova Pro fallback) in operations/seo-tools/handler.py
-//   - WhatsApp Auto-Reply: Converse API (Nova Lite) — no agent needed
-//   - Internal Admin: Converse API (Nova Lite) — agent optional, Converse works standalone
-//   - WhatsApp Voice/Calling: Converse API (Nova Lite) — agent fallback if configured
-//
-// Agent status, re-measured 2026-09-23 against account 775261844268:
-//
-//   NO Bedrock Agent is usable, and none is needed.
-//
-//   The account's single agent is an empty shell that was created and abandoned on
-//   2026-04-25: agentStatus NOT_PREPARED, foundationModel null, instruction 0
-//   characters, agentResourceRoleArn null, never prepared, 0 action groups, 0
-//   knowledge bases. The account holds 0 knowledge bases in total. The action group
-//   Lambda's resource policy grants apigateway.amazonaws.com only, with no
-//   bedrock.amazonaws.com principal, so Bedrock could not have invoked it even if
-//   the agent had been wired.
-//
-//   The earlier note here said it "needs action groups + prepare". That understates
-//   it: preparing would fail outright, because there is no model, no instruction and
-//   no role to prepare.
-//
-//   Every agent and knowledge-base identifier this file used to carry was
-//   fabricated, and the LIVE Lambda environment was worse than these defaults -
-//   INTERNAL_AGENT_ID=QIEEHEBTZO, ALIAS=ASCBD7YPUT, INTERNAL_KB_ID=D0JU8Q7IQS,
-//   EXTERNAL_KB_ID=LYMQLKZNY7, none of which exist. 'static-faq' was never an id in
-//   any format.
-//
-//   Both live paths use the Converse API directly and are unaffected. Provisioning a
-//   real agent is new capability creation, not reconciliation, and is an owner
-//   decision.
-//
-// Foundation Models (confirmed working):
-//   - amazon.nova-pro-v1:0: SEO audit quality (confirmed working)
-//   - amazon.nova-pro-v1:0: WhatsApp/admin + SEO fallback (confirmed working)
-//   - global.anthropic.claude-sonnet-4-6: PRIMARY SEO model (confirmed working)
-export const BEDROCK_CONFIG = {
-  // No agent or knowledge-base defaults. Both live paths use the Converse API
-  // directly, and a plausible-looking default is exactly what made this surface
-  // appear configured for five months. If an agent is ever provisioned, set the
-  // variables explicitly rather than restoring a literal here.
-  
-  // Models
-  FOUNDATION_MODEL: 'amazon.nova-pro-v1:0',
-  FOUNDATION_MODEL_PRO: 'amazon.nova-pro-v1:0',
-  SEO_MODEL: process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6',
-  MODEL_ARN: 'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0',
-};
-
 // TTL Configuration (in seconds)
 export const TTL_CONFIG = {
   MESSAGES: 30 * 24 * 60 * 60,      // 30 days

@@ -85,8 +85,7 @@ for ( const m of src.matchAll( /path:\s*'([^']+)'\s*,\s*label:\s*'([^']+)'/g ) )
  *      routes contain the actual messaging tools; a removed compatibility
  *      redirect is not an additional feature page. Imports may be relative,
  *      so route-string search alone does not establish whether a tool exists.
- *   2. A PAGE LINKS THEM BY STRING. /workspace/index.tsx is a tile grid, and its
- *      Settings tile is the only route to settings/internal-agent.
+ *   2. A PAGE LINKS THEM BY STRING. /workspace/index.tsx is a tile grid.
  *
  * So resolve both kinds of edge and walk the graph from the nav rows. What survives the
  * walk is unreachable for real, and that number is the only one worth acting on.

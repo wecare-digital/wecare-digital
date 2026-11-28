@@ -17,9 +17,7 @@ If the stored derived record already carries that hash, refresh is a no-op: no w
 call, nothing. That is the whole cost-control mechanism the brief asks for, and
 `test_seo_engine_idempotent` pins it.
 
-AI. This module is deterministic. `seo_config.ai_enabled()` gates whether an optional
-model-derived suggestion may be ADDED (to a separate suggestion field), and when AI is off or
-fails, the deterministic result is what ships. A model is never required to produce a record.
+NO MODEL. This module is deterministic. The deterministic result is the only result.
 """
 from __future__ import annotations
 
@@ -28,7 +26,6 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-import seo_config
 import storage
 
 logger = logging.getLogger(__name__)
@@ -259,8 +256,7 @@ def derive(entity_type: str, source: Dict[str, Any]) -> Dict[str, Any]:
         "robotsDirective": robots,
         "openGraphData": _open_graph(entity_type, source, canonical, title, description),
         "structuredData": _json_ld(entity_type, source, canonical, title, description),
-        # FAQ suggestions are DERIVED and SEPARATE. Deterministic mode never fabricates them;
-        # they arrive only through the optional AI path, into their own record type. Empty here.
+        # FAQ suggestions are DERIVED and SEPARATE. This engine never fabricates them. Empty here.
         "faqSuggestions": [],
         "generator": "deterministic",
     }

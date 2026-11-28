@@ -1,7 +1,7 @@
 /**
- * SEO Pages Manager — Unified AI-Powered SEO Dashboard for all non-blog pages
+ * SEO Pages Manager — Unified SEO Dashboard for all non-blog pages
  * Tabs: Site Pages | System Pages | Products | New Pages | Audit | Blog Creator | Logs | Instructions
- * Full feature parity with blog-manager: clean, audit, approve, apply, bulk ops, AI blog creator
+ * Stored audits: view, clean, approve, bulk ops
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
@@ -70,7 +70,6 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedAudit, setSelectedAudit] = useState<PageAudit | null>(null);
-  const [auditingSlug, setAuditingSlug] = useState<string | null>(null);
   const [bulkRunning, setBulkRunning] = useState<string | null>(null);
   const [newPageUrl, setNewPageUrl] = useState('');
   const [newPageName, setNewPageName] = useState('');
@@ -108,14 +107,6 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
       else addLog(`Clean failed: ${d.error}`);
     } catch (e: any) { addLog(e.message); }
   };
-  const runPageAudit = async (path: string, name: string, pageType: string) => {
-    setAuditingSlug(path); addLog(`Auditing "${name}" (${path})...`);
-    try { const d = await (await seoToolsFetch('page-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, name, pageType }) })).json();
-      if (d.ok) { addLog(`Done: ${d.audit.seoScoreBefore} > ${d.audit.seoScoreAfter}${d.log?.costEstimate ? ' | $' + d.log.costEstimate : ''}`); await fetchAudits(); setSelectedAudit(d.audit); setTab('audit'); }
-      else addLog(`Failed: ${d.error}`);
-    } catch (e: any) { addLog(e.message); } setAuditingSlug(null);
-  };
-  const cleanAndAudit = async (path: string, name: string, pageType: string) => { await cleanPage(path, name, pageType); await runPageAudit(path, name, pageType); };
   const handleAction = async (id: string, action: string) => {
     addLog(`${action} ${id.substring(0, 20)}...`);
     try { const d = await (await seoToolsFetch('seo-approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auditId: id, action }) })).json();
@@ -129,15 +120,6 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     setBulkRunning('clean'); addLog(`Bulk clean ${items.length} pages...`);
     for (const item of items) { await cleanPage(item.path, item.name, item.type); await new Promise(r => setTimeout(r, 500)); }
     addLog('Bulk clean done'); await fetchAudits(); setBulkRunning(null);
-  };
-  const bulkAudit = async (items: { path: string; name: string; type: string }[]) => {
-    setBulkRunning('audit'); let ok = 0;
-    for (const item of items) {
-      addLog(`Auditing ${ok + 1}/${items.length}: ${item.name}`);
-      try { const d = await (await seoToolsFetch('page-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: item.path, name: item.name, pageType: item.type }) })).json(); if (d.ok) ok++; } catch {}
-      await new Promise(r => setTimeout(r, 1000));
-    }
-    addLog(`Bulk audit done: ${ok}/${items.length}`); await fetchAudits(); setBulkRunning(null);
   };
   const bulkApprove = async (ids: string[]) => {
     setBulkRunning('approve'); let ok = 0;
@@ -192,10 +174,10 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           ))}
         </div>
 
-        {tab === 'site' && <SitePagesTab pages={sitePages} audits={audits} filter={filter} setFilter={setFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} selected={selected} toggleSel={toggleSel} setSelected={setSelected} auditingSlug={auditingSlug} bulkRunning={bulkRunning} onAudit={runPageAudit} onCleanAudit={cleanAndAudit} onBulkClean={bulkClean} onBulkAudit={bulkAudit} onBulkApprove={bulkApprove} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
-        {tab === 'system' && <SystemPagesTab pages={SYSTEM_PAGES} auditingSlug={auditingSlug} bulkRunning={bulkRunning} onAudit={runPageAudit} onCleanAudit={cleanAndAudit} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
-        {tab === 'products' && <ProductPagesTab products={products} audits={audits} auditingSlug={auditingSlug} bulkRunning={bulkRunning} onAudit={runPageAudit} onCleanAudit={cleanAndAudit} onBulkAudit={bulkAudit} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
-        {tab === 'new' && <NewPagesTab customPages={customPages} newPageUrl={newPageUrl} newPageName={newPageName} setNewPageUrl={setNewPageUrl} setNewPageName={setNewPageName} addCustomPage={addCustomPage} auditingSlug={auditingSlug} onAudit={runPageAudit} onCleanAudit={cleanAndAudit} onRemove={(path: string) => setCustomPages(p => p.filter(x => x.path !== path))} search={search} setSearch={setSearch} />}
+        {tab === 'site' && <SitePagesTab pages={sitePages} audits={audits} filter={filter} setFilter={setFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} selected={selected} toggleSel={toggleSel} setSelected={setSelected} bulkRunning={bulkRunning} onCleanAudit={cleanPage} onBulkClean={bulkClean} onBulkApprove={bulkApprove} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
+        {tab === 'system' && <SystemPagesTab pages={SYSTEM_PAGES} bulkRunning={bulkRunning} onCleanAudit={cleanPage} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
+        {tab === 'products' && <ProductPagesTab products={products} audits={audits} bulkRunning={bulkRunning} onCleanAudit={cleanPage} onViewAudit={(a: PageAudit) => { setSelectedAudit(a); setTab('audit'); }} getAudit={getAudit} search={search} setSearch={setSearch} />}
+        {tab === 'new' && <NewPagesTab customPages={customPages} newPageUrl={newPageUrl} newPageName={newPageName} setNewPageUrl={setNewPageUrl} setNewPageName={setNewPageName} addCustomPage={addCustomPage} onCleanAudit={cleanPage} onRemove={(path: string) => setCustomPages(p => p.filter(x => x.path !== path))} search={search} setSearch={setSearch} />}
         {tab === 'audit' && <AuditDetail audit={selectedAudit} audits={audits} onSelect={setSelectedAudit} onAction={handleAction} />}
         {tab === 'create' && <BlogCreator addLog={addLog} />}
         {tab === 'logs' && <LogsView logs={logs} />}
@@ -214,7 +196,7 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   if (embedded) return body;
   return (
     <Layout user={user} onSignOut={signOut}>
-      <SEO title="SEO Pages Manager" description="AI SEO for all pages" />
+      <SEO title="SEO Pages Manager" description="SEO for all pages" />
       {body}
     </Layout>
   );
@@ -223,7 +205,7 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
 // ═══════════════════════════════════════════════════════════════
 // SITE PAGES TAB — full deep clean: select, filter, bulk clean/audit/approve
 // ═══════════════════════════════════════════════════════════════
-function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatusFilter, selected, toggleSel, setSelected, auditingSlug, bulkRunning, onAudit, onCleanAudit, onBulkClean, onBulkAudit, onBulkApprove, onViewAudit, getAudit, search, setSearch }: any) {
+function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatusFilter, selected, toggleSel, setSelected, bulkRunning, onCleanAudit, onBulkClean, onBulkApprove, onViewAudit, getAudit, search, setSearch }: any) {
   const types = [...new Set(pages.map((p: SitePage) => p.type))] as string[];
   let filtered: SitePage[] = filter === 'all' ? pages : pages.filter((p: SitePage) => p.type === filter);
   if (statusFilter === 'pending') filtered = filtered.filter((p: SitePage) => !getAudit(p.path));
@@ -258,7 +240,6 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
       {selected.size > 0 && (<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{selected.size} selected</span>
         <button onClick={() => onBulkClean([...selected].map((path: string) => { const p = pages.find((x: SitePage) => x.path === path); return { path, name: p?.name || path, type: p?.type || 'site' }; }))} disabled={!!bulkRunning} style={{ ...btn, background: '#fef3c7', fontWeight: 600 }}>{bulkRunning === 'clean' ? 'Cleaning...' : `Bulk Clean (${selected.size})`}</button>
-        <button onClick={() => onBulkAudit([...selected].map((path: string) => { const p = pages.find((x: SitePage) => x.path === path); return { path, name: p?.name || path, type: p?.type || 'site' }; }))} disabled={!!bulkRunning} style={{ ...btn, background: 'var(--lime)', fontWeight: 600 }}>{bulkRunning === 'audit' ? 'Auditing...' : `Bulk Audit (${selected.size})`}</button>
         {(() => { const ids = [...selected].map((s: string) => getAudit(s)).filter((a: any) => a?.status === 'pending_review').map((a: any) => a!.id); return ids.length ? <button onClick={() => onBulkApprove(ids)} disabled={!!bulkRunning} style={{ ...btn, background: '#dbeafe', fontWeight: 600 }}>Bulk Approve ({ids.length})</button> : null; })()}
         <button onClick={selNone} style={{ ...btn, background: '#f3f4f6' }}>Clear</button>
       </div>)}
@@ -272,7 +253,7 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
           <th style={th}>#</th><th style={th}>Page</th><th style={th}>Type</th><th style={th}>SEO Title</th><th style={th}>Meta Desc</th>
           <th style={{ ...th, textAlign: 'center' }}>JSON-LD</th><th style={{ ...th, textAlign: 'center' }}>Keywords</th><th style={{ ...th, textAlign: 'center' }}>Score</th><th style={{ ...th, textAlign: 'center' }}>Status</th><th style={{ ...th, textAlign: 'center' }}>Actions</th>
         </tr></thead>
-        <tbody>{filtered.map((p: SitePage, i: number) => { const a = getAudit(p.path); const busy = auditingSlug === p.path; return (
+        <tbody>{filtered.map((p: SitePage, i: number) => { const a = getAudit(p.path); return (
           <tr key={p.path} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(p.path) ? '#f0fdf4' : undefined }}>
             <td style={td}><input type="checkbox" checked={selected.has(p.path)} onChange={() => toggleSel(p.path)} /></td>
             <td style={td}>{i + 1}</td>
@@ -285,8 +266,7 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
             <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-              <button onClick={() => onCleanAudit(p.path, p.name, p.type)} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
-              <button onClick={() => onAudit(p.path, p.name, p.type)} disabled={busy || !!bulkRunning} style={{ ...btn, background: busy ? 'var(--border)' : 'var(--lime)' }}>{busy ? 'Running...' : 'Audit'}</button>
+              <button onClick={() => onCleanAudit(p.path, p.name, p.type)} disabled={!!bulkRunning} title="Remove stored audits" style={{ ...btn, background: '#fef3c7' }}>Clean</button>
               {a && <button onClick={() => onViewAudit(a)} style={{ ...btn, background: '#f3f4f6' }}>View</button>}
             </div></td>
           </tr>); })}{filtered.length === 0 && <tr><td colSpan={11} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No pages match filter.</td></tr>}</tbody>
@@ -299,7 +279,7 @@ function SitePagesTab({ pages, audits, filter, setFilter, statusFilter, setStatu
 // ═══════════════════════════════════════════════════════════════
 // SYSTEM PAGES TAB — noindex monitoring + clean/audit like other tabs
 // ═══════════════════════════════════════════════════════════════
-function SystemPagesTab({ pages, auditingSlug, bulkRunning, onAudit, onCleanAudit, onViewAudit, getAudit, search, setSearch }: any) {
+function SystemPagesTab({ pages, bulkRunning, onCleanAudit, onViewAudit, getAudit, search, setSearch }: any) {
   const filtered = search ? pages.filter((p: SitePage) => { const q = search.toLowerCase(); return p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q); }) : pages;
   return (<>
     <div className="card" style={{ padding: 16, marginBottom: 16, borderLeft: '4px solid #f59e0b' }}>
@@ -317,7 +297,7 @@ function SystemPagesTab({ pages, auditingSlug, bulkRunning, onAudit, onCleanAudi
           <th style={th}>#</th><th style={th}>Page</th><th style={th}>Path</th><th style={{ ...th, textAlign: 'center' }}>Robots</th>
           <th style={{ ...th, textAlign: 'center' }}>Score</th><th style={{ ...th, textAlign: 'center' }}>Status</th><th style={{ ...th, textAlign: 'center' }}>Actions</th>
         </tr></thead>
-        <tbody>{filtered.map((p: SitePage, i: number) => { const a = getAudit(p.path); const busy = auditingSlug === p.path; return (
+        <tbody>{filtered.map((p: SitePage, i: number) => { const a = getAudit(p.path); return (
           <tr key={p.path} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <td style={td}>{i + 1}</td>
             <td style={{ ...td, fontWeight: 600 }}>{p.name}</td>
@@ -326,8 +306,7 @@ function SystemPagesTab({ pages, auditingSlug, bulkRunning, onAudit, onCleanAudi
             <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-              <button onClick={() => onCleanAudit(p.path, p.name, 'system')} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
-              <button onClick={() => onAudit(p.path, p.name, 'system')} disabled={busy || !!bulkRunning} style={{ ...btn, background: busy ? 'var(--border)' : 'var(--lime)' }}>{busy ? 'Running...' : 'Audit'}</button>
+              <button onClick={() => onCleanAudit(p.path, p.name, 'system')} disabled={!!bulkRunning} title="Remove stored audits" style={{ ...btn, background: '#fef3c7' }}>Clean</button>
               {a && <button onClick={() => onViewAudit(a)} style={{ ...btn, background: '#f3f4f6' }}>View</button>}
               <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ ...btn, background: '#f3f4f6', textDecoration: 'none', color: '#374151', display: 'inline-flex', alignItems: 'center' }}>Open</a>
             </div></td>
@@ -351,7 +330,7 @@ function SystemPagesTab({ pages, auditingSlug, bulkRunning, onAudit, onCleanAudi
 // ═══════════════════════════════════════════════════════════════
 // PRODUCT PAGES TAB — with clean+audit, bulk audit
 // ═══════════════════════════════════════════════════════════════
-function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit, onCleanAudit, onBulkAudit, onViewAudit, getAudit, search, setSearch }: any) {
+function ProductPagesTab({ products, audits, bulkRunning, onCleanAudit, onViewAudit, getAudit, search, setSearch }: any) {
   const noSeoCount = products.filter((p: ProductPage) => !p.hasJsonLd).length;
   const [showNoSeo, setShowNoSeo] = useState(false);
   let filtered = showNoSeo ? products.filter((p: ProductPage) => !p.hasJsonLd) : products;
@@ -378,7 +357,7 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
           <th style={th}>#</th><th style={th}>Product</th><th style={th}>Price</th><th style={th}>Stock</th>
           <th style={{ ...th, textAlign: 'center' }}>JSON-LD</th><th style={{ ...th, textAlign: 'center' }}>Score</th><th style={{ ...th, textAlign: 'center' }}>Status</th><th style={{ ...th, textAlign: 'center' }}>Actions</th>
         </tr></thead>
-        <tbody>{filtered.map((p: ProductPage, i: number) => { const slug = p.slug || p.id; const productPath = productAuditPath( p ); const a = getAudit(productPath); const busy = auditingSlug === productPath; return (
+        <tbody>{filtered.map((p: ProductPage, i: number) => { const slug = p.slug || p.id; const productPath = productAuditPath( p ); const a = getAudit(productPath); return (
           <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <td style={td}>{i + 1}</td>
             <td style={{ ...td, maxWidth: 220 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -391,8 +370,7 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
             <td style={{ ...td, textAlign: 'center' }}>{a ? <><span style={{ color: '#52635a', fontSize: 'var(--text-xs)' }}>{a.seoScoreBefore}</span><span style={{ color: '#9ca3af' }}>{' > '}</span><span style={{ color: '#22c55e', fontWeight: 700, fontSize: 'var(--text-xs)' }}>{a.seoScoreAfter}</span></> : '-'}</td>
             <td style={{ ...td, textAlign: 'center' }}>{a ? <StatusBadge status={a.status} /> : <span style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>-</span>}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-              <button onClick={() => onCleanAudit(productPath, p.name, 'product')} disabled={busy || !!bulkRunning} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
-              <button onClick={() => onAudit(productPath, p.name, 'product')} disabled={busy || !!bulkRunning} style={{ ...btn, background: busy ? 'var(--border)' : 'var(--lime)' }}>{busy ? 'Running...' : 'Audit'}</button>
+              <button onClick={() => onCleanAudit(productPath, p.name, 'product')} disabled={!!bulkRunning} title="Remove stored audits" style={{ ...btn, background: '#fef3c7' }}>Clean</button>
               {a && <button onClick={() => onViewAudit(a)} style={{ ...btn, background: '#f3f4f6' }}>View</button>}
             </div></td>
           </tr>); })}{filtered.length === 0 && <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No products match filter.</td></tr>}</tbody>
@@ -400,7 +378,6 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
     </div>
     <div style={{ marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{filtered.length} products</div>
     {filtered.length > 0 && <div style={{ marginTop: 12 }}>
-      <button onClick={() => onBulkAudit(filtered.map((p: ProductPage) => ({ path: productAuditPath( p ), name: p.name, type: 'product' })))} disabled={!!bulkRunning} style={{ ...btn, background: 'var(--lime)', fontWeight: 600, padding: '6px 16px' }}>{bulkRunning === 'audit' ? 'Auditing...' : `Audit All ${filtered.length} Products`}</button>
     </div>}
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
       <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8 }}>Product Page SEO Standard</h3>
@@ -417,11 +394,11 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
 // ═══════════════════════════════════════════════════════════════
 // NEW PAGES TAB — add custom URLs for audit
 // ═══════════════════════════════════════════════════════════════
-function NewPagesTab({ customPages, newPageUrl, newPageName, setNewPageUrl, setNewPageName, addCustomPage, auditingSlug, onAudit, onCleanAudit, onRemove, search, setSearch }: any) {
+function NewPagesTab({ customPages, newPageUrl, newPageName, setNewPageUrl, setNewPageName, addCustomPage, onCleanAudit, onRemove, search, setSearch }: any) {
   const filtered = search ? customPages.filter((p: SitePage) => { const q = search.toLowerCase(); return p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q); }) : customPages;
   return (<>
     <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 600, marginBottom: 12 }}>Add New Page for SEO Audit</h3>
+      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 600, marginBottom: 12 }}>Add New Page</h3>
       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 12 }}>Add any new page URL to audit its SEO — landing pages, campaign pages, newly created pages.</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
         <div>
@@ -445,14 +422,13 @@ function NewPagesTab({ customPages, newPageUrl, newPageName, setNewPageUrl, setN
         <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
           <th style={th}>#</th><th style={th}>Page</th><th style={th}>Path</th><th style={{ ...th, textAlign: 'center' }}>Actions</th>
         </tr></thead>
-        <tbody>{filtered.map((p: SitePage, i: number) => { const busy = auditingSlug === p.path; return (
+        <tbody>{filtered.map((p: SitePage, i: number) => { return (
           <tr key={p.path} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <td style={td}>{i + 1}</td>
             <td style={{ ...td, fontWeight: 600 }}><a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>{p.name}</a></td>
             <td style={{ ...td, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{p.path}</td>
             <td style={{ ...td, textAlign: 'center' }}><div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-              <button onClick={() => onCleanAudit(p.path, p.name, 'custom')} disabled={busy} title="Clean then Audit" style={{ ...btn, background: '#fef3c7' }}>Clean+Audit</button>
-              <button onClick={() => onAudit(p.path, p.name, 'custom')} disabled={busy} style={{ ...btn, background: busy ? 'var(--border)' : 'var(--lime)' }}>{busy ? 'Running...' : 'Audit'}</button>
+              <button onClick={() => onCleanAudit(p.path, p.name, 'custom')}  title="Remove stored audits" style={{ ...btn, background: '#fef3c7' }}>Clean</button>
               <button onClick={() => onRemove(p.path)} style={{ ...btn, background: '#e5e7eb', color: '#374151' }}>Remove</button>
             </div></td>
           </tr>); })}</tbody>
@@ -605,7 +581,7 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BLOG CREATOR — AI-powered blog post creation (same as blog-manager)
+// BLOG CREATOR — blog post creation (same as blog-manager)
 // ═══════════════════════════════════════════════════════════════
 function BlogCreator({ addLog }: { addLog: (m: string) => void }) {
   const [title, setTitle] = useState('');
@@ -688,7 +664,7 @@ Empty lines are skipped.
 
 Style: WECARE.DIGITAL Amplify article layout
 Author: current Admin user
-After publishing: go to Blog SEO Manager > Clean+Audit for SEO.
+After publishing: go to Blog SEO Manager to review its SEO.
 A new slug becomes public after the next Amplify static build.`}</pre>
     </div>
   </div>);
@@ -698,7 +674,7 @@ A new slug becomes public after the next Amplify static build.`}</pre>
 // LOGS VIEW
 // ═══════════════════════════════════════════════════════════════
 function LogsView({ logs }: { logs: any[] }) {
-  if (!logs.length) return <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No AI logs yet.</div>;
+  if (!logs.length) return <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No logs yet.</div>;
   return (<div style={{ overflowX: 'auto' }}>
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-xs)' }}>
       <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
