@@ -332,7 +332,9 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           outline:2px solid var(--public-brand-green);outline-offset:2px;
         }
         .orm-menu{
-          z-index:1200;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+          /* Above the fixed language/WhatsApp dock (1300), like the open header nav (1400);
+             at 280px the dock covered the voice-search button in this dialog. */
+          z-index:1400;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
           border:1px solid var(--public-hairline);border-radius:var(--public-popover-radius,8px);
           background:var(--public-bg);box-shadow:0 6px 20px rgba(26,58,42,.10);
           font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;

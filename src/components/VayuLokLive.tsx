@@ -4041,6 +4041,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-world-place>strong{overflow:hidden;margin-top:4px;color:var(--heading);font-size:var(--vl-data-size);font-weight:700;line-height:1.25;letter-spacing:-.18px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-place-selection{overflow:hidden;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-world-place>b{margin-top:3px;color:var(--heading);font-size:var(--vl-data-size);font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
+        /* Below 320px a time such as "09:09 am · GMT+0" is wider than its card and
+           pushed the page sideways (scrollWidth 190 at 160px). Let it wrap there only. */
+        @media (max-width:319px){.vl-live-world-place>b{white-space:normal}}
         .vl-live-world-place>small:not(.vl-live-place-selection){color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.4}
         .vl-live-tool-swap{align-self:center;display:inline-flex;align-items:center;justify-content:center;width:var(--vl-action-size);height:var(--vl-action-size);margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:var(--vl-data-size);font-weight:800;line-height:1}
         .vl-live-tool-swap.is-horizontal{margin-top:8px;font-size:var(--vl-data-size)}

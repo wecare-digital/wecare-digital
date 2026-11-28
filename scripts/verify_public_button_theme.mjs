@@ -50,7 +50,7 @@ try {
       assert.equal(original['.wc-wa'].radius,'50%');
       assert.equal(original['.ps-contribute'].radius,'50%');
       assert.equal(original['.ps-share-trigger'].background,'rgb(255, 255, 255)');
-      for(const [route,selector] of [['/auth/','.auth-action'],['/shop/','.shop-card-action'],['/anew/','.cb-cta'],['/contact/','.cl-cta'],['/blog/',null],['/relay-os/',null],['/atmos/nano-climate/',null]]){
+      for(const [route,selector] of [['/auth/','.auth-action'],['/shop/','.shop-card-action'],['/anew/','.checkout-action'],['/contact/','.cl-cta'],['/blog/',null],['/relay-os/',null],['/atmos/nano-climate/',null]]){
         await go(route);
         assert.equal(await page.locator(marker).count(),1,route);
         for(const control of componentSelectors){
