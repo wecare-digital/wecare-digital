@@ -41,6 +41,7 @@ from typing import Optional
 
 import boto3
 
+from lambda_utils.client_ip import client_ip
 from lambda_utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -113,3 +114,18 @@ def check_rate_limit(
             ),
         )
         return True
+
+
+def check_client_rate_limit(
+    channel: str,
+    event: dict,
+    max_per_second: int = 80,
+    table_name: Optional[str] = None,
+) -> bool:
+    """`check_rate_limit` keyed on the caller's IP, resolved by `lambda_utils.client_ip`.
+
+    Use this rather than reading `sourceIp` directly, so callers behind the Amplify `/api`
+    proxy are counted per client once `TRUSTED_PROXY_CIDRS` is set.
+    """
+    return check_rate_limit(channel, client_ip(event) or 'unknown',
+                            max_per_second=max_per_second, table_name=table_name)

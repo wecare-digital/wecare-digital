@@ -46,6 +46,8 @@ import logging
 import time
 from typing import Any, Dict, Optional, Tuple
 
+from lambda_utils import client_ip
+
 logger = logging.getLogger(__name__)
 
 #: Namespaces so both axes can share one table without colliding.
@@ -77,20 +79,14 @@ class ThrottleStoreUnavailable(RuntimeError):
 
 
 def source_ip(event: Dict[str, Any]) -> str:
-    """The client IP from an API Gateway event, or ''.
+    """The client IP from an API Gateway event, or ''. See `lambda_utils.client_ip`.
 
-    Reads `requestContext.http.sourceIp` (HTTP API v2) then `requestContext.identity.sourceIp`
-    (REST v1). **`X-Forwarded-For` is deliberately not consulted**: it is a client-supplied header,
-    so trusting it would let an attacker rotate the value per request and defeat the limit
-    entirely. API Gateway's own `sourceIp` is the connecting peer and cannot be spoofed.
+    The connecting peer (`requestContext.http.sourceIp`, then REST `identity.sourceIp`), unless
+    that peer is listed in `TRUSTED_PROXY_CIDRS`. Only then is `X-Forwarded-For` read, and only
+    its right-most untrusted entry: the client writes the entries to the left, so trusting them
+    would let an attacker rotate the value per request and defeat the limit.
     """
-    rc = event.get("requestContext") or {}
-    candidate = (
-        ((rc.get("http") or {}).get("sourceIp"))
-        or ((rc.get("identity") or {}).get("sourceIp"))
-        or ""
-    )
-    return str(candidate).strip()
+    return client_ip.client_ip(event)
 
 
 def _ip_bucket(raw_ip: str) -> str:
