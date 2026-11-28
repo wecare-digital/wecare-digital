@@ -178,7 +178,7 @@ def test_cpcb_rejects_incomplete_snapshot(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
     monkeypatch.setattr(h, "_reserve_extra", Mock())
-    monkeypatch.setattr(h, "_extra_json", lambda *_: {"total": "2", "records": [{}]})
+    monkeypatch.setattr(h, "_extra_json", lambda *_, **__: {"total": "2", "records": [{}]})
     with pytest.raises(h.ProviderFailure):
         h._cpcb_snapshot()
 
