@@ -560,7 +560,8 @@ EXTRA_SOURCES = frozenset(
     if x.strip()
 )
 EXTRA_BUDGET_TABLE = os.environ.get("VAYULOK_EXTENDED_BUDGET_TABLE", "")
-CPCB_SECRET = os.environ.get("VAYULOK_CPCB_SECRET", "")
+CPCB_PARAMETER_NAME = "/wecare/nano-climate/cpcb"
+CPCB_PARAMETER = os.environ.get("VAYULOK_CPCB_PARAMETER", "")
 RATE_TABLE = "stack-wecare-digital-RateLimitTable"
 EXTRA_LIMITS = {
     "elevation": (100, 3100),
@@ -589,6 +590,7 @@ SPARTAN_SITES = (
 _IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 _extra_cache: Dict[str, tuple[float, Any]] = {}
 _extra_dynamo = None
+_cpcb_ssm = None
 
 
 class ExtraBudgetExhausted(RuntimeError):
@@ -731,14 +733,22 @@ def _elevation_context(lat: float, lng: float) -> Dict[str, Any]:
 
 
 def _cpcb_key() -> str:
-    if CPCB_SECRET != "wecare/nano-climate/cpcb":
-        raise ProviderUnavailable("CPCB secret not configured")
+    # One fixed SecureString, never a caller-supplied parameter or a plaintext
+    # environment value. No fallback to Secrets Manager or a shared demo key.
+    global _cpcb_ssm
+    if CPCB_PARAMETER != CPCB_PARAMETER_NAME:
+        raise ProviderUnavailable("CPCB parameter not configured")
     try:
-        data = json.loads(_secrets().get_secret_value(SecretId=CPCB_SECRET).get("SecretString") or "{}")
-        key = data.get("api_key") if isinstance(data, dict) else None
-        if isinstance(key, str) and key.strip():
-            return key.strip()
+        if _cpcb_ssm is None:
+            _cpcb_ssm = boto3.client("ssm", region_name=REGION)
+        data = _cpcb_ssm.get_parameter(Name=CPCB_PARAMETER_NAME, WithDecryption=True).get("Parameter", {})
+        key = data.get("Value")
+        if (data.get("Name") == CPCB_PARAMETER_NAME and data.get("Type") == "SecureString"
+                and isinstance(key, str) and 16 <= len(key) <= 256
+                and key.isascii() and all(c.isalnum() or c in "_-" for c in key)):
+            return key
     except Exception:
+        # Never log the exception (SDK/provider messages may contain credentials).
         pass
     raise ProviderUnavailable("CPCB API key unavailable")
 
@@ -747,8 +757,10 @@ def _cpcb_snapshot() -> list:
     cached = _extra_cached("cpcb:national", 3600)
     if cached is not None:
         return cached
-    key = _cpcb_key()
+    # Reserve before decryption too: failed credentials must not cause an
+    # unbounded SSM/KMS lookup or upstream request when the shared cap is exhausted.
     _reserve_extra("cpcb")
+    key = _cpcb_key()
     # One bounded nationwide snapshot: no caller-controlled filters, no
     # station-by-station fan-out or unbounded pagination.
     response = _extra_json(_query(CPCB_URL, {

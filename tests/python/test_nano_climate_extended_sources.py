@@ -84,6 +84,69 @@ def test_cpcb_nearest_fresh_station_and_missing_units():
     assert h._cpcb_context(20, 80, rows, now)["status"] == "no_data"
 
 
+def test_cpcb_reads_only_fixed_secure_parameter(monkeypatch):
+    monkeypatch.setattr(h, "CPCB_PARAMETER", h.CPCB_PARAMETER_NAME)
+    fake = Mock()
+    fake.get_parameter.return_value = {"Parameter": {
+        "Name": h.CPCB_PARAMETER_NAME, "Type": "SecureString", "Value": "unit-test-placeholder"
+    }}
+    monkeypatch.setattr(h, "_cpcb_ssm", fake)
+    assert h._cpcb_key() == "unit-test-placeholder"
+    fake.get_parameter.assert_called_once_with(Name="/wecare/nano-climate/cpcb", WithDecryption=True)
+    fake.reset_mock()
+    monkeypatch.setattr(h, "CPCB_PARAMETER", "/wecare/other")
+    with pytest.raises(h.ProviderUnavailable, match="not configured"):
+        h._cpcb_key()
+    fake.get_parameter.assert_not_called()
+
+
+@pytest.mark.parametrize("name,kind,value", [
+    ("/wecare/nano-climate/cpcb", "String", "unit-test-placeholder"),
+    ("/wecare/other", "SecureString", "unit-test-placeholder"),
+    ("/wecare/nano-climate/cpcb", "SecureString", ""),
+    ("/wecare/nano-climate/cpcb", "SecureString", "not a valid credential"),
+])
+def test_cpcb_rejects_invalid_parameter(monkeypatch, name, kind, value):
+    monkeypatch.setattr(h, "CPCB_PARAMETER", h.CPCB_PARAMETER_NAME)
+    fake = Mock()
+    fake.get_parameter.return_value = {"Parameter": {"Name": name, "Type": kind, "Value": value}}
+    monkeypatch.setattr(h, "_cpcb_ssm", fake)
+    with pytest.raises(h.ProviderUnavailable, match="CPCB API key unavailable"):
+        h._cpcb_key()
+
+
+def test_cpcb_budget_reserves_before_any_decrypt_or_provider_request(monkeypatch):
+    monkeypatch.setattr(h, "_extra_cache", {})
+    reserve = Mock(side_effect=h.ExtraBudgetExhausted("limit"))
+    key = Mock(side_effect=AssertionError("must not decrypt"))
+    provider = Mock(side_effect=AssertionError("must not contact upstream"))
+    monkeypatch.setattr(h, "_reserve_extra", reserve)
+    monkeypatch.setattr(h, "_cpcb_key", key)
+    monkeypatch.setattr(h, "_extra_json", provider)
+    with pytest.raises(h.ExtraBudgetExhausted):
+        h._cpcb_snapshot()
+    reserve.assert_called_once_with("cpcb")
+    key.assert_not_called()
+    provider.assert_not_called()
+    reserve.side_effect = None
+    key.side_effect = h.ProviderUnavailable("CPCB API key unavailable")
+    with pytest.raises(h.ProviderUnavailable):
+        h._cpcb_snapshot()
+    assert reserve.call_count == 2
+    provider.assert_not_called()
+
+
+def test_cpcb_snapshot_cache_skips_decrypt_and_reservation(monkeypatch):
+    monkeypatch.setattr(h, "_extra_cache", {})
+    h._extra_store("cpcb:national", [{"station": "Test"}])
+    forbidden = Mock(side_effect=AssertionError("cache hit must not call AWS or provider"))
+    monkeypatch.setattr(h, "_reserve_extra", forbidden)
+    monkeypatch.setattr(h, "_cpcb_key", forbidden)
+    monkeypatch.setattr(h, "_extra_json", forbidden)
+    assert h._cpcb_snapshot() == [{"station": "Test"}]
+    forbidden.assert_not_called()
+
+
 def test_cpcb_rejects_incomplete_snapshot(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
@@ -165,3 +228,58 @@ def test_spartan_and_pvgis_follow_the_selected_place_not_a_previous_one(monkeypa
         assert spartan["site"] == site and spartan["pm25UgM3"] == value
     assert pvgis["gridLat"] == round(lat, 2) and pvgis["gridLng"] == round(lng, 2)
     assert any(f"lat={round(lat, 2)}" in c for c in calls)
+
+def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch):
+    import sys
+    script = path.parents[4] / "scripts/configure_nano_climate_sources.py"
+    spec = importlib.util.spec_from_file_location("configure_nano_climate_test", script)
+    cfg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cfg)
+    clients = {name: Mock() for name in ("sts", "lambda", "iam", "dynamodb", "ssm", "kms")}
+    monkeypatch.setattr(cfg.boto3, "client", lambda name, **kwargs: clients[name])
+    clients["sts"].get_caller_identity.return_value = {"Account": cfg.ACCOUNT}
+    table_arn = f"arn:aws:dynamodb:{cfg.REGION}:{cfg.ACCOUNT}:table/{cfg.TABLE}"
+    clients["dynamodb"].describe_table.return_value = {"Table": {
+        "TableStatus": "ACTIVE", "TableArn": table_arn,
+        "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    }}
+    role = f"arn:aws:iam::{cfg.ACCOUNT}:role/{cfg.ROLE}"
+    old = {"Role": role, "RevisionId": "revision", "Environment": {"Variables": {
+        "VAYULOK_EXTENDED_SOURCES": "pvgis,spartan", "UNRELATED": "preserve"
+    }}}
+    clients["lambda"].get_function_configuration.return_value = old
+    monkeypatch.setattr(sys, "argv", ["configure", "--sources", "pvgis", "spartan", "cpcb", "--apply"])
+    metadata = {"Name": cfg.CPCB, "Tier": "Standard", "Type": "String", "KeyId": "alias/aws/ssm"}
+    clients["ssm"].describe_parameters.return_value = {"Parameters": [metadata]}
+    with pytest.raises(SystemExit, match="Standard SecureString"):
+        cfg.main()
+    clients["iam"].put_role_policy.assert_not_called()
+    clients["lambda"].update_function_configuration.assert_not_called()
+    metadata["Type"] = "SecureString"
+    key_arn = f"arn:aws:kms:{cfg.REGION}:{cfg.ACCOUNT}:key/unit-test"
+    clients["kms"].describe_key.return_value = {"KeyMetadata": {
+        "Arn": key_arn, "KeyManager": "AWS", "KeyState": "Enabled"
+    }}
+    clients["lambda"].get_function_configuration.side_effect = [old, {
+        "Environment": {"Variables": {
+            "VAYULOK_EXTENDED_SOURCES": "cpcb,pvgis,spartan",
+            "VAYULOK_EXTENDED_BUDGET_TABLE": cfg.TABLE, "VAYULOK_CPCB_PARAMETER": cfg.CPCB,
+            "UNRELATED": "preserve",
+        }}
+    }]
+    cfg.main()
+    import json
+    statements = json.loads(clients["iam"].put_role_policy.call_args.kwargs["PolicyDocument"])["Statement"]
+    parameter_arn = f"arn:aws:ssm:{cfg.REGION}:{cfg.ACCOUNT}:parameter{cfg.CPCB}"
+    assert statements[1] == {"Effect": "Allow", "Action": "ssm:GetParameter", "Resource": parameter_arn}
+    assert statements[2]["Resource"] == key_arn
+    assert statements[2]["Condition"]["StringEquals"] == {
+        "kms:ViaService": f"ssm.{cfg.REGION}.amazonaws.com",
+        "kms:EncryptionContext:PARAMETER_ARN": parameter_arn,
+    }
+    assert statements[0]["Resource"] == table_arn
+    variables = clients["lambda"].update_function_configuration.call_args.kwargs["Environment"]["Variables"]
+    assert variables["UNRELATED"] == "preserve"
+    assert variables["VAYULOK_CPCB_PARAMETER"] == cfg.CPCB
+    assert variables["VAYULOK_EXTENDED_SOURCES"] == "cpcb,pvgis,spartan"
+    clients["ssm"].get_parameter.assert_not_called()

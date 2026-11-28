@@ -39,10 +39,16 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   covered by this application's counters. Published India Building Insights
   allowance is 70,000 for eligible accounts; the smaller app limits do not
   guarantee zero aggregate billing.
-- CPCB needs the registered data.gov.in API key in the approved Secrets Manager
-  entry wecare/nano-climate/cpcb (JSON field api_key). The existing secret inventory
-  contained no CPCB credential. Verify the live API and full snapshot schema first.
-  No demo/shared key. No new key obtained or copied into chat.
+- CPCB uses the owner-provisioned Standard SecureString parameter
+  /wecare/nano-climate/cpcb in us-east-1 with alias/aws/ssm. Its value is the raw
+  registered data.gov.in key, never JSON or an environment variable. Standard
+  parameter storage has no monthly fee; normal KMS usage allowances apply.
+  No new Secrets Manager secret, database, customer-managed key, or advanced
+  throughput is required. The operator script checks metadata only, grants
+  GetParameter on the exact ARN and scopes KMS decrypt to that key, SSM service
+  and parameter encryption context. The Lambda reserves its existing budget
+  before a cache-miss decrypt and provider attempt, then checks the full snapshot.
+  No demo/shared key or fallback to plaintext. Verify on $LATEST before promotion.
 - PVGIS requires server-side GET (AJAX is prohibited). SPARTAN uses public
   verified CSV object keys and credits the network. Both need no new provider key.
 - Run the existing Node 24 typecheck/lint/test/build plus
@@ -51,7 +57,7 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   route: python scripts/deploy_all_lambdas.py wecare-vayulok-environment --dry-run
   then the owning release workflow with --no-publish. Use the configuration script
   dry run for the approved subset:
-  python scripts/configure_nano_climate_sources.py --sources pvgis spartan
+  python scripts/configure_nano_climate_sources.py --sources pvgis spartan cpcb
   Only authorized operators apply with --apply; Google sources additionally
   require --confirm-google-key-and-billing after checking actual key and billing.
   The script preserves existing environment variables, modifies the existing
@@ -77,7 +83,7 @@ graceful degradation.
 | SPARTAN | Complete. Live Delhi site card verified, labelled historical. |
 | Google Elevation | Code, CI, deployment and budget guard done. Not activated (not in VAYULOK_EXTENDED_SOURCES). Server key API restriction, Elevation API enablement and billing not verified (no Google Cloud credentials were available). |
 | Google Solar Building Insights | Same as Elevation. Also only runs for a precise building viewport. |
-| CPCB | Code and deployment done. Blocked: secret wecare/nano-climate/cpcb does not exist and needs a registered data.gov.in key from the owner. scripts/configure_nano_climate_sources.py already adds the read statement and VAYULOK_CPCB_SECRET once the secret exists. |
+| CPCB | Standard SecureString metadata independently verified on 2026-11-28. Parameter Store adapter and configuration script require CI, staged live API validation and the guarded alias release before CPCB is enabled. |
 | Historical Weather | 30d (0.987 GiB dry run) reads the raw table. 1y and 5y now read a pre-aggregated table built by scripts/build_weather_history_aggregate.sh. Until that table is built and verified, 1y and 5y report the honest cost-cap state. See below. |
 | WeatherNext 3 | No integration code. Statistics bucket is not anonymously readable (HTTP 401/403 verified), so access needs the Google account allowlisted through the WeatherNext data request form. Terms and chunk sizes are unverified. See below. |
 | Sentinel-5P | No integration code. Public catalogue verified, processing path undecided. See below. |
