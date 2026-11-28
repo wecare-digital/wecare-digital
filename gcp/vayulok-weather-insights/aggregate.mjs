@@ -43,6 +43,15 @@ export function expectedWindows(startDateIso, todayIso) {
 // precip_sum, humidity_sum, humidity_n, first_observed_at, last_observed_at.
 // Windows with no raw rows are stored as sentinel rows (NULL lat/lng, 0 hours) so
 // completeness can be measured. Windows overlapping the range start are included.
+// weather_insights is a linked, read-only dataset. The aggregate must live in a
+// writable dataset chosen by the owner, so there is no default table.
+export const READ_ONLY_DATASETS = ['weather_insights'];
+export function writableAggregateTable(value) {
+  const table = String(value || '').trim();
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(table)) return '';
+  return READ_ONLY_DATASETS.includes(table.split('.')[1].toLowerCase()) ? '' : table;
+}
+
 export function aggregateSql(table) {
   if (typeof table !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(table)) {
     throw new Error('invalid_weather_insights_aggregate_table');

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { cleanSummary, decodeRows, parseNumber } from './weather-data.mjs';
-import { aggregateComplete, aggregateSql, coveragePartial } from './aggregate.mjs';
+import { aggregateComplete, aggregateSql, coveragePartial, writableAggregateTable } from './aggregate.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
@@ -17,8 +17,10 @@ const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 // resumable, dry-run-checked, under-1-GiB chunks. The raw table is only ever read
 // for the 30d range, still subject to its hard query cap. A missing aggregate fails
 // closed; it never falls back to a raw multi-year scan.
-const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
-  || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
+// weather_insights is a linked, read-only dataset, so there is no default: the owner
+// sets WEATHER_INSIGHTS_AGGREGATE_TABLE=project.writable_dataset.table. Unset, invalid
+// or inside weather_insights means the aggregate stays unavailable.
+const AGGREGATE_TABLE = writableAggregateTable(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE);
 // The aggregate is served only after an operator has built it and compared it with
 // the raw 30d summary (docs/nano-climate-environment-data.md). Off by default.
 const AGGREGATE_ENABLED = String(process.env.WEATHER_INSIGHTS_AGGREGATE_ENABLED || '').toLowerCase() === 'true';
@@ -459,7 +461,7 @@ async function handleInsights(req, res, url) {
     pending = (async () => {
       let rows;
       if (range !== '30d') {
-        if (!AGGREGATE_ENABLED || !validTable(AGGREGATE_TABLE)) {
+        if (!AGGREGATE_ENABLED || !AGGREGATE_TABLE) {
           const error = new Error('invalid_weather_insights_aggregate_table');
           error.code = 'query_cost_cap_exceeded';
           throw error;

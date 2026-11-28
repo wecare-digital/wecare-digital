@@ -2,9 +2,15 @@
 # Build the Nano Climate historical-weather aggregate in resumable, cost-capped chunks.
 #
 # Run in Google Cloud Shell as an owner/BigQuery Data Editor of project wecaredigitalbw:
-#   bash scripts/build_weather_history_aggregate.sh            # dry run only (default)
-#   bash scripts/build_weather_history_aggregate.sh --apply    # load up to MAX_CHUNKS windows
-#   bash scripts/build_weather_history_aggregate.sh --verify   # read-only aggregate checks
+#   AGGREGATE_DATASET=<writable_dataset> bash scripts/build_weather_history_aggregate.sh
+#   ... --apply    # load up to MAX_CHUNKS windows
+#   ... --verify   # read-only aggregate checks
+# The dataset may also be passed as --aggregate-dataset <name>.
+#
+# Destination: weather_insights is a linked, read-only dataset and is refused. The owner
+# must create or choose a writable dataset (same location as the raw data) in advance;
+# there is no default and this script never creates datasets. Only the small
+# aggregate table is created, and only with --apply.
 #
 # Safety:
 # - Each chunk is one half-month window (about 0.5 GiB for the raw table). A dry run runs
@@ -28,10 +34,33 @@
 set -euo pipefail
 
 PROJECT="${PROJECT:-wecaredigitalbw}"
-DATASET="${DATASET:-weather_insights}"
+SOURCE_DATASET="${SOURCE_DATASET:-weather_insights}"  # linked, read-only raw data
+AGGREGATE_DATASET="${AGGREGATE_DATASET:-}"             # writable, no default
 LOCATION="${LOCATION:-US}"
-RAW="${PROJECT}.${DATASET}.weather_history_in"
-AGG="${PROJECT}.${DATASET}.weather_history_in_windows"
+MODE="dry-run"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --apply) MODE="apply" ;;
+    --verify) MODE="verify" ;;
+    --aggregate-dataset) [ $# -ge 2 ] || { echo "--aggregate-dataset needs a value"; exit 2; }; AGGREGATE_DATASET="$2"; shift ;;
+    --aggregate-dataset=*) AGGREGATE_DATASET="${1#*=}" ;;
+    *) echo "Unknown argument: $1"; exit 2 ;;
+  esac
+  shift
+done
+if [ -z "$AGGREGATE_DATASET" ]; then
+  echo "ERROR: set AGGREGATE_DATASET (or --aggregate-dataset) to a writable dataset in ${PROJECT}."
+  echo "There is no default. ${SOURCE_DATASET} is linked and read-only. The owner must create or choose the dataset first."
+  exit 2
+fi
+if ! printf '%s' "$AGGREGATE_DATASET" | grep -Eq '^[A-Za-z0-9_]+$'; then
+  echo "ERROR: invalid aggregate dataset name."; exit 2
+fi
+if [ "$(printf '%s' "$AGGREGATE_DATASET" | tr 'A-Z' 'a-z')" = "weather_insights" ] || [ "$AGGREGATE_DATASET" = "$SOURCE_DATASET" ]; then
+  echo "ERROR: ${AGGREGATE_DATASET} is the linked, read-only source dataset and cannot hold the aggregate."; exit 2
+fi
+RAW="${PROJECT}.${SOURCE_DATASET}.weather_history_in"
+AGG="${PROJECT}.${AGGREGATE_DATASET}.weather_history_in_windows"
 YEARS="${YEARS:-5}"
 MAX_CHUNKS="${MAX_CHUNKS:-4}"
 # Raw column names. Override if the dry run reports a schema mismatch; confirm them
@@ -42,9 +71,6 @@ C_TEMP="${C_TEMP:-temperature_c}"
 C_RAIN="${C_RAIN:-qpf_mm}"
 C_HUM="${C_HUM:-relative_humidity_percent}"
 CAP_BYTES=1073741824
-MODE="dry-run"
-[ "${1:-}" = "--apply" ] && MODE="apply"
-[ "${1:-}" = "--verify" ] && MODE="verify"
 [ "$MAX_CHUNKS" -ge 1 ] && [ "$MAX_CHUNKS" -le 12 ] || { echo "MAX_CHUNKS must be 1..12"; exit 2; }
 
 bq_q() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sql=false --quiet "$@"; }

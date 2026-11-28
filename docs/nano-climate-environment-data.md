@@ -99,8 +99,20 @@ without explicit owner approval of the total processing/storage budget, verified
 provider terms and project-wide quotas. Never partition a user request merely to
 circumvent the 1 GiB cap.
 
+0. weather_insights is a linked, read-only dataset: raw reads from
+   weather_insights.weather_history_in are unchanged, but nothing can be written
+   there. No writable dataset is known, so the destination is an explicit parameter
+   with no default. Before --apply the owner must create or choose a writable dataset
+   in project wecaredigitalbw, in the same location as the raw data (LOCATION, default
+   US). The script never runs bq mk for datasets and refuses weather_insights.
+   Pass AGGREGATE_DATASET=<dataset> (or --aggregate-dataset <dataset>); the script
+   exits with an error if it is unset. The server needs
+   WEATHER_INSIGHTS_AGGREGATE_TABLE=wecaredigitalbw.<dataset>.weather_history_in_windows
+   (no default; unset or inside weather_insights leaves the aggregate unavailable and
+   1y/5y return query_cost_cap_exceeded). It also stays off unless
+   WEATHER_INSIGHTS_AGGREGATE_ENABLED=true.
 1. scripts/build_weather_history_aggregate.sh creates
-   weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
+   <dataset>.weather_history_in_windows (clustered by lat, lng): half-month
    windows per grid point with hours, sum/min/max temperature, precipitation sum and
    humidity sum, de-duplicated to one row per grid point per hour. Each window is one
    INSERT, dry-run first, with --maximum_bytes_billed=1073741824. Windows with no raw
@@ -133,13 +145,14 @@ circumvent the 1 GiB cap.
 
 Cloud Shell, in this order:
 
+    export AGGREGATE_DATASET=<writable_dataset_created_by_owner>
     bash scripts/build_weather_history_aggregate.sh            # dry run
     # Only after explicit backfill approval and verified project quota:
     bash scripts/build_weather_history_aggregate.sh --apply
     bash scripts/build_weather_history_aggregate.sh --verify
 
-The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights,
-and WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
+The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights
+with WEATHER_INSIGHTS_AGGREGATE_TABLE set, and WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
 
 ### WeatherNext 3 (statistics Zarr)
 

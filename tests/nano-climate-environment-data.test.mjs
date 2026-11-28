@@ -149,7 +149,7 @@ esac
     for (const d of [1, 16]) done.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
   }
   const run = (env) => spawnSync('bash', [script, '--verify'], {
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, ...env }, encoding: 'utf8',
+    env: { ...process.env, AGGREGATE_DATASET: 'nano_climate_test', PATH: `${dir}:${process.env.PATH}`, ...env }, encoding: 'utf8',
   });
   try {
     const ok = run({ FAKE_DONE: done.join(' '), FAKE_AGG: '10,100,500.5,20.25' });
@@ -174,6 +174,49 @@ test('aggregate builder marks empty windows and de-duplicates hourly rows', () =
   assert.match(build, /MAX_CHUNKS="\$\{MAX_CHUNKS:-4\}"/);
 });
 
+
+test('builder requires an explicit writable aggregate dataset and refuses weather_insights', () => {
+  const script = fileURLToPath(new URL('../scripts/build_weather_history_aggregate.sh', import.meta.url));
+  const dir = mkdtempSync(join(tmpdir(), 'bqmock-'));
+  const log = join(dir, 'calls.log');
+  writeFileSync(join(dir, 'bq'), `#!/bin/sh\necho "$@" >> "${log}"\nexit 0\n`, { mode: 0o755 });
+  const run = (args, extra = {}) => {
+    const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, ...extra };
+    delete env.AGGREGATE_DATASET;
+    return spawnSync('bash', [script, ...args], { env: { ...env, ...extra }, encoding: 'utf8' });
+  };
+  try {
+    let r = run([]);
+    assert.equal(r.status, 2);
+    assert.match(r.stdout, /set AGGREGATE_DATASET/);
+    r = run(['--apply'], { AGGREGATE_DATASET: 'weather_insights' });
+    assert.equal(r.status, 2);
+    assert.match(r.stdout, /read-only/);
+    r = run(['--apply', '--aggregate-dataset', 'Weather_Insights']);
+    assert.equal(r.status, 2);
+    r = run(['--aggregate-dataset', 'bad;name']);
+    assert.equal(r.status, 2);
+    assert.throws(() => readFileSync(log, 'utf8'), /ENOENT/, 'bq must never be called');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  const build = readFileSync(script, 'utf8');
+  assert.doesNotMatch(build, /bq\s+mk/);
+  assert.match(build, /AGG="\$\{PROJECT\}\.\$\{AGGREGATE_DATASET\}\.weather_history_in_windows"/);
+  assert.match(build, /RAW="\$\{PROJECT\}\.\$\{SOURCE_DATASET\}\.weather_history_in"/);
+});
+
+test('server aggregate table has no default and rejects the read-only dataset', async () => {
+  const { writableAggregateTable } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+  assert.equal(writableAggregateTable(undefined), '');
+  assert.equal(writableAggregateTable(''), '');
+  assert.equal(writableAggregateTable('wecaredigitalbw.weather_insights.weather_history_in_windows'), '');
+  assert.equal(writableAggregateTable('wecaredigitalbw.Weather_Insights.t'), '');
+  assert.equal(writableAggregateTable('p.d.t`'), '');
+  assert.equal(writableAggregateTable('wecaredigitalbw.nano_climate.weather_history_in_windows'), 'wecaredigitalbw.nano_climate.weather_history_in_windows');
+  const server = readFileSync(new URL('../gcp/vayulok-weather-insights/server.mjs', import.meta.url), 'utf8');
+  assert.match(server, /writableAggregateTable\(process\.env\.WEATHER_INSIGHTS_AGGREGATE_TABLE\)/);
+  assert.doesNotMatch(server, /weather_insights\.weather_history_in_windows/);
+  assert.match(server, /!AGGREGATE_ENABLED \|\| !AGGREGATE_TABLE/);
+});
 
 test('aggregate SQL rejects invalid table identifiers before interpolation', async () => {
   const { aggregateSql } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
