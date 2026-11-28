@@ -951,11 +951,7 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             })
             logger.info(f"Pre-call auto-granted permission for {mask_phone(from_number or '')} on connect (call {call_id})")
 
-        # ── SMS moved to disconnect only — no SMS on connect to avoid duplicates ──
-        # SMS is sent in the terminate handler (_send_disconnect_sms) instead
-        # This prevents the user from receiving 2 identical SMS per call
-        # But the WhatsApp follow-up IS still sent on connect (not a duplicate)
-        _send_call_whatsapp_notification(from_number, call_id, phone_number_id, request_id)
+        # No automatic WhatsApp, SMS or RCS message is sent to the caller.
 
         # Auto-pickup: IVR mode only — pre_accept → send IVR menu → terminate
         if _is_auto_pickup_enabled() and phone_number_id:
@@ -1016,17 +1012,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
         except Exception as _bce:
             logger.warning(f"call breadcrumb skipped: {_bce}")
 
-        # Send post-call reaction to the caller via WhatsApp message
-        # ✅ for completed calls (duration > 0), ❌ for missed/rejected
-        _send_post_call_reaction(
-            phone_number_id=phone_number_id,
-            from_number=from_number,
-            call_id=call_id,
-            reason=reason,
-            duration=duration,
-            direction=direction,
-        )
-
         # ── Auto-grant call permission after any completed call ──
         # Completed calls update the permission state.
         # Once a user has had a call (any direction), permission is auto-stored as GRANTED.
@@ -1047,29 +1032,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             })
             logger.info(f"Auto-granted call permission for {mask_phone(from_number or '')} after completed call {call_id} (duration={duration}s)")
 
-        # ── Send the IVR follow-up SMS on every call disconnect (phone 1 & 2) ──
-        # ivr-default DLT template, through AWS End User Messaging.
-        if _is_sms_on_call_enabled() and from_number:
-            _send_disconnect_sms(from_number, call_id, phone_number_id, reason, request_id)
-        
-        # ── Send RCS notification via Sinch (if enabled) ──
-        if from_number:
-            try:
-                from lambda_utils.sinch_rcs import is_rcs_enabled, send_rcs_ivr_notification
-                if is_rcs_enabled():
-                    rcs_result = send_rcs_ivr_notification(from_number, request_id)
-                    logger.info(json.dumps({
-                        'event': 'wa_call_rcs_notification',
-                        'callId': call_id,
-                        'rcs_sent': rcs_result.get('success', False),
-                        'rcs_message_id': rcs_result.get('message_id', ''),
-                        'rcs_error': rcs_result.get('error', '') if not rcs_result.get('success') else '',
-                        'requestId': request_id,
-                    }))
-                else:
-                    logger.info(f'RCS disabled — skipping for call {call_id}')
-            except Exception as rcs_err:
-                logger.error(f'RCS notification EXCEPTION (non-blocking): {rcs_err}', exc_info=True)
 
     elif event_type in ('call_permission_response', 'call_permission_status'):
         # Legacy: Meta sends call_permission_status — no longer used for gating.
@@ -1156,102 +1118,17 @@ def _handle_cert_check(event: Dict, request_id: str) -> Dict[str, Any]:
     return {'statusCode': 200, 'body': json.dumps({'daysRemaining': days, 'critical': critical, 'warnThreshold': CERT_WARN_DAYS})}
 
 
-def _is_auto_thumb_reaction_enabled() -> bool:
-    """Whether to auto-send a 👍 reaction alongside call-related WhatsApp
-    messages. Unified runtime toggle (controls call + message reactions across all
-    handlers). Default: True. Toggle via SystemConfig id='whatsapp_auto_thumb'."""
-    try:
-        table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        result = table.get_item(Key={'id': 'whatsapp_auto_thumb'})
-        item = result.get('Item')
-        if item and 'configValue' in item:
-            return str(item.get('configValue')).lower() in ('true', '1', 'yes', 'on')
-    except Exception as e:
-        logger.warning(f"auto_thumb config check failed (default True): {e}")
-    return True
 
 
-def _react_thumbs_up(meta_id: str, to_phone: str, message_id: str,
-                     request_id: str = '', emoji: str = '\U0001F44D') -> bool:
-    """Send an auto 👍 reaction to a message that THIS WABA (meta_id) just sent.
-
-    CRITICAL: a reaction's message_id must belong to meta_id's own conversation.
-    Reacting via a different WABA phone returns a Meta 'message not found' error,
-    so callers MUST pass the same meta_id that produced message_id. This is what
-    makes the auto-thumb work on BOTH WABA numbers — each WABA reacts to its own
-    template message. Best-effort; never raises.
-    """
-    if not (meta_id and to_phone and message_id):
-        return False
-    if not _is_auto_thumb_reaction_enabled():
-        return False
-    try:
-        result = _meta_api_call(f"{meta_id}/messages", 'POST', {
-            'messaging_product': 'whatsapp',
-            'recipient_type': 'individual',
-            'to': to_phone.lstrip('+'),
-            'type': 'reaction',
-            'reaction': {'message_id': message_id, 'emoji': emoji},
-        }, phone_number_id=meta_id)
-        if isinstance(result, dict) and result.get('error'):
-            logger.warning(json.dumps({
-                'event': 'auto_thumb_reaction_failed',
-                'waba': meta_id, 'messageId': message_id,
-                'error': str(result.get('error'))[:300], 'requestId': request_id,
-            }))
-            return False
-        logger.info(json.dumps({
-            'event': 'auto_thumb_reaction_sent',
-            'waba': meta_id, 'messageId': message_id, 'requestId': request_id,
-        }))
-        return True
-    except Exception as e:
-        logger.warning(f"auto thumb reaction error via {meta_id}: {e}")
-        return False
 
 
-def _send_call_followup_text(meta_id: str, to_phone: str,
-                                request_id: str = '') -> str:
-    """Send CALL_FOLLOWUP_TEXT as a plain WhatsApp text from meta_id.
-
-    This is a TEXT send, so it needs an open 24-hour customer-service window.
-    The WhatsApp menu template this replaced was deleted at Meta, and a template
-    was what allowed a post-call message outside that window, so a follow-up to
-    someone who has never messaged the business now fails. That is expected: the
-    failure is logged and both call sites treat this send as non-blocking.
-
-    Uses _meta_api_call rather than _send_via_aws on purpose — the returned
-    wamid must belong to meta_id's own conversation, which is the precondition
-    _react_thumbs_up documents. Returns the Meta message id, or '' on failure.
-    """
-    if not (meta_id and to_phone):
-        return ''
-    try:
-        result = _meta_api_call(f"{meta_id}/messages", 'POST', {
-            'messaging_product': 'whatsapp',
-            'recipient_type': 'individual',
-            'to': to_phone.lstrip('+'),
-            'type': 'text',
-            'text': {'body': CALL_FOLLOWUP_TEXT},
-        }, phone_number_id=meta_id)
-        if isinstance(result, dict):
-            msgs = result.get('messages', [])
-            if msgs:
-                return msgs[0].get('id', '')
-        return ''
-    except Exception as e:
-        logger.warning(f"menu placeholder text send failed via {meta_id}: "
-                       f"{type(e).__name__}")
-        return ''
 
 
 def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
     """
     Handle post-call actions from Asterisk AGI (SIP mode).
     Called via Lambda invoke after a WhatsApp call ends on Asterisk.
-    Sends the plain-text menu placeholder from the WABA that received the call
-    + WABA1 if different. Text, not a template, so it needs an open 24-hour
-    window — see _send_call_followup_text.
+    Records the call on the unified timeline. Nothing is sent to the caller.
     """
     caller_phone = event.get('callerPhone', '')
     # No default sender. This used to fall back to WABA2's phone, which meant a
@@ -1296,168 +1173,10 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
     except Exception as _bce:
         logger.warning(f"post_call_sip breadcrumb failed (non-blocking): {_bce}")
 
-    # Determine which WABAs to send from based on receiving phone
-    is_waba2_call = str(phone_number_id) == PHONE2_META_ID
-    if is_waba2_call:
-        send_from = [(WABA1_META_ID, 'WABA1'), (WABA2_META_ID, 'WABA2')]
-    else:
-        send_from = [(WABA1_META_ID, 'WABA1')]
-
-    logger.info(f"POST-CALL SIP: sending menu placeholder text to {mask_phone(caller_phone or '')} via {', '.join(l for _, l in send_from)}")
-
-    # Send from each WABA (gated by the post-call WhatsApp toggle)
-    wa_enabled = _is_postcall_wa_enabled()
-    first_msg_id = ''
-    for meta_id, label in (send_from if wa_enabled else []):
-        msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
-        if msg_id:
-            logger.info(f"Post-call SIP menu placeholder sent via {label}: {msg_id}")
-            # Auto 👍 from the SAME WABA that sent this message (works on both WABAs).
-            _react_thumbs_up(meta_id, caller_phone, msg_id, request_id)
-            if not first_msg_id:
-                first_msg_id = msg_id
-        else:
-            # Most likely cause is a closed 24-hour window: this is a text send
-            # and there is no longer a template to reach outside it.
-            logger.warning(f"Post-call SIP menu placeholder FAILED via {label}")
-
-    msg_id = first_msg_id
-
-    # Store in outbound table so it shows in dashboard inbox
-    if msg_id:
-        try:
-            outbound_table = dynamodb.Table('stack-wecare-digital-WhatsAppOutboundTable')
-            now = int(time.time())
-            store_id = msg_id or f"postcall_{caller_phone}_{now}"
-            contact_id = _lookup_contact_id_for_inbox(caller_phone)
-
-            # Fix: ensure whatsappMessageId is never empty (DynamoDB GSI rejects empty strings)
-            wa_msg_id = msg_id if msg_id else store_id
-
-            outbound_table.put_item(Item={
-                'id': store_id,
-                'messageId': store_id,
-                'contactId': contact_id,
-                'contactPhone': caller_phone,
-                'content': CALL_FOLLOWUP_TEXT,
-                'channel': 'whatsapp',
-                'direction': 'outbound',
-                'status': 'sent',
-                'messageType': 'post_call',
-                'whatsappMessageId': wa_msg_id,
-                'phoneNumberId': phone_number_id,
-                'awsPhoneNumberId': phone_number_id,
-                'timestamp': Decimal(str(now)),
-                'createdAt': Decimal(str(now)),
-                'expiresAt': Decimal(str(now + 30 * 24 * 60 * 60)),
-            })
-            logger.info(f"Post-call message stored in outbound table: id={store_id}")
-        except Exception as e:
-            logger.error(f"Failed to store post-call message: {e}", exc_info=True)
-
-    # Step 4: Call permission request removed — not sending interactive permission_response after calls
-
-    # Step 5: Post-call SMS — ivr-default template, via AWS End User Messaging
-    if caller_phone and _is_sms_on_call_enabled():
-        _send_disconnect_sms(caller_phone, f'sip_{caller_phone}', phone_number_id, 'sip_hangup', 'sip_post_call')
-    
-    # Step 6: Post-call RCS — send Sinch RCS notification on disconnect
-    if caller_phone:
-        try:
-            from lambda_utils.sinch_rcs import is_rcs_enabled, send_rcs_ivr_notification
-            if is_rcs_enabled():
-                send_rcs_ivr_notification(caller_phone, 'sip_post_call')
-        except Exception:
-            pass  # Non-blocking
-
-    return {'statusCode': 200, 'body': 'post_call_sent'}
+    # The breadcrumb above is the only effect: no follow-up text, reaction, SMS or RCS is sent.
+    return {'statusCode': 200, 'body': 'post_call_recorded'}
 
 
-def _send_post_call_reaction(phone_number_id: str, from_number: str, call_id: str,
-                              reason: str, duration: int, direction: str) -> None:
-    """
-    Send a post-call summary message to the caller/callee after a call ends.
-    Uses Direct Meta API to send a text message with call details.
-    - Completed calls (duration > 0): ✅ with duration
-    - Missed/rejected/no-answer: ❌ with reason
-    - AI-redirected calls: skip (redirect message already sent)
-    
-    Note: Requires an open 24-hour messaging window. If the window is closed
-    (e.g. caller never messaged this business number), the send will fail silently.
-    """
-    try:
-        # Skip post-call reaction if the call was AI-redirected
-        try:
-            table = dynamodb.Table(CALL_LOG_TABLE)
-            from boto3.dynamodb.conditions import Key as DDBKey
-            # Indexed lookup on callId-index (GSI exists) instead of a full-table scan.
-            result_check = table.query(
-                IndexName='callId-index',
-                KeyConditionExpression=DDBKey('callId').eq(call_id),
-                Limit=10,
-            )
-            ai_handled = any(
-                i.get('status') in ('ai_redirected',)
-                for i in result_check.get('Items', [])
-            )
-            if ai_handled:
-                logger.info(f"Post-call reaction skipped: call {call_id} was AI-handled")
-                return
-        except Exception:
-            pass  # If check fails, send the reaction anyway
-
-        aws_phone_id = _get_aws_phone_id(phone_number_id)
-        # Determine the recipient — for inbound calls, reply to the caller (from_number)
-        to_number = from_number
-
-        if not to_number:
-            logger.warning(f"Post-call reaction skipped: no from_number for call {call_id}")
-            return
-
-        logger.info(f"Post-call reaction: phone_number_id={phone_number_id}, "
-                     f"aws_phone_id={aws_phone_id}, to={mask_phone(to_number or '')}, "
-                     f"direction={direction}, reason={reason}, duration={duration}")
-
-        if duration and int(duration) > 0:
-            mins = int(duration) // 60
-            secs = int(duration) % 60
-            duration_str = f"{mins}m {secs}s" if mins else f"{secs}s"
-            text = f"📞 ✅ Call completed — {duration_str}"
-        else:
-            reason_map = {
-                'no_answer': 'No answer',
-                'busy': 'Busy',
-                'rejected': 'Rejected',
-                'timeout': 'Timed out',
-                'caller_hangup': 'Caller hung up',
-                'callee_hangup': 'Call ended',
-            }
-            reason_text = reason_map.get(reason, reason.replace('_', ' ').title() if reason else 'Unknown')
-            text = f"📞 ❌ Call ended — {reason_text}"
-
-        result = _send_via_aws(aws_phone_id, to_number, {
-            'type': 'text',
-            'text': {'body': text},
-        })
-
-        if result.get('error'):
-            error_detail = result.get('detail', '')
-            # Check if it's a 24-hour window issue
-            if 'outside' in error_detail.lower() or 'window' in error_detail.lower() or '131047' in error_detail:
-                logger.warning(f"Post-call reaction skipped (no 24h window): "
-                               f"to={mask_phone(to_number or '')}, via={aws_phone_id}, call={call_id}")
-            else:
-                # `result` on this branch is the RAW Meta response (`_send_via_aws` returns
-                # it unchanged when Meta reports an error), and Meta writes the recipient
-                # into the prose of several messaging errors. Dumping it whole masked the
-                # number on the left of this line and reprinted it on the right.
-                logger.error(f"Post-call reaction FAILED for {mask_phone(to_number or '')} via {aws_phone_id}: "
-                             f"{meta_error_summary(result)}")
-        else:
-            logger.info(f"Post-call reaction sent to {mask_phone(to_number or '')}: {text} — "
-                        f"messageId={result.get('messageId')}")
-    except Exception as e:
-        logger.error(f"Failed to send post-call reaction: {e}", exc_info=True)
 
 
 # ─── Call Control (Reject / Hangup) ──────────────────────────────────
@@ -1643,41 +1362,6 @@ PHONE_NUMBER_ID_2 = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_2', 'phone-number-i
 # All phones use Direct Meta API — full call control supported on all WABAs
 
 
-# ── SMS on incoming call ─────────────────────────────────────────────
-# Sent through AWS End User Messaging via lambda_utils.comms.notify.
-#
-# The BODY below is load-bearing. It must match the approved TRAI DLT content
-# template character for character, including the \n\n between sections: the
-# operator silently drops mismatched content even though the API call succeeds.
-# Do not "improve" this copy.
-#
-# The template id, registered entity and sender id are NOT repeated here. They
-# live in lambda_utils.comms.dlt, keyed by IVR_SMS_DLT_TEMPLATE_KEY below.
-# Template KEYS, not ids. lambda_utils.comms.dlt maps a key to the approved
-# template id and attaches the registered entity and sender. Holding raw ids here
-# was one of five copies of the same regulatory facts.
-IVR_SMS_DLT_TEMPLATE_KEY = 'ivr-default'
-ORDER_SMS_DLT_TEMPLATE_KEY = 'wd_order'
-IVR_SMS_CONTENT = (
-    "Thanks for contacting WECARE.DIGITAL!\n\n"
-    "Submit your request here: https://wecare.digital/submit-request/ "
-    "or send us a message / voice note on WhatsApp: "
-    "https://wecare.digital/r/wa.\n\n"
-    "We'll review it and follow up if needed."
-)
-
-# Plain-text customer support follow-up after a call.
-CALL_FOLLOWUP_TEXT = "Visit https://wecare.digital/ for services, or tell us what you need here."
-
-# Order SMS. Body must match approved DLT template wd_order character for
-# character; the key is ORDER_SMS_DLT_TEMPLATE_KEY above.
-ORDER_SMS_CONTENT = (
-    "Thanks for placing your order with WECARE.DIGITAL!\n\n"
-    "Your order has been received. We'll review it and share updates shortly.\n\n"
-    "Need help? Submit a request here: https://wecare.digital/submit-request/ "
-    "or message / voice note us on WhatsApp: https://wecare.digital/r/wa."
-)
-
 # WABA phone IDs for sending templates
 WABA1_META_ID = '1016149501586345'   # +91 93309 94400
 WABA2_META_ID = '1055232054343117'   # +91 99033 00044
@@ -1695,103 +1379,8 @@ WABA2_META_ID = '1055232054343117'   # +91 99033 00044
 # See docs/provider-retirement-inventory.md.
 
 
-def _send_incoming_call_sms(caller_phone: str, call_id: str, receiving_phone_id: str, request_id: str) -> None:
-    """Send default IVR SMS + the WhatsApp menu placeholder when a call comes in.
-    
-    WhatsApp logic:
-    - Call on WABA1 → send from WABA1 only
-    - Call on WABA2 → send from BOTH WABA1 AND WABA2
-    
-    All sent notifications are stored in WhatsAppOutboundTable for inbox visibility.
-    """
-    try:
-        if not caller_phone:
-            return
-
-        # One call, every country. comms.notify picks the region and applies the
-        # DLT gate; this handler no longer decides either.
-        from lambda_utils.comms.notify import send_notification_sms
-        outcome = send_notification_sms(
-            caller_phone, IVR_SMS_CONTENT,
-            dlt_template_key=IVR_SMS_DLT_TEMPLATE_KEY,
-            campaign='whatsapp-incoming-call',
-            request_id=request_id)
-        sms_sent = outcome.queued
-        if not sms_sent:
-            logger.warning(json.dumps({
-                'event': 'incoming_call_sms_not_queued',
-                'callId': call_id,
-                'callerPhone': caller_phone[-4:],
-                'reason': outcome.skipped_reason or outcome.error,
-                'requestId': request_id,
-            }))
-
-        # ── Store SMS in inbox ──
-        if sms_sent:
-            contact_id = _lookup_contact_id_for_inbox(caller_phone)
-            _store_notification_to_inbox(
-                message_id=f"sms_call_{call_id}_{int(time.time())}",
-                contact_id=contact_id,
-                contact_phone=caller_phone,
-                content=IVR_SMS_CONTENT,
-                channel='sms',
-                status='sent',
-                message_type='incoming_call',
-                request_id=request_id,
-            )
-
-        # ── WhatsApp follow-up: depends on which WABA received the call ──
-        _send_call_whatsapp_notification(caller_phone, call_id, receiving_phone_id, request_id)
-
-    except Exception as e:
-        logger.warning(f"Incoming call SMS failed (non-blocking): {e}")
 
 
-def _send_disconnect_sms(caller_phone: str, call_id: str, phone_number_id: str,
-                         reason: str, request_id: str) -> None:
-    """Send the IVR follow-up SMS on every call disconnect, with no per-phone cooldown.
-    A redelivered terminate event is stopped by the call-event claim.
-    Stores to WhatsAppOutboundTable for inbox visibility.
-    """
-    try:
-        if not caller_phone:
-            return
-
-        from lambda_utils.comms.notify import send_notification_sms
-        outcome = send_notification_sms(
-            caller_phone, IVR_SMS_CONTENT,
-            dlt_template_key=IVR_SMS_DLT_TEMPLATE_KEY,
-            campaign='whatsapp-call-disconnect',
-            request_id=request_id)
-        sms_sent = outcome.queued
-        logger.info(json.dumps({
-            'event': 'disconnect_sms_triggered' if sms_sent
-                     else 'disconnect_sms_not_queued',
-            'callId': call_id,
-            'callerPhone': caller_phone[-4:],
-            'phoneNumberId': phone_number_id,
-            'provider': 'aws-end-user-messaging',
-            'reason': reason,
-            'notQueuedReason': (outcome.skipped_reason or outcome.error) or None,
-            'requestId': request_id,
-        }))
-
-        # ── Store disconnect SMS in inbox ──
-        if sms_sent:
-            contact_id = _lookup_contact_id_for_inbox(caller_phone)
-            _store_notification_to_inbox(
-                message_id=f"sms_disc_{call_id}_{int(time.time())}",
-                contact_id=contact_id,
-                contact_phone=caller_phone,
-                content=IVR_SMS_CONTENT,
-                channel='sms',
-                status='sent',
-                message_type='disconnect',
-                request_id=request_id,
-            )
-
-    except Exception as e:
-        logger.warning(f"Disconnect SMS failed (non-blocking): {e}")
 
 
 DIRECT_API_META_PHONE_IDS = {PHONE1_META_ID, PHONE2_META_ID}
@@ -1825,37 +1414,10 @@ def _get_auto_pickup_audio_url() -> Optional[str]:
     return DEFAULT_IVR_URL
 
 
-def _sms_sender_registered() -> bool:
-    """Check the India sender before enabling post-call SMS (no message is sent)."""
-    try:
-        result = boto3.client('pinpoint-sms-voice-v2', region_name='ap-south-1').describe_sender_ids()
-        return any(
-            item.get('SenderId') == 'WDBEEP'
-            and item.get('IsoCountryCode') == 'IN'
-            and item.get('Registered') is True
-            for item in result.get('SenderIds', [])
-        )
-    except Exception as exc:
-        logger.warning('SMS sender readiness unavailable: %s', type(exc).__name__)
-        return False
 
 
-def _is_sms_on_call_enabled() -> bool:
-    """Check explicit SMS-on-call opt-in; default off until sender is registered."""
-    try:
-        table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        result = table.get_item(Key={'id': 'whatsapp_calling_sms_on_call'})
-        item = result.get('Item')
-        if item:
-            return str(item.get('configValue', 'false')).lower() == 'true'
-    except Exception as e:
-        logger.warning(f"Failed to read sms_on_call config: {e}")
-    return False  # Default: disabled until sender registration is verified
 
 
-def _is_postcall_wa_enabled() -> bool:
-    """Post-call WhatsApp notifications are always enabled by owner policy."""
-    return True
 
 
 # The per-phone SMS cooldown (`_sms_sent_recently`) was never called and was removed with
@@ -2227,15 +1789,15 @@ def _get_config(request_id: str) -> Dict[str, Any]:
     """Get auto-pickup configuration."""
     enabled = _is_auto_pickup_enabled()
     audio_url = _get_auto_pickup_audio_url()
-    sms_on_call = _is_sms_on_call_enabled()
     return _response(200, {
         'autoPickup': enabled,
         'ivrUrl': audio_url,
         'defaultIvrUrl': DEFAULT_IVR_URL,
         'autoPickupMode': 'ivr',
-        'smsOnCall': sms_on_call,
-        'postCallWa': _is_postcall_wa_enabled(),
-        'autoThumb': _is_auto_thumb_reaction_enabled(),
+        # Automatic SMS, WhatsApp and reaction messages after a call were removed.
+        'smsOnCall': False,
+        'postCallWa': False,
+        'autoThumb': False,
     })
 
 
@@ -2274,46 +1836,12 @@ def _update_config(event: Dict, request_id: str) -> Dict[str, Any]:
             logger.error(f"Failed to update IVR URL config: {e}")
             return _response(500, {'error': str(e)})
 
-    sms_on_call = body.get('smsOnCall')
-    if sms_on_call is not None:
-        if type(sms_on_call) is not bool:
-            return _response(400, {'error': 'smsOnCall must be a boolean'})
-        if sms_on_call and not _sms_sender_registered():
-            return _response(409, {'error': 'SMS_SENDER_NOT_REGISTERED',
-                                   'detail': 'Register and verify WDBEEP in ap-south-1 before enabling call SMS.'})
-        try:
-            table.put_item(Item={
-                'id': 'whatsapp_calling_sms_on_call',
-                'configValue': str(sms_on_call).lower(),
-                'updatedAt': Decimal(str(int(time.time()))),
-            })
-            logger.info(f"SMS-on-call set to: {sms_on_call}")
-        except Exception as e:
-            logger.error(f"Failed to update sms_on_call config: {e}")
-            return _response(500, {'error': str(e)})
-
-    post_call_wa = True  # Ignore retired clients' off switch.
-
-    auto_thumb = body.get('autoThumb')
-    if auto_thumb is not None:
-        try:
-            table.put_item(Item={
-                'id': 'whatsapp_auto_thumb',
-                'configValue': str(auto_thumb).lower(),
-                'updatedAt': Decimal(str(int(time.time()))),
-            })
-            logger.info(f"Auto 👍 reaction set to: {auto_thumb}")
-        except Exception as e:
-            logger.error(f"Failed to update auto_thumb config: {e}")
-            return _response(500, {'error': str(e)})
-
     record_audit(action='calling.config_update', actor=_actor(event), resource_type='config',
                  resource_id='whatsapp_calling',
                  details={key: value for key, value in (('autoPickup', enabled), ('ivrUrl', ivr_url),
-                                                        ('smsOnCall', sms_on_call),
-                                                        ('autoThumb', auto_thumb))
+                                                        )
                           if value is not None})
-    return _response(200, {'success': True, 'autoPickup': enabled, 'ivrUrl': ivr_url, 'autoPickupMode': 'ivr', 'smsOnCall': sms_on_call, 'postCallWa': post_call_wa, 'autoThumb': auto_thumb})
+    return _response(200, {'success': True, 'autoPickup': enabled, 'ivrUrl': ivr_url, 'autoPickupMode': 'ivr', 'smsOnCall': False, 'postCallWa': False, 'autoThumb': False})
 
 # ─── Storage Helpers ─────────────────────────────────────────────────
 
@@ -2514,148 +2042,5 @@ def _lookup_contact_id_for_inbox(phone: str) -> str:
     return clean
 
 
-def _store_notification_to_inbox(message_id: str, contact_id: str, contact_phone: str,
-                                  content: str, channel: str, status: str,
-                                  message_type: str, phone_number_id: str = '',
-                                  wamid: str = '', request_id: str = '') -> None:
-    """Store a sent notification in WhatsAppOutboundTable so it appears in the dashboard inbox."""
-    try:
-        now = int(time.time())
-        store_id = message_id or f"notif_{contact_phone}_{now}"
-        outbound_table = dynamodb.Table('stack-wecare-digital-WhatsAppOutboundTable')
-        item = {
-            'id': store_id,
-            'messageId': store_id,
-            'contactId': contact_id,
-            'contactPhone': contact_phone,
-            'content': content,
-            'channel': channel,
-            'direction': 'outbound',
-            'status': status,
-            'messageType': message_type,
-            'timestamp': Decimal(str(now)),
-            'createdAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(now + 30 * 24 * 60 * 60)),
-            'requestId': request_id,
-        }
-        # Only set GSI key fields if non-empty (DynamoDB rejects empty strings on GSI keys)
-        if wamid:
-            item['whatsappMessageId'] = wamid
-        else:
-            item['whatsappMessageId'] = store_id
-        if phone_number_id:
-            item['phoneNumberId'] = phone_number_id
-            item['awsPhoneNumberId'] = phone_number_id
-        outbound_table.put_item(Item=item)
-        logger.info(json.dumps({
-            'event': 'notification_stored_in_inbox',
-            'id': store_id,
-            'channel': channel,
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
-    except Exception as e:
-        logger.warning(f'Failed to store notification in inbox: {e}')
 
 
-def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_phone_id: str, request_id: str) -> None:
-    """Send the plain-text menu placeholder to the CALLER.
-
-    Logic:
-    - Call on WABA1 (+919330994400) → send from WABA1 only
-    - Call on WABA2 (+919903300044) → send from BOTH WABA1 AND WABA2
-
-    This is a TEXT send and therefore needs an open 24-hour window — see
-    _send_call_followup_text. Both WABAs use the same token
-    (WECARE.DIGITAL app / token1).
-
-    DELIVERY TROUBLESHOOTING:
-    - A closed 24-hour window is the expected failure now that the template is gone
-    - If delivery fails: check Meta message status webhooks for error codes
-    - Other causes: recipient blocked the business, rate limit
-    """
-    try:
-        import time as _time
-        call_time = _time.strftime('%d %b %Y %I:%M %p IST', _time.gmtime(int(_time.time()) + 19800))
-
-        # Determine which WABAs to send from based on receiving phone
-        is_waba2 = WABA2_META_ID in str(receiving_phone_id)
-        if is_waba2:
-            send_from = [(WABA1_META_ID, 'WABA1'), (WABA2_META_ID, 'WABA2')]
-        else:
-            send_from = [(WABA1_META_ID, 'WABA1')]
-
-        for meta_id, label in send_from:
-            try:
-                # One attempt: this runs inside Meta's webhook request, so it must not
-                # sleep and retry (the 2s retry pushed runs toward the 30s timeout).
-                msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
-
-                if msg_id:
-                    logger.info(json.dumps({
-                        'event': 'call_wa_template_sent',
-                        'messageType': 'text',
-                        'waba': label,
-                        'meta_phone_id': meta_id,
-                        'caller': caller_phone[-4:],
-                        'messageId': msg_id,
-                        'requestId': request_id,
-                    }))
-                    # ── Store WhatsApp notification in inbox ──
-                    contact_id = _lookup_contact_id_for_inbox(caller_phone)
-                    _store_notification_to_inbox(
-                        message_id=msg_id,
-                        contact_id=contact_id,
-                        contact_phone=caller_phone,
-                        content=CALL_FOLLOWUP_TEXT,
-                        channel='whatsapp',
-                        status='sent',
-                        message_type='incoming_call',
-                        phone_number_id=meta_id,
-                        wamid=msg_id,
-                        request_id=request_id,
-                    )
-                    # Auto 👍 from the SAME WABA that sent this message (both WABAs).
-                    _react_thumbs_up(meta_id, caller_phone, msg_id, request_id)
-                else:
-                    logger.error(json.dumps({
-                        'event': 'call_wa_template_FAILED',
-                        'messageType': 'text',
-                        'waba': label,
-                        'meta_phone_id': meta_id,
-                        'caller': caller_phone[-4:],
-                        'requestId': request_id,
-                        'troubleshoot': (
-                            'This is a plain text send and needs an open 24-hour '
-                            'window, so a caller who has never messaged the '
-                            'business cannot be reached. Also check: 1) recipient '
-                            'has not blocked this business, 2) rate limit, '
-                            '3) Meta status webhook for delivery status'
-                        ),
-                    }))
-            except Exception as e:
-                logger.error(f'{label} menu placeholder EXCEPTION: {e}', exc_info=True)
-
-        # Log to CallNotifications table
-        try:
-            call_notif_table = dynamodb.Table(
-                os.environ.get('CALL_NOTIFICATIONS_TABLE', 'stack-wecare-digital-CallNotificationsTable')
-            )
-            call_notif_table.put_item(Item={
-                'callId': call_id,
-                'callerPhone': caller_phone,
-                'callTime': call_time,
-                'receivingPhone': receiving_phone_id,
-                'whatsappTemplate': 'none',
-                'whatsappWaba1': 'sent',
-                'whatsappWaba2': 'sent' if is_waba2 else 'not_applicable',
-                'smsStatus': 'sent_separately',
-                'requestId': request_id,
-                'createdAt': int(_time.time()),
-                'ttl': int(_time.time()) + 90 * 86400,
-            })
-        except Exception as e:
-            logger.warning(f'CallNotifications log failed: {e}')
-
-    except Exception as e:
-        logger.warning(f'Call WA notification error (non-blocking): {e}')

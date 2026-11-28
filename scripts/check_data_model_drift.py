@@ -183,7 +183,7 @@ UNDECLARED_ALLOWED: dict[str, str] = {
     "LinkClicksTable": "Live table is stack-wecare-digital-LinkClicksTable; the retired amplify/link-resources.ts never owned production.",
     "SiteLanguageCache": "Owned by core/site-language; a cache, not a modelled entity.",
     "PushTokensTable": "Owned by messaging/push-notifications.",
-    "AutomationRulesTable": "Owned by lambda_utils/automation.py.",
+    "AutomationRulesTable": "Owned by the automation-rules Lambda; no evaluator reads it (automatic replies are disabled).",
     "ConversationMetaTable": "Owned by core/conversation-meta.",
     "AIProviderPolicyTable": "Owned by ai/ai-config-management.",
     "MessagesTable": "Declared as model `Message`; the plural physical name is matched by rule.",
