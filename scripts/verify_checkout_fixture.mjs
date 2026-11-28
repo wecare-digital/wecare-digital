@@ -143,23 +143,20 @@ async function runScenario(browser,width,mode) {
         return {width,scroll,overflowTargets};
       });
       phase='accessibility scan: '+label;
-      // Firefox (Playwright build 1572) segfaults its content process whenever axe
-      // scans this one state: deterministic across 3 widths and retries, and still
-      // with all stylesheets disabled or the profile section removed (CI bisect,
-      // PRs #2553/#2554). Chromium and WebKit scan it; Firefox scans every other state.
-      if(engine==='firefox'&&label==='name-only-profile'){
+      // Firefox (Playwright build 1572) segfaults its content process in the
+      // profile scenario whenever axe has scanned that page: no crash with axe off,
+      // a crash with any single scan (CI bisect, PRs #2553/#2554), and still with all
+      // stylesheets disabled or the profile section removed. Firefox scans the same
+      // review/signed-out/auth states in the mismatch and ready scenarios; Chromium
+      // and WebKit scan every profile state, including name-only-profile.
+      if(engine==='firefox'&&mode==='profile'){
         const result={engine,width,mode,label,geometry:geom,axeSkipped:'firefox-content-process-crash'};
         evidence.push(result);console.log(JSON.stringify(result));
         await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
         if(geom.scroll>geom.width+2) failures.push(label+' horizontal overflow at '+width);
         return;
       }
-      // Firefox: AxeBuilder's default mode opens and closes a blank page in this
-      // context for every scan. In Firefox that tab close repeatedly preceded a
-      // content-process SIGSEGV on the next checkout render (CI bisect, PR #2553:
-      // crash in every width with axe, none without). Legacy mode scans in the
-      // page itself; the rule set and tags are unchanged.
-      const axe=await new AxeBuilder({page}).setLegacyMode(engine==='firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
+      const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
       await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
