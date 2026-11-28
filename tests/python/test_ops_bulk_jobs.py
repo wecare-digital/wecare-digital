@@ -147,9 +147,15 @@ def test_only_an_approved_template_is_accepted(create, result):
     assert create.dynamodb.tables["jobs"].puts == []
 
 
-@pytest.mark.parametrize("result", [{"error": {"message": "down"}}, {}, None])
-def test_unreadable_template_list_fails_closed(create, result):
-    create._meta_client = Meta(result)
+class BrokenMeta:
+    def get(self, *args, **kwargs):
+        raise RuntimeError("secret unreadable")
+
+
+@pytest.mark.parametrize("client", [
+    Meta({"error": {"message": "down"}}), Meta({}), Meta(None), BrokenMeta()])
+def test_unreadable_template_list_fails_closed(create, client):
+    create._meta_client = client
     response = call(create, {"templateName": "promo", "recipients": [{"contactId": "c-in"}]})
     assert response["statusCode"] == 503
     assert create.dynamodb.tables["jobs"].puts == []

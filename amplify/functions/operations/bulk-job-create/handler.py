@@ -288,12 +288,15 @@ def _approved_template(template_name: str, waba_id: str) -> Dict[str, str]:
     Raises TemplateUnverifiable when Meta cannot be read: approval is never assumed.
     """
     global _meta_client
-    if _meta_client is None:
-        _meta_client = MetaGraphClient()
-    result = _meta_client.get(
-        f'{waba_id}/message_templates',
-        params={'name': template_name, 'fields': 'name,status,category,language', 'limit': 100},
-        token_context={'waba_id': waba_id})
+    try:
+        if _meta_client is None:
+            _meta_client = MetaGraphClient()
+        result = _meta_client.get(
+            f'{waba_id}/message_templates',
+            params={'name': template_name, 'fields': 'name,status,category,language', 'limit': 100},
+            token_context={'waba_id': waba_id})
+    except Exception:  # noqa: BLE001 - e.g. the token secret could not be read
+        result = None
     rows = result.get('data') if isinstance(result, dict) else None
     if MetaGraphClient.is_error(result) or not isinstance(rows, list):
         logger.warning(json.dumps({'event': 'bulk_template_read_failed', 'wabaId': waba_id}))
