@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { cleanSummary, decodeRows, parseNumber } from './weather-data.mjs';
-import { aggregateComplete, aggregateSql, coveragePartial } from './aggregate.mjs';
+import { aggregateComplete, aggregateSql, coveragePartial, aggregateDestination } from './aggregate.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
@@ -17,10 +17,9 @@ const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 // resumable, dry-run-checked, under-1-GiB chunks. The raw table is only ever read
 // for the 30d range, still subject to its hard query cap. A missing aggregate fails
 // closed; it never falls back to a raw multi-year scan.
-const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
-  || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
-// The aggregate is served only after an operator has built it and compared it with
-// the raw 30d summary (docs/nano-climate-environment-data.md). Off by default.
+// Linked Analytics Hub datasets are read-only. Require an explicit destination.
+const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE || '').trim();
+// Off until the operator verifies the destination and capped raw-window comparison.
 const AGGREGATE_ENABLED = String(process.env.WEATHER_INSIGHTS_AGGREGATE_ENABLED || '').toLowerCase() === 'true';
 const AGGREGATE_MAX_BYTES_BILLED = '134217728'; // 128 MiB, far below the 1 GiB ceiling
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
@@ -459,12 +458,20 @@ async function handleInsights(req, res, url) {
     pending = (async () => {
       let rows;
       if (range !== '30d') {
-        if (!AGGREGATE_ENABLED || !validTable(AGGREGATE_TABLE)) {
+        const destination = aggregateDestination(AGGREGATE_TABLE, PROJECT, DATASET);
+        if (!AGGREGATE_ENABLED || !destination) {
           const error = new Error('invalid_weather_insights_aggregate_table');
           error.code = 'query_cost_cap_exceeded';
           throw error;
         }
         try {
+          // Metadata only: reject linked/external datasets and views before querying.
+          const dataset = await bqFetch('projects/' + encodeURIComponent(destination.project) + '/datasets/' + encodeURIComponent(destination.dataset));
+          if ((dataset.type && dataset.type !== 'DEFAULT') || dataset.linkedDatasetSource || dataset.externalDatasetReference || String(dataset.location || '').toUpperCase() !== LOCATION.toUpperCase()) {
+            throw Object.assign(new Error('invalid_weather_insights_aggregate_dataset'), { code: 'query_cost_cap_exceeded' });
+          }
+          const table = await bqFetch('projects/' + encodeURIComponent(destination.project) + '/datasets/' + encodeURIComponent(destination.dataset) + '/tables/' + encodeURIComponent(destination.table));
+          if (table.type !== 'TABLE') throw Object.assign(new Error('invalid_weather_insights_aggregate_table'), { code: 'query_cost_cap_exceeded' });
           rows = await runQuery(aggregateSql(AGGREGATE_TABLE), [
             param('lat', 'FLOAT64', gridLat),
             param('lng', 'FLOAT64', gridLng),

@@ -43,6 +43,13 @@ export function expectedWindows(startDateIso, todayIso) {
 // precip_sum, humidity_sum, humidity_n, first_observed_at, last_observed_at.
 // Windows with no raw rows are stored as sentinel rows (NULL lat/lng, 0 hours) so
 // completeness can be measured. Windows overlapping the range start are included.
+export function aggregateDestination(value, project, sourceDataset) {
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9-]*\.[A-Za-z][A-Za-z0-9_]*\.weather_history_in_windows$/.test(value)) return null;
+  const [targetProject, dataset, table] = value.split('.');
+  if (targetProject !== project || [sourceDataset, 'weather_insights', 'weathernext_3'].includes(dataset)) return null;
+  return { project: targetProject, dataset, table };
+}
+
 export function aggregateSql(table) {
   if (typeof table !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(table)) {
     throw new Error('invalid_weather_insights_aggregate_table');

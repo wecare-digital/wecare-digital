@@ -66,7 +66,7 @@ test('historical weather 1y and 5y read a bounded aggregate and never scan the r
   assert.match(server, /AGGREGATE_MAX_BYTES_BILLED = '134217728'/);
   assert.match(server, /error\.code = 'query_cost_cap_exceeded'/);
   assert.match(build, /--maximum_bytes_billed="\$CAP_BYTES"/);
-  assert.match(build, /MAX_CHUNKS" -le 12/);
+  assert.match(build, /MAX_CHUNKS" -le 4/);
   assert.match(build, /NOT EXISTS/);
   assert.doesNotMatch(build, /gcloud[^\n]*quota|services quota|apply_quota/i);
 });
@@ -133,7 +133,12 @@ test('aggregate builder --verify enforces completeness and raw equality (mocked 
   const script = fileURLToPath(new URL('../scripts/build_weather_history_aggregate.sh', import.meta.url));
   writeFileSync(join(dir, 'bq'), `#!/usr/bin/env bash
 args="$*"
-case "$args" in *"show "*) exit 0;; esac
+case "$args" in
+  *"show --format=prettyjson wecaredigitalbw:approved_weather"*)
+    if [ -n "\${FAKE_DATASET:-}" ]; then printf '%s\\n' "$FAKE_DATASET"; else echo '{"datasetReference":{"projectId":"wecaredigitalbw","datasetId":"approved_weather"},"location":"US","type":"DEFAULT"}'; fi
+    exit 0;;
+  *"show "*) exit 0;;
+esac
 case "$args" in
   *"SELECT CAST(window_start AS STRING) FROM"*) echo window_start; printf '%s\\n' $FAKE_DONE;;
   *"MAX(window_start) AS STRING"*) echo "a,b"; echo "2026-11-01,2026-11-16";;
@@ -149,12 +154,21 @@ esac
     for (const d of [1, 16]) done.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
   }
   const run = (env) => spawnSync('bash', [script, '--verify'], {
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, ...env }, encoding: 'utf8',
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, WEATHER_INSIGHTS_AGGREGATE_TABLE: 'wecaredigitalbw.approved_weather.weather_history_in_windows', CONFIRM_AGGREGATE_BACKFILL: '1', ...env }, encoding: 'utf8',
   });
   try {
     const ok = run({ FAKE_DONE: done.join(' '), FAKE_AGG: '10,100,500.5,20.25' });
     assert.equal(ok.status, 0, ok.stdout + ok.stderr);
     assert.match(ok.stdout, /aggregate matches raw/);
+    const linked = run({ WEATHER_INSIGHTS_AGGREGATE_TABLE: 'wecaredigitalbw.weather_insights.weather_history_in_windows' });
+    assert.notEqual(linked.status, 0);
+    assert.match(linked.stdout, /separate writable dataset/);
+    const metadataLinked = run({ FAKE_DATASET: JSON.stringify({ datasetReference: { projectId: 'wecaredigitalbw', datasetId: 'approved_weather' }, location: 'US', type: 'LINKED' }) });
+    assert.notEqual(metadataLinked.status, 0);
+    assert.match(metadataLinked.stderr, /non-linked/);
+    const unapproved = run({ CONFIRM_AGGREGATE_BACKFILL: '' });
+    assert.notEqual(unapproved.status, 0);
+    assert.match(unapproved.stdout, /CONFIRM_AGGREGATE_BACKFILL/);
     const bad = run({ FAKE_DONE: done.join(' '), FAKE_AGG: '10,100,999,20.25' });
     assert.notEqual(bad.status, 0);
     assert.match(bad.stdout, /aggregate differs from raw/);
@@ -192,4 +206,23 @@ test('container includes both historical helpers and long-range caps preserve st
   assert.match(server, /boundedQueryBytes\(process\.env\.BQ_MAX_BYTES_BILLED_1Y \|\| GLOBAL_MAX_BYTES_BILLED, BigInt\(AGGREGATE_MAX_BYTES_BILLED\)\)/);
   assert.match(server, /boundedQueryBytes\(process\.env\.BQ_MAX_BYTES_BILLED_5Y \|\| GLOBAL_MAX_BYTES_BILLED, BigInt\(AGGREGATE_MAX_BYTES_BILLED\)\)/);
   assert.match(server, /\], RANGE_MAX_BYTES_BILLED\[range\]\);/);
+});
+
+
+test('aggregate destination must be explicit, same-project and separate from linked sources', async () => {
+  const { aggregateDestination } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+  for (const name of ['', 'wecaredigitalbw.weather_insights.weather_history_in_windows', 'wecaredigitalbw.weathernext_3.weather_history_in_windows', 'other.approved_weather.weather_history_in_windows', 'wecaredigitalbw.approved_weather.weather_history_in', 'wecaredigitalbw._temporary.weather_history_in_windows']) {
+    assert.equal(aggregateDestination(name, 'wecaredigitalbw', 'weather_insights'), null);
+  }
+  assert.deepEqual(aggregateDestination('wecaredigitalbw.approved_weather.weather_history_in_windows', 'wecaredigitalbw', 'weather_insights'), { project: 'wecaredigitalbw', dataset: 'approved_weather', table: 'weather_history_in_windows' });
+});
+
+test('builder uses BigQuery-compatible geography keys and cluster types with capped queries', () => {
+  const build = readFileSync(new URL('../scripts/build_weather_history_aggregate.sh', import.meta.url), 'utf8');
+  assert.match(build, /PARTITION BY ST_ASBINARY/);
+  assert.match(build, /lat NUMERIC, lng NUMERIC/);
+  assert.match(build, /PARTITION BY window_start CLUSTER BY lat, lng/);
+  assert.match(build, /AGG_CAP_BYTES=134217728/);
+  assert.match(build, /EST_SQL="\$SQL"/);
+  assert.match(build, /CONFIRM_AGGREGATE_BACKFILL/);
 });
