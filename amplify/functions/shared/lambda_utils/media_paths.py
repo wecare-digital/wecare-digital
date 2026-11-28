@@ -23,6 +23,9 @@ names one of these prefixes, and nothing else holds a current object::
       stream/media/  m/ (branding; flags/)  ivr/  reports/  docs/
       error.html  healthcheck.txt
 
+Added 2026-11-28, private (outside ``public/``): ``secure/d/analytics/whatsapp/operational/``
+(WhatsApp analytics export) and ``secure/d/docs-scraper/`` (docs-scraper output).
+
 Compose keys from these constants rather than hand-building path strings.
 
 What is public
@@ -35,7 +38,8 @@ CloudFront ``E2GP22R4BIFGQ3`` serves the bucket as ``https://wecare.digital/get/
   (``whatsapp/wa-tpl/``), template-header copies, the IVR greeting folder, catalog,
   blog and invoice fonts - EXCEPT the customer data in `PRIVATE_DELIVERABLE_PREFIXES`
   (invoices, receipts, WhatsApp incoming/outgoing/voice media, transcriptions,
-  downloads, calling-ai, resumable uploads), which is redirected since 2026-10-25.
+  downloads, calling-ai, resumable uploads), which is redirected since 2026-10-25, and
+  WhatsApp analytics (``whatsapp/analytics/``), redirected since 2026-11-28.
 * Every other ``secure/**`` key - ``secure/u/**`` and any ``secure/d/`` key outside
   ``public/`` - is redirected at the edge and reachable only through a presigned URL.
 * Everything else, including ``o/**`` and the bucket root, is public.
@@ -81,8 +85,9 @@ VAULT_UPLOAD_PREFIX = PUBLIC_DELIVERABLE_ROOT + "valut/"
 
 # Canonical application-owned prefixes. New writes must use these names rather than
 # recomposing path strings at call sites. Historical reads may still use canonical().
-# There is deliberately no "secure deliverable" alias: the only deliverable subtree in the
-# layout is public, and a name that reads as gated would invite a disclosure.
+# There is deliberately no generic "secure deliverable" alias: most of secure/d/ is the public
+# subtree, and a name that reads as gated would invite a disclosure. Private generated output
+# gets its own named prefix (WHATSAPP_ANALYTICS_EXPORT_PREFIX, SCRAPED_DOCS_PREFIX).
 SECURE_UPLOAD_ROOT = "secure/u/"
 
 # Dedicated customer Drop Docs storage. This is PRIVATE despite its public/ ancestor.
@@ -106,6 +111,9 @@ WHATSAPP_DOWNLOADS_PREFIX = WHATSAPP_ROOT + "downloads/"
 WHATSAPP_CALLING_AI_PREFIX = WHATSAPP_ROOT + "calling-ai/"
 WHATSAPP_CALLING_PREFIX = WHATSAPP_ROOT + "whatsapp-calling/"
 WHATSAPP_RESUMABLE_PREFIX = WHATSAPP_ROOT + "resumable/"
+#: Private. The operational export moved to WHATSAPP_ANALYTICS_EXPORT_PREFIX on 2026-11-28;
+#: inbound-whatsapp-handler still archives Meta webhook payloads under meta-events/.
+WHATSAPP_ANALYTICS_PREFIX = WHATSAPP_ROOT + "analytics/"
 WHATSAPP_TEMPLATE_HEADER_PREFIX = WHATSAPP_ROOT + "template-headers/"
 WHATSAPP_TEMPLATE_ASSET_ROOT = WHATSAPP_ROOT + "wa-tpl/"
 WHATSAPP_TEMPLATE_IMAGE_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "img/"
@@ -131,7 +139,13 @@ PRIVATE_DELIVERABLE_PREFIXES: tuple[str, ...] = (
     WHATSAPP_DOWNLOADS_PREFIX,
     WHATSAPP_CALLING_AI_PREFIX,
     WHATSAPP_RESUMABLE_PREFIX,
+    WHATSAPP_ANALYTICS_PREFIX,
 )
+
+#: Private generated output outside PUBLIC_DELIVERABLE_ROOT, so the edge refuses it like the
+#: rest of `secure/`. Read through the S3 API only.
+WHATSAPP_ANALYTICS_EXPORT_PREFIX = SECURE_ROOT + "d/analytics/whatsapp/operational/"
+SCRAPED_DOCS_PREFIX = SECURE_ROOT + "d/docs-scraper/"
 
 BLOG_ROOT = PUBLIC_DELIVERABLE_ROOT + "blog/"
 BLOG_AUDITS_PREFIX = BLOG_ROOT + "audits/"
@@ -151,6 +165,7 @@ PUBLIC_STREAM_MEDIA_ROOT = PUBLIC_ROOT + "stream/media/"
 PUBLIC_STREAM_MEDIA_M_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "m/"
 PUBLIC_STREAM_MEDIA_IVR_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "ivr/"
 PUBLIC_STREAM_MEDIA_REPORTS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "reports/"
+# Former docs-scraper output (public). The scraper writes SCRAPED_DOCS_PREFIX since 2026-11-28.
 PUBLIC_STREAM_MEDIA_DOCS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "docs/"
 PUBLIC_STREAM_MEDIA_FLAGS_PREFIX = PUBLIC_STREAM_MEDIA_M_PREFIX + "flags/"
 

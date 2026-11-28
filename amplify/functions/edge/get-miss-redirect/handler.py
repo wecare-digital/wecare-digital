@@ -89,6 +89,8 @@ PRIVATE_DELIVERABLE_PREFIXES = tuple(PUBLIC_DELIVERABLE_PREFIX + p for p in (
     "whatsapp/downloads/",
     "whatsapp/calling-ai/",
     "whatsapp/resumable/",
+    # WhatsApp analytics: the old operational export and the Meta webhook archive.
+    "whatsapp/analytics/",
 ))
 
 # Response headers that describe the refused object. Dropped on a deny so the 302 reveals

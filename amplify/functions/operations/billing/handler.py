@@ -62,7 +62,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Admin')
     if _auth is not None:
         return _auth
 
