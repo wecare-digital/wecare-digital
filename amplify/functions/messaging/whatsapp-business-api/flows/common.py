@@ -12,7 +12,7 @@ import logging
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
-from lambda_utils import contact_store, shared_tables, message_store
+from lambda_utils import contact_store, flow_sessions, shared_tables, message_store
 from lambda_utils.identity import customer_uuid
 from lambda_utils.privacy import mask_flow_token, redact_string
 
@@ -44,11 +44,35 @@ PHONE2_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_2', 'phone-number-id-waba-t
 
 # ── Phone resolution ──
 
+#: What WhatsApp shows (HTTP 427) when a Flow token has no live server-issued session.
+SESSION_REJECTED = 'This form is no longer available. Please request a new link.'
+
+
 def get_phone_from_token(flow_token: str) -> str:
-    """Extract customer phone from flow_token."""
+    """The text after `-ph-`. Unverified: log attribution only, never identity."""
     if flow_token and '-ph-' in flow_token:
         return flow_token.split('-ph-', 1)[1]
     return ''
+
+
+def require_session(flow_token: str, capability: str, *,
+                    allow_consumed: bool = True) -> flow_sessions.FlowSession:
+    """The live server-issued session behind `flow_token`, else FlowSessionRejected (427).
+
+    The phone inside a token is only a claim; endpoint flows take the customer from the
+    returned session. A store error raises FlowSessionUnavailable, never a session.
+    """
+    session = flow_sessions.verify_session(
+        dynamodb.Table(flow_sessions.table_name()), capability=capability,
+        token=flow_token, rejected_message=SESSION_REJECTED)
+    if session.consumed_at and not allow_consumed:
+        raise flow_sessions.FlowSessionRejected('session_consumed', SESSION_REJECTED)
+    return session
+
+
+def reject(reason: str) -> None:
+    """Refuse this request with HTTP 427. `reason` is logged, never shown."""
+    raise flow_sessions.FlowSessionRejected(reason, SESSION_REJECTED)
 
 
 def get_phone_number_id_for_flow(flow_token: str) -> str:

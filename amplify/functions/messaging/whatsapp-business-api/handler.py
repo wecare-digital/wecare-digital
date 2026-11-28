@@ -5330,7 +5330,6 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
                 action=action, screen=screen, data=data,
                 flow_token=flow_token, request_id=request_id,
                 get_flow_registry_fn=_get_flow_registry_by_code,
-                fetch_orders_fn=_fetch_orders_for_flow,
             )
         except flow_sessions.FlowSessionRejected as rejected:
             # Not a server-issued live session. 427 is WhatsApp's "Flow token is no longer
@@ -5910,12 +5909,6 @@ def _find_contact_by_phone(phone: str) -> str:
     except Exception as e:
         logger.warning(f'Contact lookup failed for {mask_phone(phone)}: {type(e).__name__}')
     return ''
-
-
-def _fetch_orders_for_flow(phone: str, email: str) -> list:
-    """Thin wrapper — delegates to flows.orders module (order-centric)."""
-    from flows.orders import fetch_orders_for_flow
-    return fetch_orders_for_flow(phone, email)
 
 
 def _plain_numbers(item: Dict) -> Dict:
