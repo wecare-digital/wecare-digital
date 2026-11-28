@@ -1037,6 +1037,37 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     return result
 
 
+#: A payment-id-only dedupe has no index to query, so it scans at most this many pages and
+#: then fails closed (503, retryable) instead of reading the whole table on the webhook path.
+_INVOICE_DEDUP_SCAN_MAX_PAGES = 10
+
+
+def _invoice_dedup_matches(table: Any, reference_id: str, payment_id: str) -> List[Dict]:
+    """Invoice rows a create must dedupe against. Raises when the answer is not complete.
+
+    With a reference: every page of `referenceId-index`. Without one: a scan for the payment id,
+    bounded by `_INVOICE_DEDUP_SCAN_MAX_PAGES`.
+    """
+    rows: List[Dict] = []
+    if reference_id:
+        kwargs = {'IndexName': 'referenceId-index', 'KeyConditionExpression': 'referenceId = :ref',
+                  'ExpressionAttributeValues': {':ref': reference_id}}
+        while True:
+            page = table.query(**kwargs)
+            rows.extend(page.get('Items', []))
+            if 'LastEvaluatedKey' not in page:
+                return rows
+            kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    kwargs = {'FilterExpression': 'paymentId = :pid', 'ExpressionAttributeValues': {':pid': payment_id}}
+    for _ in range(_INVOICE_DEDUP_SCAN_MAX_PAGES):
+        page = table.scan(**kwargs)
+        rows.extend(page.get('Items', []))
+        if 'LastEvaluatedKey' not in page:
+            return rows
+        kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    raise RuntimeError('invoice dedupe scan exceeded its page bound')
+
+
 def _release_unnumbered_claim(claim: Dict[str, Any], request_id: str) -> None:
     """Delete this request's own `claiming` row when no GST number was consumed for it."""
     invoice_id = claim.get('invoiceId')
@@ -1148,27 +1179,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
 
     if reference_id or payment_id:
         try:
-            filter_parts = []
-            expr_values = {}
-            if reference_id:
-                filter_parts.append('referenceId = :ref')
-                expr_values[':ref'] = reference_id
-            if payment_id:
-                filter_parts.append('paymentId = :pid')
-                expr_values[':pid'] = payment_id
-
-            filter_expr = ' OR '.join(filter_parts)
-            # Full pagination to avoid DynamoDB Limit bug (Limit = items evaluated, not returned).
-            # Every page is read, not just the first with a hit: a match is only safe to adopt
-            # when it is the ONLY one. The no-match path already read every page.
-            existing = []
-            scan_kwargs = {'FilterExpression': filter_expr, 'ExpressionAttributeValues': expr_values}
-            while True:
-                result = table.scan(**scan_kwargs)
-                existing.extend(result.get('Items', []))
-                if 'LastEvaluatedKey' not in result:
-                    break
-                scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+            # Every matching row, not just the first: a match is only safe to adopt when it is
+            # the ONLY one. A reference is a Query; only a payment-id-only create still scans.
+            existing = _invoice_dedup_matches(table, reference_id, payment_id)
 
             matched_ids = {str(row.get('invoiceId') or '') for row in existing}
             if len(matched_ids) > 1:
