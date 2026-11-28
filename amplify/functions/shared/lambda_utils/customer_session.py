@@ -66,6 +66,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -88,6 +89,8 @@ SHARED_DEVICE_ABSOLUTE_SECONDS = int(os.environ.get(
 COOKIE_NAME = "wd_csid"
 #: Bytes of CSPRNG behind the opaque id and the CSRF token. 32 bytes == 256 bits; not guessable.
 _ID_BYTES = 32
+#: `new_opaque_id()` output: unpadded URL-safe base64 of `_ID_BYTES` bytes (43 characters).
+_ID_SHAPE = re.compile(r"[A-Za-z0-9_-]{%d}" % ((4 * _ID_BYTES + 2) // 3))
 
 #: The provisioned store. The module never reads this itself (every function takes an injected
 #: store); it exists so the handlers that DO build a client resolve one name.
@@ -140,6 +143,11 @@ def _hash_id(session_id: str) -> str:
 def new_opaque_id() -> str:
     """A fresh opaque session id. URL-safe, 256 bits of CSPRNG, names nothing."""
     return secrets.token_urlsafe(_ID_BYTES)
+
+
+def is_session_id(value: Any) -> bool:
+    """Whether `value` has the shape `new_opaque_id` produces. Lets a handler refuse junk early."""
+    return isinstance(value, str) and bool(_ID_SHAPE.fullmatch(value))
 
 
 def new_csrf_token() -> str:
@@ -293,11 +301,16 @@ def rotate(store: Any, session_id: str, *, now: Optional[int] = None) -> Tuple[s
     return new_opaque, _view(rotated)
 
 
-def revoke(store: Any, session_id: str, *, now: Optional[int] = None) -> None:
+def revoke(store: Any, session_id: str, *, now: Optional[int] = None,
+           revoke_refresh: Optional[Callable[[str], None]] = None) -> None:
     """Sign-out. The row is marked revoked so a replayed cookie validates to nothing, forever.
 
     Idempotent: revoking an unknown or already-revoked session is a no-op, not an error - a
     sign-out must never fail because the session was already gone.
+
+    `revoke_refresh(refresh_ref)`, when given, is called after the row is marked revoked with the
+    sealed refresh reference the row held, so the caller can revoke the token at Cognito. It
+    fails soft: an error is logged by type and the sign-out still succeeds.
     """
     moment = int(time.time()) if now is None else int(now)
     sid_hash = _hash_id(session_id) if session_id else ""
@@ -308,6 +321,13 @@ def revoke(store: Any, session_id: str, *, now: Optional[int] = None) -> None:
         return
     store.revoke_session(sid_hash, revoked_at=moment)
     logger.info('{"event":"customer_session_revoked"}')
+    refresh_ref = str(row.get("refreshRef") or "")
+    if revoke_refresh is not None and refresh_ref:
+        try:
+            revoke_refresh(refresh_ref)
+        except Exception as error:  # noqa: BLE001 - sign-out is already recorded
+            logger.warning('{"event":"customer_session_token_revoke_failed","error":"%s"}',
+                           type(error).__name__)
 
 
 # ── single-flight refresh ──────────────────────────────────────────────────────────
@@ -489,6 +509,7 @@ __all__ = [
     "RefreshUnavailable",
     "SessionView",
     "new_opaque_id",
+    "is_session_id",
     "new_csrf_token",
     "create_session",
     "validate",
