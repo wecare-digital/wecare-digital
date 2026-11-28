@@ -56,8 +56,7 @@ def _load_rules():
 
 def evaluate_rules(text: str, channel: str) -> Optional[str]:
     """Return the auto-reply text for the first matching enabled rule, else None.
-    actionType 'reply' returns the literal text. 'ai' is left to the caller (returns a
-    sentinel dict via evaluate_rule_match if needed); here we only handle 'reply'."""
+    Only actionType 'reply' is supported; it returns the literal text."""
     try:
         ch = (channel or '').lower()
         body = (text or '').lower().strip()
