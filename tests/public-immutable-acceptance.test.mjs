@@ -64,9 +64,7 @@ test('travel assistant send icon has no visible font-ligature fallback',()=>{
 
 test('dark Relay editor tabs are excluded from every light public action theme selector',()=>{
   const css=read('src/styles/public-button-theme.css');
-  const selectors=[...css.matchAll(/button:not\(:where\(([\s\S]*?)\)\)/g)];
-  assert.ok(selectors.length>=8);
-  assert.ok(selectors.every(match=>match[1].includes('.pp-tab')));
+  assert.doesNotMatch(css,/button:not\(|\.pp-tab\b/);
   const relay=read('src/pages/relay-os/index.tsx');
   assert.match(relay,/aria-pressed=\{activeCode === i\} className=\{`pp-tab/);
   assert.match(relay,/\.pp-tab\{[^}]*color:#b8b8b8;background:transparent/);

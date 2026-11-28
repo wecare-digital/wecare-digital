@@ -320,7 +320,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           box-sizing:border-box;inline-size:44px;min-inline-size:44px;
           block-size:44px;min-block-size:44px;display:inline-flex;
           align-items:center;justify-content:center;padding:0;
-          border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);
+          border:0;border-radius:var(--public-hover-radius);background:transparent;
           color:var(--public-brand-green);cursor:pointer;
           transition:background-color .18s ease;
         }

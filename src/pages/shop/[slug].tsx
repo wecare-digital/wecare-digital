@@ -148,6 +148,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             { product.variants && product.variants.length > 1 && (
               <Select
                 className="shopd-options"
+                menuClassName="public-checkout-select"
                 label="Fit and size"
                 value={ variantId }
                 onChange={ value => { setVariantId( value ); } }

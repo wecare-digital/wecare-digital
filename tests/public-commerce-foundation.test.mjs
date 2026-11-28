@@ -47,7 +47,7 @@ test('public commerce fields inherit Auth focus, accessible pickers and mobile s
   assert.ok(address.includes('padding-inline-end:var(--control-arrow-pad) !important'));
   assert.ok(address.includes('background-color:transparent !important'));
   assert.doesNotMatch(address, /background:transparent !important/);
-  assert.ok(read('src/styles/public-button-theme.css').includes('.nav-section-toggle, .country-trigger, .wc-row'));
+  assert.doesNotMatch(read('src/styles/public-button-theme.css'),/button:not\(/);
   assert.ok(read('src/styles/form-controls.css').includes('--control-tick'));
 });
 

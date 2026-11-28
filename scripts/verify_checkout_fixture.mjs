@@ -205,6 +205,13 @@ async function runScenario(browser,width,mode) {
     await page.evaluate(()=>window.__qaCapture());
     await page.waitForURL('**/orders/**',{timeout:30000});
     await page.getByText(order,{exact:true}).waitFor({state:'visible'});
+    // Resting table colours are neutral even on a paid-order fixture.
+    const headings = await page.locator('.ord-th').evaluateAll(nodes=>nodes.map(el=>getComputedStyle(el).backgroundColor));
+    assert.ok(headings.length>=4 && headings.every(bg=>bg==='rgb(255, 255, 255)'), 'Orders column headings must be white');
+    const resting = await page.locator('.ord-copy,.ord-inv,.ord-account-action,.orm-more').evaluateAll(nodes=>nodes.map(el=>getComputedStyle(el).backgroundColor));
+    assert.ok(resting.length>=3 && resting.every(bg=>bg==='rgba(0, 0, 0, 0)'), 'Orders icon controls must be neutral at rest');
+    assert.equal(await page.locator('.ord-list').evaluate(el=>getComputedStyle(el).borderRadius),'14px');
+    assert.ok(await page.locator('.ord-tr').evaluate(el=>getComputedStyle(el).backgroundColor==='rgba(0, 0, 0, 0)'));
     await captureSnapshot('mock-paid-orders');
     const more = page.getByRole('button', {name: 'More actions for ' + order, exact: true});
     await more.click();

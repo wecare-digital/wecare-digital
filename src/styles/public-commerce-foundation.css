@@ -305,7 +305,7 @@
   overscroll-behavior-inline: contain;
 }
 :root:has([data-public-auth-button-theme="active"]) .ord-th {
-  background: var(--public-lime-tint);
+  background: var(--public-bg);
   border-block-end: 1px solid var(--public-hairline);
 }
 :root:has([data-public-auth-button-theme="active"]) .ord-amount {

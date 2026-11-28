@@ -1123,7 +1123,7 @@ export default function OrdersPage (): React.ReactElement {
              no cursor:pointer, so there is nothing to discover and fail to activate. Row
              tracking across five columns is what the tint is for. No :active equivalent - a tap
              on a row must do nothing and look like it did nothing. */
-          .ord-tr:hover{background:var(--public-hover-surface)}
+          .ord-tr:hover{background:transparent}
 
           /* text-align:start and font-weight:400 are RESETS, and required rather than tidy:
              .ord-td is also carried by the <th scope="row"> in column 1, where the UA stylesheet
@@ -1194,14 +1194,14 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-shell,.ord-main{gap:12px}
 
-          /* Match HeaderCart's lime + forest-green pairing, but show the lime surface
-             at rest on Orders as requested. Keep 44px targets and a 10px radius,
-             with no grey fills or icon badges. */
+          /* Match the neutral HeaderCart at rest. Reserve lime for deliberate
+             hover, open actions and the small payment-status indicator.
+             Preserve 44px targets and all existing action semantics. */
           .ord-account-action,.ord-copy,.ord-inv{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
             min-height:44px;display:inline-flex;align-items:center;justify-content:center;
             padding:0;margin:0;border:0;border-radius:var(--public-hover-radius);
-            background:var(--public-lime-tint);color:var(--public-brand-green);
+            background:transparent;color:var(--public-brand-green);
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
           }
@@ -1216,19 +1216,18 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-account-action:focus-visible,
           .ord-copy:focus-visible,.ord-inv:focus-visible{
-            background:var(--public-lime-tint);outline:2px solid var(--public-brand-green);
+            background:transparent;outline:2px solid var(--public-brand-green);
             outline-offset:2px;
           }
           .ord-account-action:disabled,.ord-copy:disabled,.ord-inv:disabled{
             opacity:.55;cursor:default;
           }
 
-          /* Pure white surfaces; no grey table-header background or tinted row fill.
-             A slim lime rule carries the same brand accent as Home. */
+          /* Neutral white data table, including the column headings. Lime is
+             reserved for active actions and the small payment-status cue. */
           .ord-list{
-            padding:0;gap:0;border:1px solid var(--public-brand-lime);
-            border-block-start:2px solid var(--public-brand-lime);
-            border-radius:16px;background:var(--public-bg);box-shadow:none;
+            padding:0;gap:0;border:1px solid var(--public-hairline);
+            border-radius:var(--public-card-radius);background:var(--public-bg);box-shadow:none;
           }
           .ord-list-head{padding:10px 14px}
           .ord-list .ord-h2{
@@ -1244,8 +1243,8 @@ export default function OrdersPage (): React.ReactElement {
             border-block-start:0;overflow-x:auto;background:transparent;
           }
           .ord-th{
-            padding:10px 12px;background:var(--public-brand-lime);
-            border-block-end:2px solid var(--public-brand-green);
+            padding:10px 12px;background:var(--public-bg);
+            border-block-end:1px solid var(--public-hairline);
             color:var(--public-brand-green);
             font-family:var(--font-sans);font-size:var(--public-meta-size);
             font-weight:700;
