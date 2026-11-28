@@ -85,12 +85,14 @@ def test_cpcb_nearest_fresh_station_and_missing_units():
 
 
 def test_cpcb_reads_only_fixed_secure_parameter(monkeypatch):
+    monkeypatch.setattr(h, "_cpcb_key_cache", {})
     monkeypatch.setattr(h, "CPCB_PARAMETER", h.CPCB_PARAMETER_NAME)
     fake = Mock()
     fake.get_parameter.return_value = {"Parameter": {
         "Name": h.CPCB_PARAMETER_NAME, "Type": "SecureString", "Value": "unit-test-placeholder"
     }}
     monkeypatch.setattr(h, "_cpcb_ssm", fake)
+    assert h._cpcb_key() == "unit-test-placeholder"
     assert h._cpcb_key() == "unit-test-placeholder"
     fake.get_parameter.assert_called_once_with(Name="/wecare/nano-climate/cpcb", WithDecryption=True)
     fake.reset_mock()
@@ -107,6 +109,7 @@ def test_cpcb_reads_only_fixed_secure_parameter(monkeypatch):
     ("/wecare/nano-climate/cpcb", "SecureString", "not a valid credential"),
 ])
 def test_cpcb_rejects_invalid_parameter(monkeypatch, name, kind, value):
+    monkeypatch.setattr(h, "_cpcb_key_cache", {})
     monkeypatch.setattr(h, "CPCB_PARAMETER", h.CPCB_PARAMETER_NAME)
     fake = Mock()
     fake.get_parameter.return_value = {"Parameter": {"Name": name, "Type": kind, "Value": value}}
