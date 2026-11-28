@@ -15,8 +15,13 @@
 #
 # Manifests covered (verified present, each with its own lockfile where npm):
 #   /                                              package.json + package-lock.json
+#   /amplify                                       package.json + package-lock.json
+#   /tools/audit, /gcp/vayulok-weather-insights    package.json (no dependencies yet)
 #   /requirements-dev.txt                          pip
+#   /requirements-ci.in + requirements-ci.txt      pip (pip-compile, hash-locked)
 #   /amplify/functions/operations/docs-scraper     requirements.txt + Dockerfile
+#   /gcp/vayulok-weather-insights                  Dockerfile
+#   /.github/workflows                             GitHub Actions (SHA-pinned)
 
 version: 2
 
@@ -40,6 +45,40 @@ updates:
           - "minor"
           - "patch"
 
+  # The Amplify Gen 2 backend definition: a separate install root with its own
+  # lockfile (see the description in amplify/package.json). CI never installs it,
+  # so the PR's Verify run does not test these updates. Before merging one, run
+  # `npx npm@11.6.2 ci` in a temporary copy of amplify/. Never run `npm audit fix`
+  # there: it leaves a lockfile that `npm ci` refuses.
+  - package-ecosystem: "npm"
+    directory: "/amplify"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(amplify-deps)"
+    groups:
+      amplify-backend-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Two small Node packages that have a package.json but no dependencies today:
+  # the static-export audit scripts and the VayuLok weather-insights service.
+  # Listed so that a dependency added later is tracked from the start.
+  - package-ecosystem: "npm"
+    directories:
+      - "/tools/audit"
+      - "/gcp/vayulok-weather-insights"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(deps)"
+
   # requirements-dev.txt is a FULL FREEZE of the local venv, not a loose set of
   # ranges, and its header documents pins that cannot move on their own -
   # pydantic==2.13.5 hard-pins pydantic_core==2.46.5, so a lone pydantic_core
@@ -49,6 +88,12 @@ updates:
   # pins move together in a single coherent diff instead of arriving as separate,
   # individually-broken PRs. Read the header of requirements-dev.txt before
   # merging - this file does NOT define the Lambda runtime.
+  #
+  # This entry also covers requirements-ci.in and requirements-ci.txt, the
+  # hash-locked set the CI Verify job installs: Dependabot reads every
+  # requirements*.txt and *.in file in the directory, and a second pip entry for
+  # "/" would be rejected. requirements-ci.txt is pip-compile output, and the
+  # PR's own Verify run installs it with --require-hashes.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -95,8 +140,22 @@ updates:
     open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(docker)"
+
+  # Base image of the VayuLok weather-insights Cloud Run service. cloudbuild.yaml
+  # in the same folder runs its check step on the same node image, and nothing
+  # here updates that file, so move it to the same tag when merging a bump.
+  - package-ecosystem: "docker"
+    directory: "/gcp/vayulok-weather-insights"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(docker)"
+
   # GitHub Actions used by the workflows. Without this the action majors silently age;
   # they were four majors behind (checkout v4 vs v7) before this entry existed.
+  # Each action is pinned to a full commit SHA with its release tag as a trailing
+  # comment (`@<sha> # v7.0.1`); Dependabot updates the SHA and the comment together.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
