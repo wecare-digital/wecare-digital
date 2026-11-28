@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router';
 import React, { useEffect, useRef, useState } from 'react';
 
 import PageMeta from '../PageMeta';
@@ -17,7 +18,6 @@ import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
-import SubmitRequestJourney from './SubmitRequestJourney';
 import PublicNotice from '../public/PublicNotice';
 import PolicyDetails from '../public/PolicyDetails';
 import { ORDERS_POLICY_DETAILS } from '../../content/publicPolicyDetails';
@@ -342,10 +342,10 @@ async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
 }
 
 export default function OrdersPage (): React.ReactElement {
+  const router = useRouter();
   const [ view, setView ] = useState<View>( 'loading' );
   const [ token, setToken ] = useState( '' );
   const [ requestSelection, setRequestSelection ] = useState<OrderRequestId | null>( null );
-  const [ submitOrderNumber, setSubmitOrderNumber ] = useState<string | null>( null );
   const requestPanel = useRef<HTMLDivElement>( null );
   const selectedRequest = orderRequestById( requestSelection );
   const requestLink = selectedRequest && selectedRequest.id !== 'submit-request' ? whatsappServiceLink( selectedRequest.id ) : undefined;
@@ -685,7 +685,6 @@ export default function OrdersPage (): React.ReactElement {
       const selected = orderRequestFromHash( window.location.hash );
       void takeOrderRequest();
       setRequestSelection( selected );
-      setSubmitOrderNumber( null );
     };
     window.addEventListener( 'hashchange', onHashChange );
     return () => window.removeEventListener( 'hashchange', onHashChange );
@@ -697,13 +696,7 @@ export default function OrdersPage (): React.ReactElement {
       requestPanel.current.focus( { preventScroll: true } );
       requestPanel.current.scrollIntoView( { block: 'start' } );
     }
-  }, [ signedIn, requestSelection, submitOrderNumber ] );
-
-  const closeSubmitRequest = () => {
-    setSubmitOrderNumber( null );
-    setRequestSelection( null );
-    window.history.replaceState( window.history.state, '', '/orders/' );
-  };
+  }, [ signedIn, requestSelection ] );
 
 
   return (
@@ -778,10 +771,7 @@ export default function OrdersPage (): React.ReactElement {
               <div className="ord-main">
                 { selectedRequest?.id === 'submit-request' && (
                   <div ref={ requestPanel } tabIndex={ -1 } className="ord-request-action">
-                    { submitOrderNumber ? <SubmitRequestJourney key={ submitOrderNumber }
-                      orderNumber={ submitOrderNumber } accessToken={ token }
-                      onDone={ closeSubmitRequest } onExpired={ expire } />
-                      : <p>Choose an order and select Submit Request.</p> }
+                    <p>Choose an order and select Submit Request.</p>
                   </div>
                 ) }
                 { selectedRequest && requestLink && (
@@ -948,8 +938,11 @@ export default function OrdersPage (): React.ReactElement {
                                   </>
                                 ) }
                               <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
+                                if ( id === 'submit-request' ) {
+                                  void router.push( `/orders/request/#order=${encodeURIComponent( order.orderNumber )}` );
+                                  return;
+                                }
                                 setRequestSelection( id );
-                                setSubmitOrderNumber( id === 'submit-request' ? order.orderNumber : null );
                                 window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
                               } } />
                               </span>

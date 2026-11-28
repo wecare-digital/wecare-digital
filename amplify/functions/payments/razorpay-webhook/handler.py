@@ -3173,6 +3173,25 @@ def _post_payment_handler(payment_id: str, contact: str,
     state['step'] = 'image'
     _ensure_invoice_asset(invoice_id, request_id)
 
+    # An owner-bound website F004 already includes the customer's request note.
+    # Its service fulfillment must not depend on delivery of a WhatsApp receipt.
+    # This narrow dispatch still requires a numbered invoice and the existing
+    # receiver independently verifies the paid original-order activity.
+    if reference_id and checkout_mode == 'WEBSITE_RAZORPAY_STANDARD':
+        reservation = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        line = reservation.get('serviceLine') or {}
+        if (reservation.get('websiteForm') == 'F004-website-v1'
+                and line.get('singleOrder') is True
+                and line.get('serviceCode') == 'SUBMIT_REQUEST'):
+            state['step'] = 'service'
+            if not _dispatch_post_invoice_service_flow(
+                    reference_id=reference_id,
+                    payment_attempt_id=str(reservation.get('paymentAttemptId') or ''),
+                    order_id=str(line.get('selectedOrderId') or ''),
+                    request_id=request_id, invoice_id=invoice_id):
+                state['pending'].append('service')
+
     # ── Step 3: finish the Meta payment-order lifecycle before the receipt ──
     #
     # Payment-only invariant: pending -> processing -> completed. The chained helper sends the

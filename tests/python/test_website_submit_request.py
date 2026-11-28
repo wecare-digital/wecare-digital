@@ -220,3 +220,102 @@ def test_checkout_refuses_foreign_order_before_quote_or_create():
     assert reply["statusCode"] == 404
     create.assert_not_called()
     quote.assert_not_called()
+
+
+def test_native_prepare_uses_existing_order_and_same_gateway_on_resume():
+    from lambda_utils.ecommerce import website_checkout as checkout
+    keys, attempts = Table("orderId"), Table("paymentAttemptId")
+    amount = 7468
+    snapshot = SimpleNamespace(
+        snapshot_hash="fixture-snapshot", frozen_data={
+            "items": [{"quantity": 1, "unitPricePaise": 4900}],
+            "pricingMetadata": {"supplyGstPaise": 882, "discountPaise": 28, "expressPaise": 1500}},
+        quote=SimpleNamespace(currency="INR", total_payable_paise=amount,
+                              convenience_fee_paise=181, convenience_gst_paise=33))
+    gateway = "order_fixture"
+    reference = "reference-A"
+    payref = dict(customerId=OWNER, paymentAttemptId="attempt-A", amountPaise=amount,
+                  checkoutMode=checkout.CHECKOUT_MODE_WEBSITE, websiteForm=web.VERSION,
+                  serviceLine=dict(singleOrder=True, serviceCode=web.SERVICE,
+                                   selectedOrderId=ORDER, selectedOrderNumber=NUMBER))
+    binding = dict(customerId=OWNER, paymentAttemptId="attempt-A", gatewayOrderId=gateway,
+                   referenceId=reference, requestKey=KEY, amountPaise=amount,
+                   currency="INR", accountKeyId="rzp_test_fixture")
+    fields = dict(customerId=OWNER, selectedOrderId=ORDER, selectedOrderNumber=NUMBER,
+                  websiteForm=web.VERSION, websiteRequestKey=KEY, websiteRequestNote=NOTE,
+                  serviceCode=web.SERVICE, flowCapability=web.CAPABILITY, singleOrderService=True)
+    provider = Mock(return_value={"id": gateway, "key_id": "rzp_test_fixture"})
+    def allocate(table, *, payment_attempt_id, extra):
+        assert payment_attempt_id == "attempt-A"
+        assert extra["serviceLine"]["selectedOrderId"] == ORDER
+        assert extra["amountPaise"] == amount
+        return reference
+    def persist(row):
+        attempts.rows[row["paymentAttemptId"]] = row
+    def engine(**kw):
+        assert kw["customer_id"] == OWNER
+        assert kw["presented_snapshot_hash"] == snapshot.snapshot_hash
+        assert kw["allocate_reference"]("attempt-A", amount) == reference
+        kw["create_order"](amount_paise=amount, receipt=reference, notes={})
+        kw["reserve_attempt"](dict(paymentAttemptId="attempt-A", referenceId=reference,
+            checkoutMode=checkout.CHECKOUT_MODE_WEBSITE, providerOrderId=gateway,
+            amountPaise=amount, status=payment_attempt.PAYMENT_PENDING))
+        return SimpleNamespace(status=checkout.CHECKOUT_OPTIONS_READY)
+    args = dict(keys=keys, attempts=attempts, owner=OWNER, order_id=ORDER, number=NUMBER,
+                key=KEY, note=NOTE, snapshot=snapshot, expected_amount=amount, now=1,
+                initiation_enabled=True, create_order=provider, find_order_by_receipt=Mock(),
+                account_mode_of=Mock(), payref_fields=payref, attempt_fields=fields,
+                reserve_attempt=persist, prefill={})
+    with patch.object(checkout, "prepare_checkout", side_effect=engine) as prepare, \
+         patch.object(web.order_keys, "allocate_payment_reference", side_effect=allocate), \
+         patch.object(web.order_keys, "resolve_gateway_order", return_value=binding), \
+         patch.object(web.order_keys, "resolve_payment_reference", return_value=payref):
+        with pytest.raises(ValueError, match="SERVICE_PRICE_CHANGED"):
+            web.prepare_native(**{**args, "expected_amount": amount + 1})
+        prepare.assert_not_called()
+        provider.assert_not_called()
+        initial = web.prepare_native(**args)
+        assert initial["state"] == "pending" and initial["options"]["orderId"] == gateway
+        assert initial["options"]["amountPaise"] == amount
+        assert initial["resumeAvailable"] is True
+        assert attempts.rows["attempt-A"]["selectedOrderId"] == ORDER
+        assert attempts.rows["attempt-A"]["websiteRequestNote"] == NOTE
+        # Repeating the click or another key cannot create a second gateway order.
+        assert "options" not in web.prepare_native(**args)
+        assert "options" not in web.prepare_native(**{**args, "key": KEY2})
+        provider.assert_called_once()
+        resumed = web.resume_options(keys, attempts, owner=OWNER, order_id=ORDER, number=NUMBER)
+        assert resumed["orderId"] == gateway and resumed["amountPaise"] == amount
+        with pytest.raises(RuntimeError):
+            web.resume_options(keys, attempts, owner="foreign", order_id=ORDER, number=NUMBER)
+        binding["amountPaise"] = amount + 1
+        assert web.resume_options(keys, attempts, owner=OWNER, order_id=ORDER, number=NUMBER) is None
+        binding["amountPaise"] = amount
+        attempts.rows["attempt-A"]["checkoutMode"] = "WHATSAPP_NATIVE_CART"
+        assert web.resume_options(keys, attempts, owner=OWNER, order_id=ORDER, number=NUMBER) is None
+        attempts.rows["attempt-A"]["checkoutMode"] = checkout.CHECKOUT_MODE_WEBSITE
+        attempts.rows["attempt-A"]["status"] = payment_attempt.PAYMENT_PAID
+        assert state(keys, attempts)["state"] == "saving"
+        assert web.resume_options(keys, attempts, owner=OWNER, order_id=ORDER, number=NUMBER) is None
+
+
+def test_legacy_f004_start_cannot_send_whatsapp_even_for_owned_order():
+    source = (Path(__file__).resolve().parents[2] /
+              "amplify/functions/ecommerce/checkout/handler.py").read_text()
+    fn = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "_website_f004")
+    keys, orders = Table("orderId"), Table("orderId")
+    keys.rows["ORDERNO#" + NUMBER] = {"orderIdRef": ORDER}
+    orders.rows[ORDER] = {"customerId": OWNER, "orderNumber": NUMBER, "paymentStatus": "captured"}
+    create = Mock()
+    env = {"_hardened": lambda r: r, "cors_response": lambda code, body, origin: {"statusCode": code, "body": json.dumps(body)},
+           "_keys_table": lambda: keys, "_orders_table": lambda: orders,
+           "order_keys": SimpleNamespace(is_public_order_number=lambda n: n == NUMBER, ORDER_NUMBER_PREFIX="ORDERNO#"),
+           "payment_status": SimpleNamespace(canonical=lambda x: x, CAPTURED="captured"),
+           "_create": create}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), "f004-handler", "exec"), env)
+    result = env["_website_f004"](SimpleNamespace(customer_id=OWNER),
+        {"action": "request-service-web-start", "selectedOrderNumber": NUMBER,
+         "requestKey": KEY, "note": NOTE, "expectedTotalPaise": AMOUNT}, "", "request-service-web-start")
+    assert result["statusCode"] == 409
+    assert json.loads(result["body"])["error"] == "WEBSITE_PAYMENT_CLIENT_UPDATE_REQUIRED"
+    create.assert_not_called()

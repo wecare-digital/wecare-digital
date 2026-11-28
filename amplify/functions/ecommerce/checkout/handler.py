@@ -662,7 +662,8 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     if explicit:
         if explicit in ("create", "status", "prepare", "quote", "verify", "profile",
                         "claim-basket", "order", "request-service-start",
-                        "request-service-web-quote", "request-service-web-start", "request-service-web-status"):
+                        "request-service-web-quote", "request-service-web-start", "request-service-web-status",
+                        "request-service-web-prepare", "request-service-web-resume"):
             return explicit
         # Never reinterpret an unrecognized explicit read (especially 'quote')
         # as create: payment attempts and provider orders are side effects.
@@ -910,7 +911,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _hardened(cors_response(410, {"error": "ORDER_DETAILS_RETIRED"}, origin))
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
-        if action in ("request-service-web-quote", "request-service-web-start", "request-service-web-status"):
+        if action in ("request-service-web-quote", "request-service-web-start", "request-service-web-status",
+                      "request-service-web-prepare", "request-service-web-resume"):
             return _website_f004(identity, body, origin, action)
         if action == "create":
             # Only the authenticated public API dispatch enters here. Native
@@ -1444,7 +1446,8 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
     )
 
 
-def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
+def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int, *,
+                  f004_scope=None):
     """Price a basket of `catalogReference` line items into a native QuoteSnapshot.
 
     A line names a ProductsTable product (`catalogItemId`) and variant (`options.variantId`).
@@ -1482,7 +1485,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
     if not canonical or len(canonical) > 100:
         raise ValueError("cart must contain 1..100 distinct variants")
     stable_input = json.dumps(
-        [identity.customer_id, canonical],
+        [identity.customer_id, canonical] + ([f004_scope] if f004_scope else []),
         separators=(",", ":"), ensure_ascii=True,
     ).encode("utf-8")
     cart_key = hashlib.sha256(stable_input).hexdigest()
@@ -3068,7 +3071,7 @@ def _website_f004(identity, body, origin, action):
         return _hardened(cors_response(code, data, origin))
 
     allowed = {"action", "selectedOrderNumber"}
-    if action == "request-service-web-start":
+    if action in ("request-service-web-start", "request-service-web-prepare"):
         allowed |= {"requestKey", "note", "expectedTotalPaise"}
     if not isinstance(body, dict) or set(body) - allowed:
         return answer(400, {"error": "INVALID_REQUEST_FIELDS"})
@@ -3095,8 +3098,19 @@ def _website_f004(identity, body, origin, action):
         if current["state"] == "idle" and not _website_f004_ready():
             return answer(503, {"error": "WEBSITE_FORM_UNAVAILABLE"})
         return answer(200, current)
+    # Old browser bundles must fail closed rather than sending a WhatsApp payment.
+    if action == "request-service-web-start":
+        return answer(409, {"error": "WEBSITE_PAYMENT_CLIENT_UPDATE_REQUIRED"})
     if not _website_f004_ready():
         return answer(503, {"error": "WEBSITE_FORM_UNAVAILABLE"})
+    if action == "request-service-web-resume":
+        current = state()
+        if current["state"] == "pending" and INITIATION_ENABLED:
+            options = website_submit_request.resume_options(
+                keys, _attempts_table(), owner=identity.customer_id, order_id=oid, number=number)
+            if options:
+                current["options"] = options
+        return answer(200, current)
     contract = request_service_contracts.request_service_contract(website_submit_request.SERVICE)
     if (contract is None or contract.fulfillment_kind != "flow"
             or contract.flow_capability != website_submit_request.CAPABILITY):
@@ -3129,24 +3143,77 @@ def _website_f004(identity, body, origin, action):
         return answer(400, {"error": "INVALID_REQUEST"})
     verified.update(websiteForm=website_submit_request.VERSION,
                     websiteRequestKey=key, websiteRequestNote=note)
-    # Trusted context is built above, never copied from a browser dictionary.
-    response = _create(identity, {"lineItems": line_items, "expectedTotalPaise": amount},
-                       origin, verified_service_context=verified)
-    if response.get("statusCode") == 409:
-        try:
-            error = json.loads(response.get("body") or "{}").get("error")
-        except (TypeError, ValueError):
-            error = None
-        if error == "REQUEST_KEY_CONFLICT":
-            return _hardened(response)
-    current = state()
-    if current.get("requestKey") == key:
+    refusal = service_requests.checkout_preflight(line_items, {}, verified_service_context=verified)
+    if refusal is not None:
+        return answer(refusal[0], refusal[1])
+    profile = _checkout_profile(identity)
+    if not profile or not str(profile.get("name") or
+                              f'{profile.get("firstName") or ""} {profile.get("lastName") or ""}').strip():
+        return answer(409, {"error": "PROFILE_REQUIRED"})
+    now = int(time.time())
+    try:
+        # Distinct requests for the same SKU must not share the generic cart's
+        # permanent paid-basket lock. The server-owned order and one-use F004
+        # key scope the cart; the F004 pointer still excludes concurrent payments.
+        snapshot = _native_quote(identity, line_items, now, f004_scope=[oid, key])
+        if website_submit_request.quote(snapshot, number)["totalPayablePaise"] != amount:
+            return answer(409, {"error": "SERVICE_PRICE_CHANGED"})
+        invoice_lines = _website_invoice_lines(snapshot)
+        if not invoice_lines:
+            return answer(503, {"error": "QUOTE_UNAVAILABLE"})
+        single = service_requests._single_order_context(verified)
+        service_paise = service_requests.native_service_line_paise(snapshot, line_items)
+        if single is None or not service_paise:
+            return answer(409, {"error": "SERVICE_CONTEXT_INVALID"})
+        contact_id = contact_key.resolve(profile)
+        phone = _profile_phone(identity)
+        if not contact_id or not phone:
+            return answer(409, {"error": "PROFILE_REQUIRED"})
+        attribution = {"channel": order_channel.CHANNEL_WEBSITE, "customerPhone": phone,
+                       "contactId": contact_id}
+        public_uuid = customer_uuid.from_contact(profile)
+        if public_uuid:
+            attribution[customer_uuid.ATTRIBUTE] = public_uuid
+        payref_fields = {
+            **attribution, "customerId": identity.customer_id,
+            "amountPaise": amount, "payablePaise": amount, "currency": "INR",
+            "checkoutMode": website_checkout.CHECKOUT_MODE_WEBSITE,
+            "cartId": snapshot.cart_id, "cartRevision": snapshot.cart_revision,
+            "quoteHash": snapshot.snapshot_hash, "quoteExpiresAt": snapshot.expires_at,
+            "collectionPaise": snapshot.quote.collection_before_convenience_paise,
+            "policyVersion": snapshot.policy_version, "websiteForm": website_submit_request.VERSION,
+            **service_requests.payref_extra(line_items, {}, line_paise=service_paise,
+                                            verified_service_context=verified),
+        }
+        attempt_fields = {
+            **attribution, "singleOrderService": True, "serviceCode": single["serviceCode"],
+            "serviceKind": single["serviceCode"], "serviceSku": single["sku"],
+            "selectedOrderId": oid, "selectedOrderNumber": number,
+            "flowCapability": single["flowCapability"], "invoiceLines": invoice_lines,
+            "websiteForm": website_submit_request.VERSION, "websiteRequestKey": key,
+            "websiteRequestNote": note,
+        }
+        current = website_submit_request.prepare_native(
+            keys=keys, attempts=_attempts_table(), owner=identity.customer_id,
+            order_id=oid, number=number, key=key, note=note, snapshot=snapshot,
+            expected_amount=amount, now=now, initiation_enabled=INITIATION_ENABLED,
+            create_order=razorpay_orders.create_order,
+            find_order_by_receipt=razorpay_orders.find_order_by_receipt,
+            account_mode_of=razorpay_orders.account_mode, payref_fields=payref_fields,
+            attempt_fields=attempt_fields, reserve_attempt=_reserve_website_attempt,
+            prefill={"name": str(profile.get("name") or ""), "contact": identity.phone})
         return answer(200, current)
-    # A different click may hold the order's active lock. Return only that
-    # customer's state, never mint another payable attempt or expose its note.
-    if current["state"] in ("pending", "saving"):
-        return answer(200, current)
-    return _hardened(response)
+    except (ValueError, ServicePriceChanged, catalog_pricing.CatalogPricingError,
+            website_checkout.CheckoutRejected):
+        # Never assert failure after an active reservation exists.
+        current = state()
+        if current["state"] in ("pending", "saving"):
+            return answer(200, current)
+        return answer(409, {"error": "PAYMENT_NOT_READY"})
+    except Exception as exc:
+        logger.warning(json.dumps({"event": "f004_website_prepare_unavailable",
+                                   "error": type(exc).__name__}))
+        return answer(503, {"error": "PAYMENT_STATUS_UNAVAILABLE"})
 
 
 def _request_service_start(identity: customer_auth.CustomerIdentity,

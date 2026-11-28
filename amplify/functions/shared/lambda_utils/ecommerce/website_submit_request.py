@@ -88,7 +88,131 @@ def state(keys, attempts, *, owner, order_id, number):
         phase = "failed"
     else:
         phase = "pending"
-    return {"state": phase, "orderNumber": number, "requestKey": pointer["requestKey"]}
+    result = {"state": phase, "orderNumber": number, "requestKey": pointer["requestKey"]}
+    if phase == "pending":
+        options = resume_options(keys, attempts, owner=owner, order_id=order_id, number=number)
+        if options:
+            result.update(resumeAvailable=True, amountPaise=options["amountPaise"])
+    return result
+
+
+def resume_options(keys, attempts, *, owner, order_id, number):
+    """Reopen ONLY the same owner-bound website gateway order, never mint another.
+
+    Legacy WhatsApp attempts and unbound/ambiguous creates are status-only. The
+    amount comes from the frozen attempt and is checked against both bindings.
+    """
+    from lambda_utils.ecommerce import website_checkout
+    pointer = _owned_pointer(keys, owner, order_id, number)
+    if not pointer or pointer.get("sendRefused"):
+        return None
+    attempt = _owned_attempt(attempts, pointer)
+    if (attempt.get("checkoutMode") != website_checkout.CHECKOUT_MODE_WEBSITE
+            or attempt.get("status") != payment_attempt.PAYMENT_PENDING
+            or attempt.get("paidAt") or attempt.get("verifiedProviderPaymentId")
+            or attempt.get("verifiedCapturedPaise")):
+        return None
+    aid = str(attempt.get("paymentAttemptId") or "")
+    gateway = str(attempt.get("providerOrderId") or "")
+    reference = str(attempt.get("referenceId") or "")
+    amount = int(attempt.get("amountPaise") or 0)
+    if not aid or not gateway or not reference or amount <= 0:
+        return None
+    binding = order_keys.resolve_gateway_order(keys, gateway) or {}
+    payref = order_keys.resolve_payment_reference(keys, reference) or {}
+    line = payref.get("serviceLine") or {}
+    if (binding.get("customerId") != owner or binding.get("paymentAttemptId") != aid
+            or binding.get("gatewayOrderId") != gateway or binding.get("referenceId") != reference
+            or binding.get("requestKey") != pointer["requestKey"]
+            or binding.get("currency") != "INR" or binding.get("amountPaise") != amount
+            or not binding.get("accountKeyId")
+            or payref.get("customerId") != owner or payref.get("paymentAttemptId") != aid
+            or payref.get("checkoutMode") != website_checkout.CHECKOUT_MODE_WEBSITE
+            or payref.get("websiteForm") != VERSION or payref.get("amountPaise") != amount
+            or line.get("singleOrder") is not True or line.get("serviceCode") != SERVICE
+            or line.get("selectedOrderId") != order_id or line.get("selectedOrderNumber") != number):
+        return None
+    return website_checkout._browser_options(
+        key_id=str(binding["accountKeyId"]), gateway_order_id=gateway,
+        amount_paise=amount, currency="INR", prefill={}, payment_attempt_id=aid)
+
+
+def prepare_native(*, keys, attempts, owner, order_id, number, key, note, snapshot,
+                   expected_amount, now, initiation_enabled, create_order,
+                   find_order_by_receipt, account_mode_of, payref_fields,
+                   attempt_fields, reserve_attempt, prefill):
+    """Use the proven Standard Checkout engine with the F004 per-order lock.
+
+    Only the winning allocation may contact the provider. A second key, stale
+    click or ambiguous response must not create another payable order. The
+    caller has already owner-checked the original order and freshly priced its SKU.
+    """
+    from lambda_utils.ecommerce import website_checkout
+    current = state(keys, attempts, owner=owner, order_id=order_id, number=number)
+    if current["state"] in ("pending", "saving"):
+        return current
+    if not initiation_enabled:
+        raise ValueError("PAYMENT_INITIATION_DISABLED")
+    if quote(snapshot, number)["totalPayablePaise"] != expected_amount:
+        raise ValueError("SERVICE_PRICE_CHANGED")
+    # A request key is single-use even after its previous attempt completed.
+    if _read(keys, "orderId", _click_id(owner, key)):
+        raise ValueError("REQUEST_KEY_CONFLICT")
+    allocation = {}
+
+    def allocate(aid, amount):
+        if amount != expected_amount or not reserve(
+                keys, attempts, owner=owner, order_id=order_id, number=number,
+                key=key, note=note, amount=amount, attempt_id=aid):
+            raise website_checkout.CheckoutRejected("F004_REQUEST_ALREADY_RESERVED")
+        try:
+            reference = order_keys.allocate_payment_reference(
+                keys, payment_attempt_id=aid, extra=payref_fields)
+        except Exception:
+            # No provider call has taken place. Release only this exact reservation.
+            refused(keys, order_id=order_id, attempt_id=aid)
+            raise
+        allocation.update(attempt=aid, reference=reference)
+        return reference
+
+    def create(**kwargs):
+        # The generic checkout engine supports a stale-key recovery create; F004
+        # deliberately does NOT. Only a fresh winning per-order allocation may create.
+        if not allocation:
+            raise website_checkout.CheckoutRejected("F004_CREATE_NOT_OWNED")
+        return create_order(**kwargs)
+
+    def find(receipt):
+        return find_order_by_receipt(receipt) if allocation else None
+
+    def persist(attempt):
+        if (attempt.get("paymentAttemptId") != allocation.get("attempt")
+                or attempt.get("referenceId") != allocation.get("reference")):
+            raise RuntimeError("F004_ATTEMPT_BINDING_MISMATCH")
+        reserve_attempt(dict(attempt, **attempt_fields))
+
+    try:
+        prepared = website_checkout.prepare_checkout(
+            customer_id=owner, snapshot=snapshot,
+            presented_snapshot_hash=snapshot.snapshot_hash, request_key=key, now=now,
+            keys_table=keys, attempts_table=attempts, create_order=create,
+            find_order_by_receipt=find, account_mode_of=account_mode_of,
+            initiation_enabled=initiation_enabled, prefill=prefill,
+            reserve_attempt=persist, allocate_reference=allocate,
+            purchased_snapshot=snapshot.frozen_data)
+    except website_checkout.CheckoutRejected:
+        # A lost claim is not a payment failure. Read the active reservation.
+        current = state(keys, attempts, owner=owner, order_id=order_id, number=number)
+        if current["state"] in ("pending", "saving", "received"):
+            return current
+        raise
+    current = state(keys, attempts, owner=owner, order_id=order_id, number=number)
+    if (allocation and prepared.status == website_checkout.CHECKOUT_OPTIONS_READY
+            and current.get("requestKey") == key and current["state"] == "pending"):
+        options = resume_options(keys, attempts, owner=owner, order_id=order_id, number=number)
+        if options and options["paymentAttemptId"] == allocation["attempt"]:
+            current["options"] = options
+    return current
 
 
 def reserve(keys, attempts, *, owner, order_id, number, key, note, amount, attempt_id):
