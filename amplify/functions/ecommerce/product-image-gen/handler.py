@@ -58,6 +58,8 @@ S3_PREFIX = media_paths.CATALOG_GENERATED_MEDIA_PREFIX.rstrip('/')
 
 # Image dimensions (3000x3000, large enough for storefront zoom)
 IMG_SIZE = 3000
+# Smallest flag canvas `/convert-flag` accepts; IMG_SIZE is the largest.
+_MIN_FLAG_SIZE = 64
 
 # Country code → name mapping (ISO 3166-1 alpha-2)
 COUNTRIES = {
@@ -116,8 +118,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # All three routes were public with no handler check, and image generation
         # costs money per call, so an anonymous caller could run up spend. Note the
         # Retired provider credentials are not route credentials. This native endpoint
-        # authenticates the caller directly before any image-generation work.
-        auth_failure = require_auth(event)
+        # authenticates the caller directly before any image-generation work. The POST routes
+        # write public CDN objects, so they need Operator; the SVG preview needs any staff role.
+        auth_failure = require_auth(
+            event, required_role='Operator' if str(http_method).upper() == 'POST' else 'Viewer')
         if auth_failure is not None:
             return auth_failure
 
@@ -486,7 +490,14 @@ def _convert_flag_to_png(body: dict, request_id: str) -> Dict[str, Any]:
     if not cc:
         return _resp(400, {'error': 'Missing country code', 'requestId': request_id})
 
-    size = int(body.get('size', 3000))
+    # Bounded: the canvas is size x size pixels in memory.
+    try:
+        size = int(body.get('size', IMG_SIZE))
+    except (TypeError, ValueError):
+        size = 0
+    if not _MIN_FLAG_SIZE <= size <= IMG_SIZE:
+        return _resp(400, {'error': f'size must be a whole number from {_MIN_FLAG_SIZE} to {IMG_SIZE}',
+                           'requestId': request_id})
     bg = body.get('background', 'white')
 
     try:

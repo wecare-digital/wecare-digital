@@ -11,6 +11,7 @@ from typing import Dict, Any
 from boto3.dynamodb.conditions import Attr
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils.privacy import mask_email, mask_phone
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -35,9 +36,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Viewer')
     if _auth is not None:
         return _auth
+    # Payer phone and email are customer data: Operator and Admin see them; a Viewer sees them
+    # masked and cannot search by them.
+    show_contacts = _can_see_contacts(event)
 
     http_method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
 
@@ -53,11 +57,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         # GET /payments - List payments
         if http_method == 'GET' and not path_params.get('paymentId'):
-            return _list_payments(query_params, request_id)
+            return _list_payments(query_params, request_id, show_contacts)
         
         # GET /payments/{paymentId} - Get single payment
         if http_method == 'GET' and path_params.get('paymentId'):
-            return _get_payment(path_params['paymentId'], request_id)
+            return _get_payment(path_params['paymentId'], request_id, show_contacts)
         
         return _response(405, {'error': 'Method not allowed'})
         
@@ -70,7 +74,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _response(500, {'error': 'Internal server error'})
 
 
-def _list_payments(params: Dict, request_id: str) -> Dict[str, Any]:
+def _can_see_contacts(event: Dict[str, Any]) -> bool:
+    """True for an Operator or Admin. An event without a verified role is treated as a Viewer."""
+    from lambda_utils.middleware import ROLE_HIERARCHY
+    role = str((event.get('_auth') or {}).get('role') or '')
+    return ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY['Operator']
+
+
+def _list_payments(params: Dict, request_id: str, show_contacts: bool = False) -> Dict[str, Any]:
     """List payments with optional filters."""
     try:
         table = dynamodb.Table(PAYMENTS_TABLE)
@@ -82,6 +93,8 @@ def _list_payments(params: Dict, request_id: str) -> Dict[str, Any]:
         if params.get('status'):
             filter_expressions.append(Attr('status').eq(params['status']))
         if params.get('contact'):
+            if not show_contacts:
+                return _response(403, {'error': 'Operator role required to search by payer contact'})
             filter_expressions.append(Attr('contact').contains(params['contact']))
         if params.get('orderId'):
             filter_expressions.append(Attr('orderId').eq(params['orderId']))
@@ -94,23 +107,24 @@ def _list_payments(params: Dict, request_id: str) -> Dict[str, Any]:
                 combined = combined & expr
             scan_kwargs['FilterExpression'] = combined
         
-        # Full pagination to collect up to max_results matching items
+        # Every matching row, newest first, THEN the limit. Truncating a scan before sorting
+        # returned an arbitrary 100 rather than the newest 100.
         payments = []
-        while len(payments) < max_results:
+        while True:
             result = table.scan(**scan_kwargs)
             payments.extend(result.get('Items', []))
             if 'LastEvaluatedKey' not in result:
                 break
             scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
         
-        # Trim to requested limit
-        payments = payments[:max_results]
-        
         # Sort by createdAt descending
         payments.sort(key=lambda x: float(x.get('createdAt', 0)), reverse=True)
         
+        # Trim to requested limit
+        payments = payments[:max_results]
+        
         return _response(200, {
-            'payments': [_normalize_payment(p) for p in payments],
+            'payments': [_normalize_payment(p, show_contacts) for p in payments],
             'count': len(payments)
         })
         
@@ -119,7 +133,7 @@ def _list_payments(params: Dict, request_id: str) -> Dict[str, Any]:
         return _response(500, {'error': str(e)})
 
 
-def _get_payment(payment_id: str, request_id: str) -> Dict[str, Any]:
+def _get_payment(payment_id: str, request_id: str, show_contacts: bool = False) -> Dict[str, Any]:
     """Get a single payment."""
     try:
         table = dynamodb.Table(PAYMENTS_TABLE)
@@ -127,7 +141,7 @@ def _get_payment(payment_id: str, request_id: str) -> Dict[str, Any]:
         payment = result.get('Item')
         
         if payment:
-            return _response(200, {'payment': _normalize_payment(payment)})
+            return _response(200, {'payment': _normalize_payment(payment, show_contacts)})
         
         # Try by paymentId GSI (Razorpay ID)
         from boto3.dynamodb.conditions import Key as DDBKey
@@ -138,7 +152,7 @@ def _get_payment(payment_id: str, request_id: str) -> Dict[str, Any]:
         )
         items = result.get('Items', [])
         if items:
-            return _response(200, {'payment': _normalize_payment(items[0])})
+            return _response(200, {'payment': _normalize_payment(items[0], show_contacts)})
         
         return _response(404, {'error': 'Payment not found'})
         
@@ -147,7 +161,7 @@ def _get_payment(payment_id: str, request_id: str) -> Dict[str, Any]:
         return _response(500, {'error': str(e)})
 
 
-def _normalize_payment(item: Dict) -> Dict:
+def _normalize_payment(item: Dict, show_contacts: bool = False) -> Dict:
     """Normalize payment record for API response.
 
     `amount` is integer paise, as written by razorpay-webhook's `_store_payment_record`.
@@ -189,11 +203,15 @@ def _normalize_payment(item: Dict) -> Dict:
         'amountInRupees': float(rupees),
         'currency': item.get('currency', 'INR'),
         'method': item.get('method', ''),
-        'contact': item.get('contact', ''),
-        'email': item.get('email', ''),
+        'contact': item.get('contact', '') if show_contacts else _masked(item.get('contact'), mask_phone),
+        'email': item.get('email', '') if show_contacts else _masked(item.get('email'), mask_email),
         'source': item.get('source', ''),
         'createdAt': int(float(item.get('createdAt', 0))),
     }
+
+
+def _masked(value: Any, mask) -> str:
+    return mask(str(value)) if value else ''
 
 
 def _response(status_code: int, body: Dict, resp_origin: str = '') -> Dict[str, Any]:
