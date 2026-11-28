@@ -79,6 +79,11 @@ RECONCILIATION_ERROR = "RECONCILIATION_ERROR"
 #: double-written. Money may or may not have moved, so the customer is never told to pay again.
 NEEDS_RECONCILIATION = "NEEDS_RECONCILIATION"
 
+#: The attempt already has an order bound to one provider payment and the event names another
+#: (a second capture on the same order, or a forged event). Nothing is marked paid and no
+#: invoice is created; the caller parks it for a human.
+DUPLICATE_CAPTURE = "DUPLICATE_CAPTURE"
+
 #: Outcomes where the money did NOT move, so nothing was created and nothing is owed.
 NO_ORDER_OUTCOMES = frozenset({
     NOT_PAID, UNKNOWN_REFERENCE, ATTEMPT_NOT_PAYABLE, PROVIDER_UNAVAILABLE,
@@ -151,7 +156,8 @@ class ReconciliationOutcome:
 
 
 def _blocked(outcome: str, reason: str, **detail: Any) -> ReconciliationOutcome:
-    level = logger.error if outcome in PAID_BUT_BLOCKED_OUTCOMES else logger.warning
+    level = (logger.error if outcome in PAID_BUT_BLOCKED_OUTCOMES or outcome == DUPLICATE_CAPTURE
+             else logger.warning)
     level('{"event":"reconciliation_blocked","outcome":"%s","reason":"%s"}',
           outcome, reason)
     return ReconciliationOutcome(outcome, reason, **detail)
@@ -163,7 +169,8 @@ def reconcile_payment(*,
                       verify_payment: Callable[[str], Tuple[bool, str, int, str]],
                       load_attempt: Callable[[str], Optional[Dict[str, Any]]],
                       expected_customer_id: str = "",
-                      key_attr: str = "orderId") -> ReconciliationOutcome:
+                      key_attr: str = "orderId",
+                      event_payment_id: Optional[str] = None) -> ReconciliationOutcome:
     """Create at most one order for a payment, or explain why not. Idempotent.
 
     `verify_payment(reference_id)` must ask the **provider** — not a webhook body — and return
@@ -178,6 +185,11 @@ def reconcile_payment(*,
 
     `expected_customer_id`, when supplied, must match the attempt's owner. Optional because the
     provider does not always tell us who paid; when it is known, it is checked.
+
+    `event_payment_id` is the payment id the triggering event names. When supplied (even empty),
+    the answers given before the provider is contacted require it to equal the payment already
+    bound to the order; anything else is DUPLICATE_CAPTURE. None skips the check (callers that
+    have no event).
     """
     if not reference_id:
         return _blocked(UNKNOWN_REFERENCE, "no reference_id on the event")
@@ -218,6 +230,15 @@ def reconcile_payment(*,
                         payment_attempt_id=attempt_id)
 
     if existing and existing.get("orderIdRef"):
+        bound_payment_id = str(existing.get("providerTransactionId") or "")
+        if event_payment_id is not None and (
+                not bound_payment_id or str(event_payment_id) != bound_payment_id):
+            # This short cut never asks the provider, so the event may only resume the order for
+            # the payment already bound to it.
+            return _blocked(DUPLICATE_CAPTURE,
+                            "the event names a payment other than the one bound to this order",
+                            payment_attempt_id=attempt_id,
+                            provider_payment_id=str(event_payment_id or ""))
         order_number = str(existing.get("orderNumber") or "")
         if order_number:
             logger.info('{"event":"reconciliation_idempotent_hit"}')
@@ -479,6 +500,7 @@ __all__ = [
     "NO_PROVIDER_ID",
     "RECONCILIATION_ERROR",
     "NEEDS_RECONCILIATION",
+    "DUPLICATE_CAPTURE",
     "NO_ORDER_OUTCOMES",
     "PAID_BUT_BLOCKED_OUTCOMES",
     "ReconciliationOutcome",
