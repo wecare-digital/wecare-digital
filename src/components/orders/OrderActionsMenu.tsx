@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import VoiceSearchMic from '../VoiceSearchMic';
 import SearchClearButton from '../SearchClearButton';
+import { authCountryPanelGeometry } from '../../lib/authCountryPanelGeometry';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 import { orderRequestForLabel, orderRequestMenuHref, type OrderRequestId } from '../../lib/orderRequestSelection';
@@ -94,29 +95,21 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
   // An absolutely positioned menu inside its cell would be clipped by overflow-x:auto.
   const reposition = useCallback( () => {
     if ( typeof window === 'undefined' ) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if ( !rect ) return;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const width = Math.min( 440, viewportWidth - 24 );
-    const left = Math.max( 12, Math.min( rect.right - width, viewportWidth - width - 12 ) );
-    const aboveSpace = rect.top - 16;
-    const belowSpace = viewportHeight - rect.bottom - 16;
-
-    if ( Math.max( aboveSpace, belowSpace ) < 220 ) {
-      setPosition( { position: 'fixed', left, top: 12, width,
-        maxHeight: Math.max( 120, viewportHeight - 24 ) } );
-      return;
-    }
-
-    const showAbove = aboveSpace > belowSpace || aboveSpace > 450;
-    setPosition( {
-      position: 'fixed', left, width,
-      maxHeight: Math.max( 160, Math.min( 520, ( showAbove ? aboveSpace : belowSpace ) - 8 ) ),
-      ...( showAbove
-        ? { bottom: viewportHeight - rect.top + 8 }
-        : { top: rect.bottom + 8 } ),
-    } );
+    const trigger = triggerRef.current;
+    if ( !trigger ) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const layoutWidth = document.documentElement.clientWidth || window.innerWidth;
+    const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+    setPosition( { position: 'fixed', ...authCountryPanelGeometry( {
+      layoutWidth, layoutHeight,
+      viewportLeft: viewport?.offsetLeft ?? 0,
+      viewportTop: viewport?.offsetTop ?? 0,
+      viewportWidth: viewport?.width ?? layoutWidth,
+      viewportHeight: viewport?.height ?? layoutHeight,
+      anchor: rect,
+      rtl: getComputedStyle( trigger ).direction === 'rtl',
+    } ) } );
   }, [] );
 
   useEffect( () => {
@@ -131,16 +124,18 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
     const onKeyDown = ( event: KeyboardEvent ) => {
       if ( event.key !== 'Escape' ) return;
       setOpen( false );
-      triggerRef.current?.focus();
+      triggerRef.current?.focus( { preventScroll: true } );
     };
     const onScroll = ( event: Event ) => {
-      if ( panelRef.current?.contains( event.target as Node ) ) return;
+      if ( event.target instanceof Node && panelRef.current?.contains( event.target ) ) return;
       reposition();
     };
     document.addEventListener( 'pointerdown', onPointerDown );
     document.addEventListener( 'keydown', onKeyDown );
     window.addEventListener( 'resize', reposition );
     window.addEventListener( 'scroll', onScroll, true );
+    window.visualViewport?.addEventListener( 'resize', reposition );
+    window.visualViewport?.addEventListener( 'scroll', reposition );
     // Like the homepage menu, don't open the mobile keyboard on every tap.
     if ( window.matchMedia?.( '(hover: hover) and (pointer: fine)' ).matches ) {
       searchRef.current?.focus();
@@ -150,6 +145,8 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
       document.removeEventListener( 'keydown', onKeyDown );
       window.removeEventListener( 'resize', reposition );
       window.removeEventListener( 'scroll', onScroll, true );
+      window.visualViewport?.removeEventListener( 'resize', reposition );
+      window.visualViewport?.removeEventListener( 'scroll', reposition );
     };
   }, [ open, reposition ] );
 
@@ -323,22 +320,21 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           box-sizing:border-box;inline-size:44px;min-inline-size:44px;
           block-size:44px;min-block-size:44px;display:inline-flex;
           align-items:center;justify-content:center;padding:0;
-          border:0;border-radius:var(--public-hover-radius);background:var(--public-brand-lime);
+          border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);
           color:var(--public-brand-green);cursor:pointer;
           transition:background-color .18s ease;
         }
         .orm-more svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}
-        .orm-more:hover,.orm-more[aria-expanded='true']{
-          background:var(--public-button-hover);border:0;box-shadow:none;outline:none;
-        }
+        @media (hover:hover) and (pointer:fine){.orm-more:hover:not(:disabled){background:var(--public-button-hover)}}
+        .orm-more[aria-expanded='true']{background:var(--public-lime-tint);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
+        .orm-more:disabled{opacity:.6;cursor:not-allowed}
         .orm-more:focus-visible{
           outline:2px solid var(--public-brand-green);outline-offset:2px;
         }
         .orm-menu{
-          z-index:1200;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;
-          border:1px solid var(--public-hairline);
-          border-block-start:4px solid var(--public-brand-lime);border-radius:24px;
-          background:var(--public-bg);box-shadow:0 20px 52px rgba(20,48,28,.17);
+          z-index:1200;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+          border:1px solid var(--public-hairline);border-radius:var(--public-popover-radius,8px);
+          background:var(--public-bg);box-shadow:0 6px 20px rgba(26,58,42,.10);
           font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
           color:var(--public-brand-green);text-align:start;white-space:normal;
           -webkit-overflow-scrolling:touch;
@@ -346,7 +342,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         /* The Orders action search shares Header's 44px borderless field and
            its own VoiceSearchMic instance (same speech support, language and
            visual treatment as public navigation and blog search). */
-        .orm-search-field{position:relative;margin:12px 16px 12px}
+        .orm-search-field{position:relative;margin:8px 8px 6px;min-width:0}
         .orm-search{
           width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;
           border:0;border-block-end:2px solid var(--public-search-underline);
@@ -371,10 +367,10 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
         .orm-section .orm-section-icon-fill{fill:currentColor;stroke:none}
-        .orm-entries{padding:0 10px 6px}
+        .orm-entries{padding:0 6px 6px}
         .orm-item,.orm-family-title{
           position:relative;display:flex;align-items:center;gap:10px;
-          min-block-size:50px;padding:7px 12px;border-radius:var(--public-nav-radius);
+          min-block-size:48px;padding:7px 10px;border-radius:var(--public-nav-radius);
           color:var(--public-brand-green);text-decoration:none;
         }
         @media (hover:hover) and (pointer:fine){.orm-item:hover{background:var(--public-nav-hover)}}
@@ -411,9 +407,14 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           padding:12px 18px;background:var(--public-lime-tint);
           font-size:12px;font-weight:650}
         @media(max-width:480px){
-          .orm-menu{border-radius:18px}
           .orm-title{font-size:16px}
           .orm-item,.orm-family-title{min-block-size:var(--public-nav-row-mobile)}
+        }
+        @media(max-width:279px){
+          .orm-item,.orm-family-title{gap:6px;padding-inline:6px}
+          .orm-child{padding-inline-start:14px}
+          .orm-section{padding-inline:10px}
+          .orm-footer{flex-wrap:wrap;padding-inline:10px}
         }
       `}</style>
     </>

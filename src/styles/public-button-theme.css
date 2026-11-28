@@ -6,15 +6,22 @@
  * Every selector is route-gated; client navigation removes the theme on Home.
  *
  * Full text actions use the Auth typography, surface and 52px minimum.
- * Compact buttons share the same palette and 13px shape without changing their
+ * Compact buttons share the same palette and 6px shape without changing their
  * size, icon, hit target, or arrangement. Form selectors, menu rows, live data
  * cards, speech state and provider-owned controls retain their own semantics.
  * Existing Auth/checkout actions (including opaque Refresh prices), appointment
  * actions and Submit Request are already themed by their existing styles.
  */
+:root:has([data-public-auth-button-theme="active"]) {
+  /* Root scope includes body-portalled menus, but never the Home route. */
+  --public-hover-radius: 6px;
+  --public-nav-radius: var(--public-hover-radius);
+  --public-card-radius: 8px;
+  --public-popover-radius: 8px;
+}
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -30,7 +37,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -43,7 +50,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -57,7 +64,7 @@
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -71,7 +78,7 @@
 @media (hover: hover) and (pointer: fine) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -85,7 +92,7 @@
 /* Keep selected controls identifiable even when hovered. */
 :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -165,7 +172,7 @@
 @media (prefers-reduced-motion: reduce) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -182,7 +189,7 @@
   }
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -202,7 +209,7 @@
 @media (forced-colors: active) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -219,7 +226,7 @@
   }
   :root:has([data-public-auth-button-theme="active"]) :is(
   button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .ps-menu-item, .vl-ui-data-card,
+    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
@@ -234,4 +241,38 @@
 ):focus-visible {
     outline: 3px solid Highlight;
   }
+}
+
+/* Non-Home dropdowns with former hard-coded radii, including portals. */
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .nav-menu, .nav-dropdown[data-nav-tight="true"] .nav-menu, .wc-panel,
+  .ps-menu, .orm-menu, .ui-popover, .vl-live-search-results,
+  .vl-live-utility-results, .vl-live-utility-empty
+) {
+  border-radius: var(--public-popover-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(
+  .nav-trigger, .nav-group-link, .ps-menu-item, .ui-select-option,
+  .vl-live-search-results li, .vl-live-utility-results li
+) {
+  border-radius: var(--public-hover-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.co-card, .sf-card, .ord-list, .sr-form, .sf-payment-option) {
+  border-radius: var(--public-card-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) .ui-select-option[aria-selected="true"]:not([aria-disabled="true"]),
+:root:has([data-public-auth-button-theme="active"]) .vl-live-search-results li[aria-selected="true"] {
+  background: var(--public-lime-tint);
+  box-shadow: inset 2px 0 0 var(--public-brand-green);
+}
+:root:has([data-public-auth-button-theme="active"]) .ui-select-option[data-active="true"]:not([aria-selected="true"]):not([aria-disabled="true"]) {
+  background: var(--public-hover-surface);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root:has([data-public-auth-button-theme="active"]) .ui-select-option:not([aria-selected="true"]):not([aria-disabled="true"]):hover {
+    background: var(--public-hover-surface);
+  }
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.public-search-clear, .voice-search-mic) {
+  border-radius: var(--public-hover-radius);
 }
