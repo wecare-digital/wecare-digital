@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # customer-commerce authorization backend, and scripts/probe_url_host_matrix.py
 # owns its live contract. Requiring out/auth/index.html would make every valid
 # static production build fail.
-CUSTOMER_PAGES = ('/checkout/', '/orders/',
+CUSTOMER_PAGES = ('/checkout/', '/orders/', '/orders/request/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
@@ -152,8 +152,17 @@ def check_orders_history_source():
     checkout_backend = source('amplify/functions/ecommerce/checkout/handler.py')
 
     component_dir = ROOT / 'src/components/orders'
-    if (ROOT / 'src/pages/orders').exists():
-        failures.append('orders: alternate individual-order route is forbidden')
+    # The approved service-request checkout is a separate authenticated journey,
+    # not an alternate order-detail/receipt page. Permit only this exact route.
+    request_dir = ROOT / 'src/pages/orders'
+    request_files = {p.relative_to(request_dir).as_posix()
+                     for p in request_dir.rglob('*') if p.is_file()}
+    if request_files != {'request.tsx'}:
+        failures.append('orders: only the dedicated request checkout route is permitted')
+    request_page = source('src/pages/orders/request.tsx')
+    if ('noindex' not in request_page or 'getSession' not in request_page
+            or 'SubmitRequestJourney' not in request_page or 'OrdersPage' in request_page):
+        failures.append('orders: dedicated request checkout must be authenticated, noindex and separate from history')
     if component_dir.exists():
         old_details = [p.name for p in component_dir.iterdir()
                        if p.name.lower().startswith(('orderdetail', 'orderreceipt'))]
