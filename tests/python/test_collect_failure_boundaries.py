@@ -189,10 +189,21 @@ def test_provider_acceptance_advances_original_attempt(status,key):
     assert logs==[]
 
 
+def _invoice_dedup_matches():
+    # The real dedupe lookup (PAY-10: a reference is a referenceId-index Query, not a scan).
+    node = next(n for n in ast.parse(HANDLER.read_text()).body
+                if isinstance(n, ast.FunctionDef) and n.name == '_invoice_dedup_matches')
+    namespace = {'Any': object, 'Dict': dict, 'List': list}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), namespace)
+    return namespace['_invoice_dedup_matches']
+
+
 def test_scan_dedup_cannot_adopt_staged_numbered_invoice():
+    staged = lambda **kw: {'Items':[{'invoiceId':'inv-1','invoiceNumber':'WD/2627/001','referenceId':'WD-PAY-ORIGINAL','status':'claiming','total':118}]}
     result = boundary('_create_invoice', '    if reference_id or payment_id:', '    # ── Atomic claim', {
         'reference_id':'WD-PAY-ORIGINAL', 'payment_id':'', 'request_id':'request-1', 'body':{}, 'now':1,
-        'table':SimpleNamespace(scan=lambda **kw:{'Items':[{'invoiceId':'inv-1','invoiceNumber':'WD/2627/001','referenceId':'WD-PAY-ORIGINAL','status':'claiming','total':118}]}),
+        'table':SimpleNamespace(scan=staged, query=staged),
+        '_invoice_dedup_matches':_invoice_dedup_matches(),
         '_money_display':str,
     })
     assert result['statusCode']==503
