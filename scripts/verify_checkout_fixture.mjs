@@ -33,7 +33,15 @@ async function deploymentFingerprint() {
 }
 const startFingerprint = await deploymentFingerprint();
 let endFingerprint = null;
-const browser = await playwright[engine].launch({headless:true});
+// Isolate independent synthetic scenarios in separate browser processes, not
+// only separate contexts. Firefox repeatedly crashed after the appointment
+// scenario on the shared process. A crash in an isolated scenario still fails
+// the run; do not retry assertions, skip scenes, or forward live requests.
+async function withIsolatedBrowser(run) {
+  const browser = await playwright[engine].launch({headless:true});
+  try { return await run(browser); }
+  finally { await browser.close(); }
+}
 const failures=[], evidence=[];
 const profile = {status:'PROFILE_READY', contactId:'qa-contact', name:'Synthetic Customer', firstName:'Synthetic', lastName:'Customer', profileComplete:true, addressComplete:false, address:null, phone:'', email:''};
 const amount=30000, productId='24fa0f39-330b-5365-b7eb-9caf27ad37f1', variantId='CNT5Q2M8';
@@ -53,6 +61,9 @@ const bookingEndpoint = JSON.parse(await readFile(new URL('../src/content/arogya
 const apiPaths = new Set(['/api/ecommerce/customer-session','/api/ecommerce/prepare-checkout','/api/customer/profile','/api/ecommerce/verify-callback','/api/ecommerce/checkout/status','/api/ecommerce/my-orders','/api/ecommerce/my-invoice','/api/ecommerce/checkout']);
 const isFixtureApi = url => (url.origin===origin.origin||url.origin===canonicalOrigin.origin)&&apiPaths.has(url.pathname);
 async function scenario(width,mode) {
+  return withIsolatedBrowser(browser=>runScenario(browser,width,mode));
+}
+async function runScenario(browser,width,mode) {
   const context=await browser.newContext({viewport:{width,height:width>=768?900:844},hasTouch:width<768,reducedMotion:'reduce',serviceWorkers:'block',acceptDownloads:true,ignoreHTTPSErrors:snapshot});
   const events=[];let prepare=0,verify=0,native=0,profileSaved=mode!=='profile',profileBootstrap=false,paid=false;
   try {
@@ -117,6 +128,7 @@ async function scenario(width,mode) {
       return route.abort();
     });
     const page=await context.newPage();page.setDefaultTimeout(20000);
+    page.on('crash',()=>console.error(JSON.stringify({engine,width,mode,diagnostic:'page-crash',events:[...events]})));
     async function captureSnapshot(label){
       const geom=await page.evaluate(()=>{
         const width=document.documentElement.clientWidth,scroll=document.documentElement.scrollWidth;
@@ -207,6 +219,9 @@ async function scenario(width,mode) {
 // Separate synthetic appointment access scenario; no hospital, patient or
 // provider data is fabricated. Test the unavailable-provider recovery branch.
 async function verifyAppointmentGate(){
+  return withIsolatedBrowser(runAppointmentGate);
+}
+async function runAppointmentGate(browser){
   const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,reducedMotion:'reduce',serviceWorkers:'block',ignoreHTTPSErrors:snapshot});
   const accountKey='a'.repeat(64);let accesses=0,catalogues=0;
   try{
@@ -256,7 +271,6 @@ try {
     }
   }
 } finally {
-  await browser.close();
   try {
     endFingerprint = await deploymentFingerprint();
     if (JSON.stringify(startFingerprint) !== JSON.stringify(endFingerprint)) failures.push('Deployment changed during checkout fixture; do not accept mixed revisions');

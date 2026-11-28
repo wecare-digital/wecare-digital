@@ -39,6 +39,10 @@ test('immutable acceptance shares a verified exact export, never proxies transac
   assert.doesNotMatch(fixture,/function snapshot\(/);
   assert.match(fixture,/async function captureSnapshot\(label\)/);
   assert.match(fixture,/await verifyAppointmentGate\(\)/);
+  assert.match(fixture,/return withIsolatedBrowser\(browser=>runScenario\(browser,width,mode\)\)/);
+  assert.match(fixture,/return withIsolatedBrowser\(runAppointmentGate\)/);
+  assert.match(fixture,/finally \{ await browser\.close\(\); \}/);
+  assert.match(fixture,/assert\.equal\(failures\.length,0,failures\.join/);
 });
 
 test('immutable snapshot explicitly builds the intercepted invoice read capability',()=>{
