@@ -616,8 +616,13 @@ def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
         ) as response:
             body = response.read(limit + 1)
     except urllib.error.HTTPError as exc:
+        # Host and status only: the query string can carry a provider key.
+        logger.warning("nano_climate_upstream_http host=%s code=%s",
+                       urllib.parse.urlsplit(url).hostname, exc.code)
         raise ProviderFailure(404 if exc.code == 404 else 502) from None
-    except Exception:
+    except Exception as exc:
+        logger.warning("nano_climate_upstream_error host=%s type=%s",
+                       urllib.parse.urlsplit(url).hostname, type(exc).__name__)
         raise ProviderFailure(502) from None
     if len(body) > limit:
         raise ProviderFailure(502)
