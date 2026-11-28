@@ -846,7 +846,10 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     tag = "".join(c for c in str(body.get("tag") or "").strip() if c.isprintable())[:60]
     filename = str(body.get("originalFilename") or "").strip()
     content_type = str(body.get("contentType") or "application/octet-stream").strip()
-    size = int(body.get("sizeBytes") or 0)
+    try:
+        size = int(body.get("sizeBytes") or 0)
+    except (TypeError, ValueError, OverflowError):
+        size = 0
 
     try:
         phone = normalise_phone(body.get("mobile"))
@@ -863,7 +866,13 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
                   "message": "Use a WhatsApp-supported file type with a matching extension and MIME type."},
             origin,
         )
-    if size <= 0 or size > media_limit:
+    # The declared size is signed into the upload URL below, so it must be the exact size.
+    if size <= 0:
+        return cors_response(
+            400, {"error": "SIZE_REQUIRED",
+                  "message": "sizeBytes must be the exact file size in bytes."}, origin
+        )
+    if size > media_limit:
         return cors_response(
             413, {"error": "FILE_TOO_LARGE", "limitBytes": media_limit}, origin
         )
@@ -931,10 +940,12 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     # Signed create-only PUT: a presigned URL stays valid for up to 15 minutes.
     # A second PUT must never overwrite an already-confirmed or paid Vault file.
     # The browser must send If-None-Match: * exactly as signed.
+    # Content-Length is signed too, so S3 refuses a body of any other size. A browser
+    # PUT of the selected File sets that header to the file size itself.
     upload_url = _s3_client().generate_presigned_url(
         "put_object",
         Params={"Bucket": BUCKET, "Key": key, "ContentType": content_type,
-                "IfNoneMatch": "*"},
+                "IfNoneMatch": "*", "ContentLength": size},
         ExpiresIn=UPLOAD_URL_TTL,
     )
 
@@ -1026,6 +1037,16 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
         )
         logger.warning(json.dumps({"event": "vault_upload_rejected_media", "fileId": file_id,
                                    "sizeBytes": size}))
+        # Nothing may reference refused bytes, so remove them. Best effort: the row is
+        # already `rejected`. The bucket is versioned; its noncurrent-version lifecycle
+        # rule expires the old copy.
+        try:
+            _s3_client().delete_object(Bucket=BUCKET, Key=upload_key)
+        except Exception as exc:  # noqa: BLE001 - the rejection stands either way
+            code = (getattr(exc, "response", None) or {}).get("Error", {}).get("Code")
+            logger.warning(json.dumps({"event": "vault_upload_rejected_object_kept",
+                                       "fileId": file_id,
+                                       "error": str(code or type(exc).__name__)[:60]}))
         return cors_response(
             413 if media_limit else 415,
             {"error": "FILE_TOO_LARGE" if media_limit else "UNSUPPORTED_MEDIA_TYPE"},
