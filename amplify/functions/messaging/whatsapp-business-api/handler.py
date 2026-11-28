@@ -98,6 +98,8 @@ from lambda_utils import flow_launch  # one entry-policy validator for registry 
 from lambda_utils import flow_sessions  # server-issued Flow tokens; unknown tokens answer 427
 from lambda_utils import flow_funnel  # per-day Flow funnel counters (no customer data)
 from lambda_utils import wa_status
+from lambda_utils import template_status, whatsapp_templates  # APPROVED check, registered templates
+from lambda_utils.identity import consent as consent_evidence  # WhatsApp marketing consent ledger
 from lambda_utils.privacy import redact_string  # exception text can carry a phone number
 META_TOKEN_SECRET = os.environ.get('META_TOKEN_SECRET', 'wecare/meta-system-user-token')
 GRAPH_BASE = f'https://graph.facebook.com/{META_API_VERSION}'
@@ -1677,6 +1679,10 @@ def _send_marketing_message(phone_id: str, body: Dict) -> Dict:
         return _resp(400, {'error': 'to (recipient phone) is required'})
     if not template_name:
         return _resp(400, {'error': 'templateName is required (must be an APPROVED marketing template)'})
+    # Marketing Messages is MARKETING by construction: the consent ledger must allow it.
+    refusal = _marketing_consent_refusal(to, '', consent_evidence.MARKETING)
+    if refusal is not None:
+        return refusal
 
     template_obj = {'name': template_name, 'language': {'code': language}}
     if params:
@@ -2411,11 +2417,113 @@ def _resumable_finish(session_id: str, body: Dict) -> Dict:
 #   POST /wa-business/messages/send/media       → image/video/document/audio/sticker
 # All post to {phone_id}/messages via the Graph API.
 # ============================================================================
-def _send_message(phone_id: str, message: Dict, body: Dict = None) -> Dict:
+#: Live Meta template categories per (WABA, name), reused for five minutes like
+#: outbound-whatsapp's `_template_category_for_send`.
+_TEMPLATE_CATEGORY_TTL = 300
+_template_categories: Dict[Any, Any] = {}
+
+
+class TemplateCategoryUnavailable(RuntimeError):
+    """The live Meta category of a template could not be proven, so a send must not guess."""
+
+
+def _live_template_category(phone_id: str, template_name: str) -> str:
+    """The APPROVED Meta category of one template on this sender's WABA, or raise."""
+    waba_id = direct_send_util.waba_for_meta_phone(phone_id)
+    name = str(template_name or '').strip()
+    if not waba_id or not name:
+        raise TemplateCategoryUnavailable('sender WABA or template name unknown')
+    now = time.time()
+    cached = _template_categories.get((waba_id, name.lower()))
+    if cached and now - cached[1] < _TEMPLATE_CATEGORY_TTL:
+        return cached[0]
+    listed = _list_payment_templates(waba_id)
+    if listed.get('statusCode') != 200:
+        raise TemplateCategoryUnavailable('template list unavailable')
+    categories = set()
+    for row in json.loads(listed.get('body') or '{}').get('data') or []:
+        if not isinstance(row, dict) or not template_status.is_sendable(row.get('status')):
+            continue
+        row_name = str(row.get('name') or '').strip()
+        category = str(row.get('category') or '').strip().upper()
+        if row_name and category:
+            _template_categories[(waba_id, row_name.lower())] = (category, now)
+            if row_name.lower() == name.lower():
+                categories.add(category)
+    if len(categories) != 1:
+        raise TemplateCategoryUnavailable('template category not uniquely provable')
+    return next(iter(categories))
+
+
+def _template_send_purpose(phone_id: str, template_name: str, body: Dict, *,
+                           internal: bool) -> str:
+    """MARKETING when the caller says so or Meta classifies the template so; never downgraded.
+
+    Registered templates (`lambda_utils.whatsapp_templates`) carry their category, so the
+    sign-in code path needs no Meta read. Internal invokes send only our own utility and
+    authentication templates and must pass `messagePurpose: MARKETING` for a marketing send.
+    """
+    raw = str(body.get('messagePurpose') or body.get('consentPurpose') or '').strip()
+    if raw:
+        try:
+            if consent_evidence.normalize_purpose(raw) == consent_evidence.MARKETING:
+                return consent_evidence.MARKETING
+        except consent_evidence.InvalidConsentRecord:
+            return consent_evidence.MARKETING  # unreadable purpose: the strictest one
+    registered = whatsapp_templates.by_name(template_name)
+    if registered is not None:
+        return (consent_evidence.MARKETING if registered.category == 'MARKETING'
+                else consent_evidence.SERVICE)
+    if internal:
+        return consent_evidence.SERVICE
+    if _live_template_category(phone_id, template_name) == 'MARKETING':
+        return consent_evidence.MARKETING
+    return consent_evidence.SERVICE
+
+
+def _marketing_consent_refusal(to: str, recipient: str, purpose: str) -> Optional[Dict]:
+    """403 unless the consent ledger currently proves a WhatsApp marketing opt-in.
+
+    Same rule as outbound-whatsapp's `_marketing_consent_refusal`: an unknown number, no
+    record, PENDING and OPTED_OUT all refuse; only a current OPTED_IN record permits it.
+    """
+    if purpose != consent_evidence.MARKETING:
+        return None
+    from lambda_utils import contact_store
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        if to:
+            contact = contact_store.lookup(table, to) or {}
+        else:
+            contact = contact_store.find_by_bsuid(table, recipient) or {}
+    except contact_store.IdentityConflict:
+        contact = {}
+    except Exception as exc:  # noqa: BLE001 - an unreadable ledger is not consent
+        logger.error(json.dumps({'event': 'whatsapp_marketing_consent_unavailable',
+                                 'errorType': type(exc).__name__}))
+        return _resp(503, {'error': 'WHATSAPP_MARKETING_CONSENT_UNAVAILABLE',
+                           'message': 'Marketing consent could not be verified. Nothing was sent.'})
+    state = consent_evidence.current_state(contact, 'WHATSAPP', now=int(time.time()),
+                                           purpose=consent_evidence.MARKETING)
+    if state == consent_evidence.OPTED_IN:
+        return None
+    logger.warning(json.dumps({
+        'event': 'whatsapp_marketing_consent_refused',
+        'contactId': mask_contact_id(str(contact.get('id') or '')),
+        'consentState': state, 'purpose': consent_evidence.MARKETING,
+    }))
+    return _resp(403, {'error': 'WHATSAPP_MARKETING_CONSENT_REQUIRED',
+                       'message': 'This customer has no current WhatsApp marketing opt-in. '
+                                  'Nothing was sent.'})
+
+
+def _send_message(phone_id: str, message: Dict, body: Dict = None, *,
+                  internal: bool = False) -> Dict:
     """POST a fully-formed message to {phone_id}/messages and normalize the response.
 
     Destination: pass `body` to resolve `to` (phone) and/or `recipient` (BSUID or
     parent BSUID) per Meta's BSUID API. If both are given, Meta uses `to`.
+    A MARKETING template is sent only to a recipient the consent ledger shows opted in.
     """
     if message.get('type') not in {'text', 'template', 'image', 'video', 'audio', 'document', 'sticker', 'contacts', 'location', 'reaction'}:
         return _resp(400, {'error': 'UNSUPPORTED_MESSAGE_TYPE'})
@@ -2430,6 +2538,18 @@ def _send_message(phone_id: str, message: Dict, body: Dict = None) -> Dict:
             message['to'] = to
         if recipient:
             message['recipient'] = recipient
+    if message.get('type') == 'template':
+        try:
+            purpose = _template_send_purpose(
+                phone_id, (message.get('template') or {}).get('name', ''), body or {},
+                internal=internal)
+        except TemplateCategoryUnavailable:
+            return _resp(503, {'error': 'TEMPLATE_CATEGORY_UNAVAILABLE',
+                               'message': 'Template category could not be verified. Nothing was sent.'})
+        refusal = _marketing_consent_refusal(str(message.get('to') or ''),
+                                             str(message.get('recipient') or ''), purpose)
+        if refusal is not None:
+            return refusal
     result = _graph_api(f'{phone_id}/messages', method='POST', payload=message, phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
@@ -2463,7 +2583,7 @@ _DIRECT_SEND_OTP_TIMEOUT_SECONDS = 2.0
 #: Skipping only ever costs Direct Send usage, never delivery: the template is today's path.
 
 
-def _send_template_msg(body: Dict) -> Dict:
+def _send_template_msg(body: Dict, *, internal: bool = False) -> Dict:
     """Send a template by name with caller components. Never a payment request.
 
     `components` reach Meta verbatim, so an order details button action here would bill a
@@ -2487,7 +2607,8 @@ def _send_template_msg(body: Dict) -> Dict:
     template = {'name': name, 'language': {'code': body.get('language', 'en')}}
     if body.get('components'):
         template['components'] = body['components']
-    return _send_message(phone_id, {'type': 'template', 'template': template}, body)
+    return _send_message(phone_id, {'type': 'template', 'template': template}, body,
+                         internal=internal)
 
 
 def _send_media_msg(body: Dict) -> Dict:
@@ -2558,12 +2679,12 @@ def _is_internal_invoke(event: Dict[str, Any]) -> bool:
     return not (rc.get('apiId') or rc.get('domainName') or http.get('sourceIp'))
 
 
-def _route_send_message(path: str, body: Dict) -> Dict:
+def _route_send_message(path: str, body: Dict, *, internal: bool = False) -> Dict:
     """Dispatch supported message routes after the handler's authorization check."""
     if path.rstrip('/').endswith('/text'):
         return _send_text(body)
     if path.rstrip('/').endswith('/template'):
-        return _send_template_msg(body)
+        return _send_template_msg(body, internal=internal)
     if path.rstrip('/').endswith('/media'):
         return _send_media_msg(body)
     if path.rstrip('/').endswith('/contacts'):
@@ -7096,7 +7217,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/messages/send/' in path:
             if method == 'POST':
-                return _route_send_message(path, body)
+                return _route_send_message(path, body, internal=_is_internal_invoke(event))
             return _resp(405, {'error': 'POST only'})
 
         elif '/message-history/events' in path:
