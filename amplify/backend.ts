@@ -1,3 +1,11 @@
+/*
+ * DOCUMENTATION ONLY since 2026-11-28. This Amplify Gen 2 definition was never deployed (no
+ * amplify-* stack or Amplify backend environment exists), and its install root
+ * (amplify/package.json, package-lock.json, tsconfig.json) was removed with it: nothing installed
+ * it, it no longer synthesized, and it carried zod advisories with no fixed Amplify release. The
+ * live tables, queues and Lambdas are managed by scripts/ and amplify/infra/. To revive Gen 2,
+ * restore those three files from git history first.
+ */
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { data } from './data/resource';

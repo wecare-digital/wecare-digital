@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 let copies = 0;
-for (const lockfile of ['package-lock.json', 'amplify/package-lock.json']) {
+for (const lockfile of ['package-lock.json']) {
   const base = path.dirname(path.join(root, lockfile));
   const lock = JSON.parse(fs.readFileSync(path.join(root, lockfile), 'utf8'));
   for (const name of Object.keys(lock.packages).filter(name => name.endsWith('/braces'))) {

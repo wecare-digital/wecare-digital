@@ -11,7 +11,7 @@ ADVISORY = 'GHSA-vfj7-8cjw-p6xm'
 
 def inspect_locks(root=ROOT):
     copies = []
-    for relative in ('package-lock.json', 'amplify/package-lock.json'):
+    for relative in ('package-lock.json',):
         packages = json.loads((root / relative).read_text())['packages']
         for name, meta in packages.items():
             if name.endswith('/braces'):
