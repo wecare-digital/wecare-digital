@@ -63,3 +63,10 @@ test('Auth button tokens cover full-size actions, compact controls and selected 
   for (const token of ['button:not(:where(', '[role="combobox"]', '[role="switch"]', '.gm-style *', '.voice-search-mic', '[aria-pressed="true"]', '[aria-selected="true"]', '[aria-disabled="true"]', 'prefers-reduced-motion: reduce', 'forced-colors: active', ':focus-visible']) assert.ok(css.includes(token), token);
   assert.match(read('src/components/cart/CartPage.tsx'), /\.cart-quiet-refresh\{[^}]*background:var\(--public-bg\);color:var\(--public-brand-green\)/);
 });
+test('Relay OS code tabs keep their own dark-strip colours (axe color-contrast)', () => {
+  // The theme's green text on a translucent lime tint is ~1.5:1 on the black .code-tabs strip.
+  const lists = css.match(/\.cart-quiet-refresh, \.sr-action[^)]*\)\)/g) ?? [];
+  assert.ok(lists.length >= 10);
+  for (const list of lists) assert.ok(list.includes('.pp-tab'), list);
+  assert.ok(read('src/pages/relay-os/index.tsx').includes('className={`pp-tab '));
+});

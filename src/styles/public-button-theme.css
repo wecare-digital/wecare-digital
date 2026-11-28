@@ -25,7 +25,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ) {
@@ -41,7 +41,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):is([aria-pressed="true"], [aria-selected="true"], [aria-current="page"], [aria-expanded="true"], .active, .is-active, .is-on) {
@@ -54,7 +54,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):is(:disabled, [aria-disabled="true"]) {
@@ -68,7 +68,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):focus-visible {
@@ -82,7 +82,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):hover:not(:disabled):not([aria-disabled="true"]) {
@@ -96,7 +96,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):is([aria-pressed="true"], [aria-selected="true"], [aria-current="page"], [aria-expanded="true"], .active, .is-active, .is-on):hover:not(:disabled):not([aria-disabled="true"]) {
@@ -176,7 +176,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ),
@@ -193,7 +193,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):hover:not(:disabled):not([aria-disabled="true"]),
@@ -213,7 +213,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ),
@@ -230,7 +230,7 @@
     .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic,
     .gm-style *, .grecaptcha-badge *,
     .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action)),
+    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
   .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
   a.post-nav-step
 ):focus-visible,
