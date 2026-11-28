@@ -8,27 +8,32 @@ from decimal import Decimal
 from typing import Dict
 from flows.orders import (
     fetch_orders_for_flow, get_order, extract_short_id,
-    dynamodb, ORDERS_TABLE,
+    dynamodb, ORDERS_TABLE, order_belongs_to,
 )
 from flows.common import (
-    get_phone_from_token, find_contact_by_phone,
+    require_session, reject, find_contact_by_phone,
     get_contact_name, record_completion,
 )
 
 logger = logging.getLogger(__name__)
 FLOW_CODE = 'WD_NOTE'
+#: Server-issued session capability; the customer comes from the session, not the token.
+CAPABILITY = 'order_notes'
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    phone = get_phone_from_token(flow_token)
-    orders = fetch_orders_for_flow(phone, data.get('email', ''))
+    session = require_session(flow_token, CAPABILITY, allow_consumed=False)
+    orders = fetch_orders_for_flow(session.phone, '')
     if not orders:
         orders = [{'id': 'none', 'title': 'No orders found'}]
     return {'screen': 'ORDER_SELECT', 'data': {'orders': orders}}
 
 
 def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
+    session = require_session(flow_token, CAPABILITY)
     order_id = data.get('order_id', '')
+    if order_id and order_id != 'none' and not order_belongs_to(order_id, session.phone):
+        reject('order_not_owned')
     from flows.orders import order_label
     short = (order_label(order_id) or '—') if order_id and order_id != 'none' else '—'
     return {
@@ -41,7 +46,10 @@ def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 
 def handle_notes_form(data: Dict, flow_token: str, request_id: str) -> Dict:
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
+    order_id = data.get('order_id', '')
+    if order_id and order_id != 'none' and not order_belongs_to(order_id, phone):
+        reject('order_not_owned')
     contact_id = find_contact_by_phone(phone)
     name = get_contact_name(contact_id)
     # Derived from the completion key rather than random. A Meta retry of
@@ -52,7 +60,6 @@ def handle_notes_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     note_id = _fc.reference_for(
         _fc.completion_key(flow_token, 'NOTES_FORM', data)[0], 'WD-NOTE')
     now = int(time.time())
-    order_id = data.get('order_id', '')
     notes = data.get('notes', '')
 
     # Append notes to OrdersTable.adminNotes

@@ -103,7 +103,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Viewer')
     if _auth is not None:
         return _auth
 
@@ -116,6 +116,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return cors_response(400, {'error': 'Invalid JSON body'}, origin)
 
     action = body.get('action', 'send')
+
+    # Reads stay at Viewer; sends and template changes need Operator.
+    if action not in ('list', 'templates', 'diagnostics'):
+        _auth = require_auth(event, required_role='Operator')
+        if _auth is not None:
+            return _auth
 
     if action == 'send':
         return _send_rcs(body, request_id, origin)

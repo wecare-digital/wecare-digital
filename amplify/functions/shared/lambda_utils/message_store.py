@@ -38,7 +38,9 @@ _dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 
 # per-Lambda MESSAGES_TABLE (several handlers repurpose MESSAGES_TABLE for their own
 # legacy table — reading that here would send writes to the wrong place).
 MESSAGES_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
-MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days — matches the Message model TTL
+# Written as `expiresAt`, but DynamoDB TTL is disabled on MessagesTable
+# (scripts/disable_dynamodb_ttl.py), so rows are kept until a retention period is decided.
+MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60
 
 VALID_CHANNELS = ('whatsapp', 'sms', 'email', 'rcs', 'voice')
 VALID_DIRECTIONS = ('inbound', 'outbound')

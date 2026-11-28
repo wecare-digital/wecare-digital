@@ -9,7 +9,9 @@ from typing import Dict, Callable
 # Import a Flow handler only when this request is actually routed to it.
 # The previous eager import pulled every service/checkout module into cold
 # INIT and Meta ping requests, including static Review/Referral opening screens.
-from flows.common import get_phone_from_token, log_flow_event
+# `get_phone_from_token` is unverified and is used here for log attribution only. Handlers
+# that read or write customer data resolve the customer from a server-issued Flow session.
+from flows.common import get_phone_from_token, log_flow_event, reject
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +40,7 @@ def _extract_flow_key(flow_token: str) -> str:
 
 
 def route_flow(action: str, screen: str, data: Dict, flow_token: str,
-               request_id: str, get_flow_registry_fn: Callable = None,
-               fetch_orders_fn: Callable = None) -> Dict:
+               request_id: str, get_flow_registry_fn: Callable = None) -> Dict:
     """Route a flow action to the correct flow module.
     Returns the response_payload dict to be encrypted and returned to Meta.
     """
@@ -120,8 +121,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
             flow_config = get_flow_registry_fn(flow_code) or {}
 
         if action == 'INIT':
-            return submit_request.handle_init(data, flow_token, request_id,
-                                              fetch_orders_fn=fetch_orders_fn)
+            return submit_request.handle_init(data, flow_token, request_id)
         if screen == 'ORDER_SELECT':
             return submit_request.handle_order_select(data, flow_token, request_id)
         if screen in ('SUBMIT_REQUEST_FORM', 'REQUEST_FORM'):
@@ -258,18 +258,11 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
             return generic.handle_form(data, flow_token, request_id, flow_key=flow_key)
         return generic.handle_any_screen(data, flow_token, request_id)
 
-    # ── INIT for non-subscribe flows (order fetch) ──
+    # ── INIT for any other token ──
+    # The generic INIT used to list the orders of whatever phone the token named. A token
+    # no flow above recognises has no server-issued session, so it is refused (HTTP 427).
     if action == 'INIT':
-        orders = []
-        if fetch_orders_fn:
-            try:
-                orders = fetch_orders_fn(phone, data.get('email', ''))
-            except Exception:
-                pass
-        if not orders:
-            orders = [{'id': 'none', 'title': 'No orders found'}]
-        return {'screen': 'ORDER_SELECT' if flow_key in ('sr', 'submit_re') else 'WELCOME',
-                'data': {'orders': orders}}
+        reject('unknown_flow_token')
 
     # ── Terminal screens ──
     if screen in ('THANK_YOU', 'SUCCESS'):
