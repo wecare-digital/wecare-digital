@@ -2146,6 +2146,15 @@ MEDIA_SOURCE_BUCKETS = {
     os.environ.get('SECURE_FILES_BUCKET', media_paths.BUCKET),
 }
 
+#: The only key prefixes `_upload_media` may read an `s3Key` from: outbound send media.
+#: Uploads, inbound media, invoices and Vault files are refused, because an upload plus
+#: `GET /media/{id}?download=true` would hand any of them out as a presigned URL.
+OUTBOUND_MEDIA_PREFIXES = (
+    media_paths.WHATSAPP_OUTGOING_PREFIX,
+    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT,
+    media_paths.WHATSAPP_TEMPLATE_HEADER_PREFIX,
+)
+
 
 def _upload_media(body: Dict) -> Dict:
     """Upload media for sending.
@@ -2168,6 +2177,8 @@ def _upload_media(body: Dict) -> Dict:
         return _resp(400, {'error': 'fileData (base64) or s3Key required'})
     if s3_key and s3_bucket not in MEDIA_SOURCE_BUCKETS:
         return _resp(400, {'error': 's3Bucket is not an allowed media source'})
+    if s3_key and not str(s3_key).startswith(OUTBOUND_MEDIA_PREFIXES):
+        return _resp(400, {'error': 's3Key must be an outbound media key'})
     try:
         if s3_key:
             obj = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
@@ -6301,13 +6312,19 @@ def _require_operator(event: Dict[str, Any], path: str):
 #: the Admin-approved exact plan (`/catalog-sync`); these arms bypassed both. Reads stay at the
 #: floor. Same substring test as the dispatch below, so any path that reaches one of these arms
 #: is gated here.
+#: Calling settings (sip.servers decides where WhatsApp calls are routed), the business
+#: profile and the business username are account configuration at Meta: Admin as well.
 ADMIN_WRITE_PATH_FRAGMENTS = ('/catalog-products', '/catalog-feed', '/commerce-settings',
-                              '/assigned-users')
+                              '/assigned-users', '/calling-settings', '/profile', '/username')
 
 
 def _require_admin_write(event: Dict[str, Any], path: str, method: str):
-    """Admin refusal for a write on an `ADMIN_WRITE_PATH_FRAGMENTS` arm, or None to proceed."""
-    if str(method or '').upper() in ('GET', 'HEAD', 'OPTIONS'):
+    """Admin refusal for a write on an `ADMIN_WRITE_PATH_FRAGMENTS` arm, or None to proceed.
+
+    Only GET is a read: the profile, commerce and calling arms treat any other method,
+    HEAD included, as an update. OPTIONS is answered before this runs.
+    """
+    if str(method or '').upper() == 'GET':
         return None
     if not any(fragment in path for fragment in ADMIN_WRITE_PATH_FRAGMENTS):
         return None
@@ -7037,16 +7054,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Measured unauthenticated against production on 2026-09-21:
     # `GET /wa-business/webhooks` returned 400 "wabaId required" - past auth and
     # inside the handler - while `GET /wa-business/profile` returned 401.
-    # Viewer is the floor for this catch-all. Stated explicitly rather than left as None:
-    # `require_auth` no longer defaults an ungrouped principal to Viewer, so a call with
-    # no `required_role` has nothing to check.
+    # Viewer is the floor for reads; every other method needs Operator, because several
+    # arms below treat any non-GET method (HEAD included) as a write. Stated explicitly
+    # rather than left as None: `require_auth` no longer defaults an ungrouped principal to
+    # Viewer, so a call with no `required_role` has nothing to check.
     is_return_transition = (
         '/flow-submissions/update-status' in path
         and method in ('POST', 'PATCH')
         and 'returnStage' in body
     )
+    floor_role = 'Viewer' if str(method or '').upper() == 'GET' else 'Operator'
     auth_result = require_auth(
-        event, required_role='Admin' if is_return_transition else 'Viewer')
+        event, required_role='Admin' if is_return_transition else floor_role)
     if auth_result is not None:
         return auth_result
 
@@ -7425,13 +7444,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _resp(400, {'error': 'wabaId required'})
             return _get_oba_status(waba_id)
 
+        # These three write on any method, so a GET must not reach them at the Viewer floor.
         elif '/groups/participants' in path:
+            if method != 'POST':
+                return _resp(405, {'error': 'POST only'})
             return _manage_group_participants(params.get('groupId') or body.get('groupId') or '', body)
         elif '/groups/send' in path:
+            if method != 'POST':
+                return _resp(405, {'error': 'POST only'})
             return _send_group_message(
                 params.get('phoneId') or body.get('phoneId') or '',
                 params.get('groupId') or body.get('groupId') or '', body)
         elif '/groups/image' in path:
+            if method != 'POST':
+                return _resp(405, {'error': 'POST only'})
             group_id = params.get('groupId') or body.get('groupId') or ''
             image_url = body.get('imageUrl', '')
             return _set_group_image(group_id, image_url)

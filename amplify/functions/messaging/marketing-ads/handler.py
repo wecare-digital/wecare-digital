@@ -58,6 +58,12 @@ WABA_PHONE = {
     "WABA2": os.environ.get("WABA2_DISPLAY", "919903300044"),   # +91 99033 00044
 }
 
+#: `upload_image` may read an `s3Key` only under these media-bucket prefixes.
+_OUTBOUND_MEDIA_PREFIXES = (
+    media_paths.WHATSAPP_OUTGOING_PREFIX,
+    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT,
+)
+
 _OBJECTIVES = {"OUTCOME_ENGAGEMENT", "OUTCOME_LEADS", "OUTCOME_SALES", "OUTCOME_TRAFFIC"}
 _OPT_GOALS = {"CONVERSATIONS", "LINK_CLICKS", "IMPRESSIONS", "REACH",
               "LANDING_PAGE_VIEWS", "POST_ENGAGEMENT", "OFFSITE_CONVERSIONS"}
@@ -166,10 +172,15 @@ def _upload_image(body):
     b64 = body.get("imageData")
     s3_key = body.get("s3Key")
     if s3_key:
-        s3 = boto3.client("s3", region_name=REGION)
-        bucket = body.get("bucket") or os.environ.get("MEDIA_BUCKET", media_paths.BUCKET)
+        media_bucket = os.environ.get("MEDIA_BUCKET", media_paths.BUCKET)
         # The caller hands us a key it read off a message or media row, so root it.
-        img = s3.get_object(Bucket=bucket, Key=media_paths.canonical(s3_key))["Body"].read()
+        key = media_paths.canonical(str(s3_key))
+        # Only the media bucket's outbound send media; never a caller-chosen bucket, and
+        # never uploads, inbound media, invoices or Vault files.
+        if (body.get("bucket") or media_bucket) != media_bucket or not key.startswith(_OUTBOUND_MEDIA_PREFIXES):
+            return _resp(400, {"error": "s3Key must be an outbound media key in the media bucket"})
+        s3 = boto3.client("s3", region_name=REGION)
+        img = s3.get_object(Bucket=media_bucket, Key=key)["Body"].read()
         ctype = body.get("contentType", "image/jpeg")
     elif b64:
         img = base64.b64decode(b64)
@@ -410,7 +421,8 @@ def lambda_handler(event, context):
     if method == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    auth = require_auth(event)
+    # Ads spend money and publish under the business page: Admin only.
+    auth = require_auth(event, required_role="Admin")
     if auth is not None:
         return auth
 
