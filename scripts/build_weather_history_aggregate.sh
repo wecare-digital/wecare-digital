@@ -28,10 +28,13 @@
 set -euo pipefail
 
 PROJECT="${PROJECT:-wecaredigitalbw}"
+# weather_insights is a LINKED, READ-ONLY dataset (Analytics Hub): it can be queried but
+# never written to. The aggregate lives in its own writable dataset in the same location.
 DATASET="${DATASET:-weather_insights}"
+AGG_DATASET="${AGG_DATASET:-weather_insights_agg}"
 LOCATION="${LOCATION:-US}"
 RAW="${PROJECT}.${DATASET}.weather_history_in"
-AGG="${PROJECT}.${DATASET}.weather_history_in_windows"
+AGG="${PROJECT}.${AGG_DATASET}.weather_history_in_windows"
 YEARS="${YEARS:-5}"
 MAX_CHUNKS="${MAX_CHUNKS:-4}"
 # Raw column names. Override if the dry run reports a schema mismatch; confirm them
@@ -57,7 +60,16 @@ CREATE_SQL="CREATE TABLE IF NOT EXISTS \`${AGG}\` (
   first_observed_at TIMESTAMP, last_observed_at TIMESTAMP, loaded_at TIMESTAMP
 ) CLUSTER BY lat, lng
 OPTIONS (description='Half-month aggregates of weather_history_in for Nano Climate 1y/5y summaries')"
-if [ "$MODE" = "apply" ]; then bq_q "$CREATE_SQL" >/dev/null; fi
+if [ "$AGG_DATASET" = "$DATASET" ]; then
+  echo "AGG_DATASET must differ from the linked read-only dataset ${DATASET}."; exit 2
+fi
+if [ "$MODE" = "apply" ]; then
+  bq --project_id="$PROJECT" --location="$LOCATION" show --dataset "${PROJECT}:${AGG_DATASET}" >/dev/null 2>&1 \
+    || bq --project_id="$PROJECT" --location="$LOCATION" mk --dataset \
+         --description "Nano Climate historical-weather aggregates (writable; raw data stays in the linked weather_insights dataset)" \
+         "${PROJECT}:${AGG_DATASET}"
+  bq_q "$CREATE_SQL" >/dev/null
+fi
 
 # Half-month windows [start, end) that ended before today (UTC), newest first.
 WINDOWS=$(python3 - "$YEARS" <<'PY'

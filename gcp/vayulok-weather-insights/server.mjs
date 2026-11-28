@@ -18,7 +18,7 @@ const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 // for the 30d range, still subject to its hard query cap. A missing aggregate fails
 // closed; it never falls back to a raw multi-year scan.
 const AGGREGATE_TABLE = String(process.env.WEATHER_INSIGHTS_AGGREGATE_TABLE
-  || 'wecaredigitalbw.weather_insights.weather_history_in_windows').trim();
+  || 'wecaredigitalbw.weather_insights_agg.weather_history_in_windows').trim();
 // The aggregate is served only after an operator has built it and compared it with
 // the raw 30d summary (docs/nano-climate-environment-data.md). Off by default.
 const AGGREGATE_ENABLED = String(process.env.WEATHER_INSIGHTS_AGGREGATE_ENABLED || '').toLowerCase() === 'true';

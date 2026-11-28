@@ -100,7 +100,7 @@ provider terms and project-wide quotas. Never partition a user request merely to
 circumvent the 1 GiB cap.
 
 1. scripts/build_weather_history_aggregate.sh creates
-   weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
+   weather_insights_agg.weather_history_in_windows (writable dataset; weather_insights is linked and read-only; clustered by lat, lng): half-month
    windows per grid point with hours, sum/min/max temperature, precipitation sum and
    humidity sum, de-duplicated to one row per grid point per hour. Each window is one
    INSERT, dry-run first, with --maximum_bytes_billed=1073741824. Windows with no raw
