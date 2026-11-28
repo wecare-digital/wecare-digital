@@ -143,6 +143,17 @@ async function runScenario(browser,width,mode) {
         return {width,scroll,overflowTargets};
       });
       phase='accessibility scan: '+label;
+      // Firefox (Playwright build 1572) segfaults its content process whenever axe
+      // scans this one state: deterministic across 3 widths and retries, and still
+      // with all stylesheets disabled or the profile section removed (CI bisect,
+      // PRs #2553/#2554). Chromium and WebKit scan it; Firefox scans every other state.
+      if(engine==='firefox'&&label==='name-only-profile'){
+        const result={engine,width,mode,label,geometry:geom,axeSkipped:'firefox-content-process-crash'};
+        evidence.push(result);console.log(JSON.stringify(result));
+        await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
+        if(geom.scroll>geom.width+2) failures.push(label+' horizontal overflow at '+width);
+        return;
+      }
       // Firefox: AxeBuilder's default mode opens and closes a blank page in this
       // context for every scan. In Firefox that tab close repeatedly preceded a
       // content-process SIGSEGV on the next checkout render (CI bisect, PR #2553:
