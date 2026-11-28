@@ -697,7 +697,7 @@ export default function OrdersPage (): React.ReactElement {
       requestPanel.current.focus( { preventScroll: true } );
       requestPanel.current.scrollIntoView( { block: 'start' } );
     }
-  }, [ signedIn, requestSelection ] );
+  }, [ signedIn, requestSelection, submitOrderNumber ] );
 
   const closeSubmitRequest = () => {
     setSubmitOrderNumber( null );
@@ -705,21 +705,6 @@ export default function OrdersPage (): React.ReactElement {
     window.history.replaceState( window.history.state, '', '/orders/' );
   };
 
-  if ( signedIn && requestSelection === 'submit-request' && submitOrderNumber ) {
-    return (
-      <>
-        <PageMeta title="Submit Request" description="Submit a request for your order." path="/orders/" />
-        <main className="ord-web-request" aria-label="Submit Request">
-          <SubmitRequestJourney key={ submitOrderNumber } orderNumber={ submitOrderNumber }
-            accessToken={ token } onDone={ closeSubmitRequest } onExpired={ expire } />
-        </main>
-        <style jsx>{ `
-          .ord-web-request{min-width:0;box-sizing:border-box;width:100%;max-width:100%;padding:calc(120px + var(--safe-top,0px)) 16px 48px}
-          @media(min-width:768px){.ord-web-request{padding:calc(156px + var(--safe-top,0px)) 24px 64px}}
-        ` }</style>
-      </>
-    );
-  }
 
   return (
     <>
@@ -793,7 +778,10 @@ export default function OrdersPage (): React.ReactElement {
               <div className="ord-main">
                 { selectedRequest?.id === 'submit-request' && (
                   <div ref={ requestPanel } tabIndex={ -1 } className="ord-request-action">
-                    <p>Choose an order and select Submit Request.</p>
+                    { submitOrderNumber ? <SubmitRequestJourney key={ submitOrderNumber }
+                      orderNumber={ submitOrderNumber } accessToken={ token }
+                      onDone={ closeSubmitRequest } onExpired={ expire } />
+                      : <p>Choose an order and select Submit Request.</p> }
                   </div>
                 ) }
                 { selectedRequest && requestLink && (
@@ -962,7 +950,6 @@ export default function OrdersPage (): React.ReactElement {
                               <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
                                 setRequestSelection( id );
                                 setSubmitOrderNumber( id === 'submit-request' ? order.orderNumber : null );
-                                if ( id === 'submit-request' ) window.scrollTo( 0, 0 );
                                 window.history.replaceState( window.history.state, '', `/orders/#request=${id}` );
                               } } />
                               </span>

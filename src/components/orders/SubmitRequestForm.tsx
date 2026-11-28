@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { formatPaiseINR } from '../../lib/money';
+import { serviceByKind } from '../../config/services';
 
 /**
  * F004 website form. Presentation only: the authenticated Orders controller owns
@@ -40,7 +41,6 @@ export default function SubmitRequestForm ( {
   onReview, onPay, onCheckStatus, onDone, onNewRequest,
 }: SubmitRequestFormProps ): React.ReactElement {
   const [ note, setNote ] = useState( '' );
-  const [ reviewing, setReviewing ] = useState( false );
   const [ invalid, setInvalid ] = useState( false );
   const id = useId();
   const field = useRef<HTMLTextAreaElement>( null );
@@ -52,7 +52,6 @@ export default function SubmitRequestForm ( {
   const waiting = pending || saving;
   const received = paymentState === 'received';
   const failed = paymentState === 'failed';
-  const review = reviewing || starting || waiting;
   const cleanNote = note.trim();
   const noteValid = cleanNote.length > 0 && note.length <= MAX_NOTE_LENGTH;
   const amounts = quote ? [ quote.itemSubtotalPaise, quote.supplyGstPaise, quote.delightPaise,
@@ -65,7 +64,7 @@ export default function SubmitRequestForm ( {
     ? formatPaiseINR( quote.totalPayablePaise, quote.currency ) : '';
   const canPay = Boolean( price && noteValid && !starting && !waiting && !received && !quoteUnavailable );
   const title = received ? 'Request received'
-    : saving ? 'Saving request' : starting || pending ? 'Complete payment' : review ? 'Review request' : 'Add a note';
+    : saving ? 'Saving request' : starting || pending ? 'Complete payment' : 'Add a note';
 
   useEffect( () => { heading.current?.focus( { preventScroll: true } ); }, [ title ] );
   useEffect( () => {
@@ -74,30 +73,19 @@ export default function SubmitRequestForm ( {
     if ( failed ) payRequested.current = false;
   }, [ failed ] );
 
-  const continueToReview = () => {
-    if ( !noteValid ) {
-      setInvalid( true );
-      field.current?.focus();
-      return;
-    }
-    setInvalid( false );
-    setReviewing( true );
-    onReview();
-  };
-
   const pay = () => {
+    if ( !noteValid ) { setInvalid( true ); field.current?.focus(); return; }
     if ( !canPay || !quote || payRequested.current ) return;
     payRequested.current = true;
     onPay( { orderNumber, note: cleanNote, expectedTotalPaise: quote.totalPayablePaise } );
   };
 
   const priceRows: Array<{ label: string; paise: number; discount?: boolean }> = quote ? [
-    { label: 'Submit Request', paise: quote.itemSubtotalPaise },
-    { label: 'GST on service', paise: quote.supplyGstPaise },
-    { label: 'Delight discount', paise: quote.delightPaise, discount: true },
+    { label: 'Items Subtotal', paise: quote.itemSubtotalPaise },
+    { label: 'Delight', paise: quote.delightPaise, discount: true },
     { label: 'Express', paise: quote.expressPaise },
-    { label: 'Convenience fee', paise: quote.convenienceFeePaise },
-    { label: 'GST on convenience fee', paise: quote.convenienceGstPaise },
+    { label: 'Convenience Fee', paise: quote.convenienceFeePaise },
+    { label: 'GST', paise: quote.supplyGstPaise + quote.convenienceGstPaise },
   ] : [];
 
   return (
@@ -113,12 +101,12 @@ export default function SubmitRequestForm ( {
       </div> }
       <h2 ref={ heading } id={ id + '-heading' } tabIndex={ -1 }>{ title }</h2>
       { received ? <p className="sr-copy">Your request has been received and linked for review.</p>
-        : !review ? <p className="sr-copy">Tell our team what you need help with.</p> : null }
+        : !starting && !waiting ? <p className="sr-copy">Tell our team what you need help with.</p> : null }
       <div className="sr-linked">
         <span className="sr-caption">Linked to</span>
         <strong data-wc-no-translate="true">{ orderNumber }</strong>
       </div>
-      { !received && !review && <>
+      { !received && !starting && !waiting && <>
         <label htmlFor={ id + '-note' }>Note</label>
         <textarea
           id={ id + '-note' } ref={ field } rows={ 4 } maxLength={ MAX_NOTE_LENGTH }
@@ -129,23 +117,17 @@ export default function SubmitRequestForm ( {
         <div className="sr-count" id={ id + '-count' }>{ note.length } / { MAX_NOTE_LENGTH }</div>
         { invalid && <p className="sr-error" id={ id + '-error' } role="alert">Enter a note.</p> }
       </> }
-      { !received && review && !starting && !waiting && <>
-        <div className="sr-review-note"><span className="sr-caption">Note</span><p>{ cleanNote }</p></div>
-        { price && quote && !quoteUnavailable ? <>
-          <div className="sr-total"><span>Total payable</span><strong data-wc-no-translate="true">{ price }</strong></div>
-          <details>
-            <summary className="sr-details">
-              <span>Price details</span>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-                <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </summary>
-            <dl>{ priceRows.map( row => <div key={ row.label }>
-              <dt>{ row.label }</dt>
-              <dd data-wc-no-translate="true">{ row.discount ? '−' : '' }{ formatPaiseINR( row.paise, quote.currency ) }</dd>
-            </div> ) }</dl>
-          </details>
-        </> : <p className="sr-copy" role="status">{ quoteUnavailable ? 'Price unavailable.' : 'Checking price…' }</p> }
+      { !received && !starting && !waiting && <>
+        { price && quote && !quoteUnavailable ? <section className="sr-pricing" aria-label="Payment summary">
+          <table className="sr-items">
+            <thead><tr><th scope="col">Item / SKU</th><th scope="col">Qty</th><th scope="col">Amount</th></tr></thead>
+            <tbody><tr><td>Submit Request<small data-wc-no-translate="true">{ serviceByKind( 'SUBMIT_REQUEST' )?.sku }</small></td><td>1</td><td data-wc-no-translate="true">{ formatPaiseINR( quote.itemSubtotalPaise, quote.currency ) }</td></tr></tbody>
+          </table>
+          <dl>{ priceRows.map( row => <div key={ row.label }>
+            <dt>{ row.label }</dt><dd data-wc-no-translate="true">{ row.discount ? '−' : '' }{ formatPaiseINR( row.paise, quote.currency ) }</dd>
+          </div> ) }</dl>
+          <div className="sr-total"><span>AMOUNT PAYABLE</span><strong data-wc-no-translate="true">{ price }</strong></div>
+        </section> : <p className="sr-copy" role="status">{ quoteUnavailable ? 'Price unavailable.' : 'Checking price…' }</p> }
         { failed && <p className="sr-error" role="alert">Payment was not completed.</p> }
       </> }
       { starting && <p className="sr-copy" role="status">Preparing payment…</p> }
@@ -161,17 +143,14 @@ export default function SubmitRequestForm ( {
               <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
               <button type="button" className="sr-action" onClick={ onDone }>Back to orders</button>
             </>
-              : review ? <>
+              : <>
                 { quoteUnavailable ? <button type="button" className="sr-action" onClick={ onReview }>Try again</button>
-                  : <button type="button" className="sr-action" onClick={ pay } disabled={ !canPay }>Pay{ price ? ' ' + price : '' }</button> }
-                <button type="button" className="sr-action" onClick={ () => setReviewing( false ) }>Back</button>
-              </> : <>
-                <button type="button" className="sr-action" onClick={ continueToReview }>Continue</button>
-                <button type="button" className="sr-action" onClick={ onDone }>Back to orders</button>
+                  : <button type="button" className="sr-action" onClick={ pay } disabled={ !price || !noteValid || !canPay }>Pay{ price ? ' ' + price : '' }</button> }
+                <button type="button" className="sr-action" onClick={ onDone }>Cancel</button>
               </> }
       </div>
       <style jsx>{`
-        .sr-form{width:min(100%,440px);max-width:100%;margin:0 auto;padding:24px 22px max(24px,env(safe-area-inset-bottom));box-sizing:border-box;background:#fff;color:var(--public-text);font:400 16px/1.5 var(--font-sans)}
+        .sr-form{width:min(100%,440px);max-width:100%;margin:0 auto;padding:24px 22px max(24px,env(safe-area-inset-bottom));box-sizing:border-box;border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);background:#fff;color:var(--public-text);font:400 16px/1.5 var(--font-sans)}
         .sr-brand{display:flex;align-items:center;justify-content:center;gap:8px;min-height:66px;color:var(--public-text);font-size:20px;font-weight:800;line-height:1.04;letter-spacing:-.5px}
         .sr-mark{width:54px;height:54px;border-radius:10px;background:url('https://wecare.digital/get/o/stream/media/m/wecaredigital.png') center/contain no-repeat;filter:grayscale(1)}
         .sr-wordmark{display:flex;flex-direction:column}.sr-dot{color:var(--public-brand-green)}
@@ -179,30 +158,22 @@ export default function SubmitRequestForm ( {
         .sr-title{margin:0 0 8px;color:var(--public-brand-green);font-size:15px;font-weight:600}
         h2{margin:0 0 8px;font-size:30px;line-height:1.15;letter-spacing:-.8px;font-weight:700;outline:none;overflow-wrap:anywhere}
         .sr-copy{color:#444;margin:0 0 20px}.sr-caption{font-size:13px;color:#626262}
-        .sr-linked{display:flex;flex-direction:column;gap:2px;padding:14px 0;margin:0 0 24px;border-block:1px solid var(--public-hairline)}
+        .sr-linked{display:flex;flex-direction:column;gap:2px;padding:14px;margin:0 0 24px;border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}
         .sr-linked strong{font-size:16px;color:var(--public-brand-green);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
         label{display:block;margin:0 0 10px;font-weight:600}
-        textarea{width:100%;min-height:116px;display:block;resize:vertical;border:0;border-bottom:1px solid #bfc5c1;border-radius:0;padding:8px 0;box-sizing:border-box;background:transparent;color:var(--public-text);font:inherit;outline:none}
-        textarea:focus,textarea[aria-invalid=true]{border-bottom-color:var(--public-brand-green);box-shadow:0 2px 0 var(--public-brand-green)}
+        textarea{width:100%;min-height:116px;display:block;resize:vertical;border:1px solid #bfc5c1;border-radius:var(--public-hover-radius);padding:12px;box-sizing:border-box;background:transparent;color:var(--public-text);font:inherit;outline:none}
+        textarea:focus,textarea[aria-invalid=true]{border-color:var(--public-brand-green);box-shadow:0 0 0 1px var(--public-brand-green)}
         .sr-count{text-align:right;color:#626262;font-size:12px;margin:8px 0 0;font-variant-numeric:tabular-nums}
         .sr-error{color:var(--public-brand-green);font-weight:600;font-size:14px;margin:8px 0 0}
         .sr-review-note{margin-bottom:20px}.sr-review-note p{white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0}
-        .sr-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:16px 0;border-top:1px solid var(--public-hairline);font-weight:600}
+        .sr-pricing{margin-top:20px;padding:12px;border:1px solid var(--public-hairline);border-radius:var(--public-card-radius);min-width:0}.sr-items{border-collapse:collapse;width:100%;font-size:13px;text-align:left}.sr-items th,.sr-items td{border-bottom:1px solid var(--public-hairline);padding:8px 4px;vertical-align:top}.sr-items th:last-child,.sr-items td:last-child{text-align:right;white-space:nowrap}.sr-items small{display:block;font-size:11px;color:var(--public-muted);overflow-wrap:anywhere}.sr-total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 8px;margin-top:12px;background:var(--public-brand-lime);border-radius:var(--public-hover-radius);font-size:13px;font-weight:700;color:var(--public-brand-green)}
         .sr-total strong{font-size:24px;color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .sr-actions{display:grid;gap:10px;margin-top:26px}
         .sr-action{display:inline-flex;align-items:center;justify-content:center;min-height:52px;width:100%;max-width:100%;box-sizing:border-box;padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
         @media(hover:hover) and (pointer:fine){.sr-action:hover:not(:disabled){background:var(--public-button-hover);text-decoration-color:transparent}}
         .sr-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .sr-action:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
-        .sr-details{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;box-sizing:border-box;padding:8px 10px;border:0;border-radius:var(--public-hover-radius);background:transparent;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.4 var(--font-sans);cursor:pointer;list-style:none;overflow-wrap:anywhere}
-        .sr-details::-webkit-details-marker{display:none}
-        .sr-details::marker{content:''}
-        .sr-details svg{flex:none}
-        details[open] .sr-details{background:var(--public-lime-tint)}
-        details[open] .sr-details svg{transform:rotate(180deg)}
-        @media(hover:hover) and (pointer:fine){.sr-details:hover{background:var(--public-hover-surface)}}
-        .sr-details:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:2px}
-        dl{margin:12px 0 0;font-size:14px}dl div{display:flex;justify-content:space-between;gap:10px;padding:5px 0}dd{margin:0;white-space:nowrap;font-variant-numeric:tabular-nums}
+        dl{margin:12px 0 0;font-size:14px}dl div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--public-hairline)}dd{margin:0;white-space:nowrap;font-variant-numeric:tabular-nums}
         .sr-check{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin-bottom:18px;background:var(--public-lime-tint);border-radius:var(--public-hover-radius);color:var(--public-brand-green)}
         @media(min-width:768px){.sr-form{margin:32px auto;padding:24px 32px 32px;border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}.sr-actions{margin-top:32px}}
         @media(max-width:359px){.sr-form{padding-inline:16px}.sr-brand{font-size:18px}h2{font-size:27px}}
