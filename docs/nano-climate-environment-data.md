@@ -99,41 +99,58 @@ without explicit owner approval of the total processing/storage budget, verified
 provider terms and project-wide quotas. Never partition a user request merely to
 circumvent the 1 GiB cap.
 
-1. scripts/build_weather_history_aggregate.sh creates
-   weather_insights.weather_history_in_windows (clustered by lat, lng): half-month
+1. scripts/build_weather_history_aggregate.sh requires an explicit WEATHER_INSIGHTS_AGGREGATE_TABLE
+   in an existing, approved writable US dataset in the same project. Both visible
+   datasets (weather_insights and weathernext_3) are linked and read-only; neither
+   may be the destination. The script never creates a dataset. It creates the
+   weather_history_in_windows table only in apply mode (partitioned by window_start,
+   clustered by NUMERIC lat, lng): half-month
    windows per grid point with hours, sum/min/max temperature, precipitation sum and
    humidity sum, de-duplicated to one row per grid point per hour. Each window is one
    INSERT, dry-run first, with --maximum_bytes_billed=1073741824. Windows with no raw
    rows get a sentinel row (0 hours) so they count as done. At most 4 windows per run
-   by default (never more than 12). The project quota of 10 GiB/day is shared with
-   live 30d queries (about 0.99 GiB per cache miss), so run off-peak and check the
-   day's usage first. Completed windows are skipped, so it resumes across days.
-   The 5y raw dry run is 35.28 GiB in total, so the one-time build is of that order
-   (verify billing-account-wide use before claiming it is free).
+   (hard maximum 4). Auxiliary aggregate queries are capped at 128 MiB. Before
+   each run, verify project quota, remaining headroom, total authorized backfill
+   budget, storage costs and provider terms. Completed windows are skipped.
+   The earlier location-specific five-year estimate is not a verified full backfill
+   cost; estimate the actual complete offline build before approval.
 2. Raw column names are assumed (geography, forecast_time, temperature_c, qpf_mm,
    relative_humidity_percent). Confirm with bq show --schema, or override with
    C_GEO, C_TIME, C_TEMP, C_RAIN, C_HUM. The dry run fails before billing on a mismatch.
 3. server.mjs reads only that table for 1y and 5y with a 128 MiB ceiling (or a stricter configured cap). It serves a
    summary only when WEATHER_INSIGHTS_AGGREGATE_ENABLED=true and the table reaches
-   back to the range start with about one window per 16 days (aggregateComplete in
-   aggregate.mjs). Otherwise it returns query_cost_cap_exceeded (422, missing table
+   back to the range start with every half-month window present, no tolerance except
+   the newest 16 days (expectedWindows and aggregateComplete in aggregate.mjs).
+   Empty windows count through sentinel rows. Responses carry coverageStart and
+   coverageEnd (also coverage_start, coverage_end) from the observed rows and
+   coveragePartial=true when observed data begins more than 31 days after the range
+   start, which the widget shows in its existing coverage line. Otherwise it returns query_cost_cap_exceeded (422, missing table
    or disabled) or historical_aggregate_incomplete (503), never a raw scan or a
    partial summary labelled 1y/5y.
 4. Differences to confirm before enabling the flag: the aggregate uses the nearest
    single grid point within 10 km, while the raw 30d path takes the nearest row per
-   hour. After loading, compare the 30d summary with the aggregate for New Delhi
-   (sample hours, mean temperature, precipitation) and set the flag only if they
-   agree.
+   hour. --verify enforces this: it exits non-zero if any required window is missing
+   or if the newest non-empty window's totals (grid points, hours, temperature sum,
+   precipitation sum) differ from a fresh capped raw scan. Set the flag only after
+   --verify passes. A real BigQuery dry run reproduced the original GEOGRAPHY
+   partition error. The corrected NUMERIC coordinates and ST_ASBINARY partition
+   key dry-run for 1–16 November 2026 estimated 535,766,400 bytes, billed zero.
+   No DDL, backfill, live aggregate read or raw comparison has executed.
 
 Cloud Shell, in this order:
 
     bash scripts/build_weather_history_aggregate.sh            # dry run
-    # Only after explicit backfill approval and verified project quota:
+    # Only after explicit rights, storage, total backfill and quota approval:
+    export WEATHER_INSIGHTS_AGGREGATE_TABLE="wecaredigitalbw.<approved_existing_dataset>.weather_history_in_windows"
+    export CONFIRM_AGGREGATE_BACKFILL=1
     bash scripts/build_weather_history_aggregate.sh --apply
     bash scripts/build_weather_history_aggregate.sh --verify
 
 The Cloud Run service must then be redeployed from gcp/vayulok-weather-insights,
-and WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
+with the identical explicit WEATHER_INSIGHTS_AGGREGATE_TABLE value and
+WEATHER_INSIGHTS_AGGREGATE_ENABLED=true set only after the comparison above.
+No new dataset has been approved or provisioned; keep the flag off until the
+destination and aggregate are validated.
 
 ### WeatherNext 3 (statistics Zarr)
 

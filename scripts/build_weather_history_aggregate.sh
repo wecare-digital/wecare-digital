@@ -3,31 +3,35 @@
 #
 # Run in Google Cloud Shell as an owner/BigQuery Data Editor of project wecaredigitalbw:
 #   bash scripts/build_weather_history_aggregate.sh            # dry run only (default)
-#   bash scripts/build_weather_history_aggregate.sh --apply    # load up to MAX_CHUNKS windows
-#   bash scripts/build_weather_history_aggregate.sh --verify   # read-only aggregate checks
+#   --apply and --verify require WEATHER_INSIGHTS_AGGREGATE_TABLE and CONFIRM_AGGREGATE_BACKFILL=1.
+#   Verify total approved cost, provider rights and actual quota/headroom before either.
 #
 # Safety:
 # - Each chunk is one half-month window (about 0.5 GiB for the raw table). A dry run runs
 #   first; a chunk is skipped if its estimate is not below 1 GiB.
 # - Every load also sets --maximum_bytes_billed=1073741824, so BigQuery refuses to run it
 #   if the estimate was wrong. Quotas are never changed.
-# - MAX_CHUNKS (default 4, about 2 GiB) leaves most of the 10 GiB/day project quota for
-#   live 30d queries (about 0.99 GiB each). Run off-peak and check the day's usage first.
-#   Run again on following days; completed windows are skipped (resumable).
+# - MAX_CHUNKS is at most 4 per invocation. Check project quota, remaining daily
+#   headroom and total approved processing/storage costs first. Never split an
+#   interactive request to evade its cap. Completed windows are skipped.
 # - Windows whose raw scan returns no rows get a sentinel row (NULL lat/lng, 0 hours)
 #   in the small aggregate table, so they count as done and completeness is measurable.
 # - Rows are de-duplicated to one per grid point per hour, matching the raw 30d path.
 # - Only complete windows that ended before today (UTC) are loaded, one INSERT per window,
 #   guarded by NOT EXISTS, so re-runs never duplicate rows.
+# - --verify exits non-zero unless (1) every half-month window except the newest 16 days is
+#   present and (2) the newest non-empty window's totals (grid points, hours, temperature
+#   sum, precipitation sum) equal a fresh raw scan of that window (capped at 1 GiB billed,
+#   required). The raw scan is the same de-duplicated SELECT as the load.
 # - The service (gcp/vayulok-weather-insights/server.mjs) only reads this aggregate for
-#   1y and 5y ranges. 30d continues to read the raw table (0.987 GiB dry run).
+#   1y and 5y ranges. 30d is independently capped; a recent dry run exceeded 1 GiB.
 set -euo pipefail
 
 PROJECT="${PROJECT:-wecaredigitalbw}"
 DATASET="${DATASET:-weather_insights}"
 LOCATION="${LOCATION:-US}"
 RAW="${PROJECT}.${DATASET}.weather_history_in"
-AGG="${PROJECT}.${DATASET}.weather_history_in_windows"
+AGG="${WEATHER_INSIGHTS_AGGREGATE_TABLE:-}"
 YEARS="${YEARS:-5}"
 MAX_CHUNKS="${MAX_CHUNKS:-4}"
 # Raw column names. Override if the dry run reports a schema mismatch; confirm them
@@ -41,29 +45,41 @@ CAP_BYTES=1073741824
 MODE="dry-run"
 [ "${1:-}" = "--apply" ] && MODE="apply"
 [ "${1:-}" = "--verify" ] && MODE="verify"
-[ "$MAX_CHUNKS" -ge 1 ] && [ "$MAX_CHUNKS" -le 12 ] || { echo "MAX_CHUNKS must be 1..12"; exit 2; }
-
-bq_q() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sql=false --quiet "$@"; }
-
-if [ "$MODE" = "verify" ]; then
-  bq_q --format=prettyjson "
-    SELECT COUNT(*) AS rows_loaded, COUNT(DISTINCT window_start) AS windows,
-           COUNTIF(sample_hours = 0) AS empty_windows,
-           MIN(window_start) AS first_window, MAX(window_start) AS last_window,
-           COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))) AS grid_points
-    FROM \`${AGG}\`"
-  exit 0
+[ "$MAX_CHUNKS" -ge 1 ] && [ "$MAX_CHUNKS" -le 4 ] || { echo "MAX_CHUNKS must be 1..4"; exit 2; }
+[[ "$YEARS" =~ ^[1-5]$ ]] || { echo "YEARS must be 1..5"; exit 2; }
+[[ "$PROJECT" =~ ^[a-z][a-z0-9-]*$ && "$DATASET" =~ ^[A-Za-z][A-Za-z0-9_]*$ && "$LOCATION" =~ ^[A-Za-z0-9-]+$ ]] || { echo "Invalid source configuration"; exit 2; }
+for column in "$C_GEO" "$C_TIME" "$C_TEMP" "$C_RAIN" "$C_HUM"; do
+  [[ "$column" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "Invalid raw column name"; exit 2; }
+done
+if [ "$MODE" != "dry-run" ]; then
+  [ "${CONFIRM_AGGREGATE_BACKFILL:-}" = "1" ] || { echo "FAIL: verify provider rights, total budget and project quota before setting CONFIRM_AGGREGATE_BACKFILL=1"; exit 2; }
+  [[ "$AGG" =~ ^[a-z][a-z0-9-]*\.[A-Za-z][A-Za-z0-9_]*\.weather_history_in_windows$ ]] || { echo "FAIL: set WEATHER_INSIGHTS_AGGREGATE_TABLE to an approved existing writable dataset table"; exit 2; }
+  IFS=. read -r AGG_PROJECT AGG_DATASET AGG_TABLE <<< "$AGG"
+  [ "$AGG_PROJECT" = "$PROJECT" ] && [ "$AGG_DATASET" != "$DATASET" ] && [ "$AGG_DATASET" != "weather_insights" ] && [ "$AGG_DATASET" != "weathernext_3" ] || { echo "FAIL: aggregate must be in a separate writable dataset in the same project"; exit 2; }
+  # Metadata only. Never create a dataset or change IAM.
+  bq --project_id="$PROJECT" --location="$LOCATION" show --format=prettyjson "$AGG_PROJECT:$AGG_DATASET" | python3 -c '
+import json,sys
+m=json.load(sys.stdin); project,dataset,location=sys.argv[1:]
+ref=m.get("datasetReference",{})
+if ref.get("projectId") != project or ref.get("datasetId") != dataset or str(m.get("location","")).upper() != location.upper() or m.get("type","DEFAULT") != "DEFAULT" or m.get("linkedDatasetSource") or m.get("externalDatasetReference"):
+    sys.exit("FAIL: aggregate dataset must be existing, native, non-linked and in the query location")
+' "$AGG_PROJECT" "$AGG_DATASET" "$LOCATION"
+  AGG_REF="$AGG_PROJECT:$AGG_DATASET.$AGG_TABLE"
 fi
+
+AGG_CAP_BYTES=134217728
+bq_q() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sql=false --quiet --maximum_bytes_billed="$CAP_BYTES" "$@"; }
+bq_agg() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sql=false --quiet --maximum_bytes_billed="$AGG_CAP_BYTES" "$@"; }
 
 # Aggregate table: tiny, clustered by location. Created only with --apply.
 CREATE_SQL="CREATE TABLE IF NOT EXISTS \`${AGG}\` (
-  lat FLOAT64, lng FLOAT64, window_start DATE, window_end DATE,
+  lat NUMERIC, lng NUMERIC, window_start DATE, window_end DATE,
   sample_hours INT64, temp_sum FLOAT64, temp_min FLOAT64, temp_max FLOAT64,
   precip_sum FLOAT64, humidity_sum FLOAT64, humidity_n INT64,
   first_observed_at TIMESTAMP, last_observed_at TIMESTAMP, loaded_at TIMESTAMP
-) CLUSTER BY lat, lng
+) PARTITION BY window_start CLUSTER BY lat, lng
 OPTIONS (description='Half-month aggregates of weather_history_in for Nano Climate 1y/5y summaries')"
-if [ "$MODE" = "apply" ]; then bq_q "$CREATE_SQL" >/dev/null; fi
+if [ "$MODE" = "apply" ]; then bq_agg "$CREATE_SQL" >/dev/null; fi
 
 # Half-month windows [start, end) that ended before today (UTC), newest first.
 WINDOWS=$(python3 - "$YEARS" <<'PY'
@@ -84,20 +100,64 @@ PY
 )
 
 DONE=""
-if bq show "${AGG}" >/dev/null 2>&1; then
-  DONE=$(bq_q --format=csv "SELECT CAST(window_start AS STRING) FROM \`${AGG}\` GROUP BY 1" | tail -n +2)
+if [ "$MODE" != "dry-run" ] && bq show "$AGG_REF" >/dev/null 2>&1; then
+  DONE=$(bq_agg --format=csv "SELECT CAST(window_start AS STRING) FROM \`${AGG}\` GROUP BY 1" | tail -n +2)
 fi
 
 raw_select() { # $1=start $2=end ; one row per grid point per hour, like the raw 30d path
 cat <<SQL
-SELECT ROUND(ST_Y(${C_GEO}), 4) AS lat, ROUND(ST_X(${C_GEO}), 4) AS lng, ${C_TIME} AS t,
+SELECT CAST(ROUND(ST_Y(${C_GEO}), 4) AS NUMERIC) AS lat, CAST(ROUND(ST_X(${C_GEO}), 4) AS NUMERIC) AS lng, ${C_TIME} AS t,
   SAFE_CAST(${C_TEMP} AS FLOAT64) AS temp, SAFE_CAST(${C_RAIN} AS FLOAT64) AS rain,
   SAFE_CAST(${C_HUM} AS FLOAT64) AS hum
 FROM \`${RAW}\`
-WHERE ${C_TIME} >= TIMESTAMP '$1' AND ${C_TIME} < TIMESTAMP '$2' AND ${C_TEMP} IS NOT NULL
-QUALIFY ROW_NUMBER() OVER (PARTITION BY ${C_GEO}, ${C_TIME} ORDER BY ${C_TIME}) = 1
+WHERE ${C_TIME} >= TIMESTAMP '$1' AND ${C_TIME} < TIMESTAMP '$2' AND ${C_TEMP} IS NOT NULL AND ${C_GEO} IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY ST_ASBINARY(${C_GEO}), ${C_TIME} ORDER BY ${C_TIME}) = 1
 SQL
 }
+
+if [ "$MODE" = "verify" ]; then
+  bq show "$AGG_REF" >/dev/null 2>&1 || { echo "FAIL: ${AGG} does not exist"; exit 1; }
+  bq_agg --format=prettyjson "
+    SELECT COUNT(*) AS rows_loaded, COUNT(DISTINCT window_start) AS windows,
+           COUNTIF(sample_hours = 0) AS empty_windows,
+           MIN(window_start) AS first_window, MAX(window_start) AS last_window,
+           COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))) AS grid_points
+    FROM \`${AGG}\`"
+  # (1) completeness: mirrors aggregateComplete() in gcp/vayulok-weather-insights/aggregate.mjs
+  MISSING=$(python3 - "$DONE" "$WINDOWS" <<'PY'
+import sys, datetime as d
+done = set(sys.argv[1].split()); cutoff = d.datetime.now(d.timezone.utc).date() - d.timedelta(days=16)
+miss = [l.split()[0] for l in sys.argv[2].splitlines() if l.strip() and l.split()[0] not in done and d.date.fromisoformat(l.split()[1]) <= cutoff]
+print("\n".join(miss))
+PY
+)
+  if [ -n "$MISSING" ]; then echo "FAIL: missing windows:"; echo "$MISSING"; exit 1; fi
+  echo "OK: all required windows are present"
+  # (2) raw versus aggregate for the newest non-empty window
+  [ "${VERIFY_COMPARE:-1}" = "1" ] || { echo "FAIL: raw comparison is required for activation"; exit 1; }
+  if [ "${VERIFY_COMPARE:-1}" = "1" ]; then
+    W=$(bq_agg --format=csv "SELECT CAST(MAX(window_start) AS STRING), CAST(MAX(window_end) AS STRING) FROM \`${AGG}\` WHERE sample_hours > 0" | tail -n +2)
+    VS="${W%%,*}"; VE="${W##*,}"
+    [ -n "$VS" ] && [ "$VS" != "$W" ] || { echo "FAIL: no non-empty window to compare"; exit 1; }
+    RAWSUM=$(bq_q --format=csv "
+      WITH h AS ($(raw_select "$VS" "$VE"))
+      SELECT COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))), COUNT(*),
+             ROUND(SUM(temp), 3), ROUND(IFNULL(SUM(rain), 0), 3) FROM h" | tail -n +2)
+    AGGSUM=$(bq_agg --format=csv "
+      SELECT COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))), SUM(sample_hours),
+             ROUND(SUM(temp_sum), 3), ROUND(IFNULL(SUM(precip_sum), 0), 3)
+      FROM \`${AGG}\` WHERE window_start = DATE '$VS' AND sample_hours > 0" | tail -n +2)
+    echo "window $VS..$VE raw=$RAWSUM aggregate=$AGGSUM (grid_points,hours,temp_sum,precip_sum)"
+    python3 - "$RAWSUM" "$AGGSUM" <<'PY' || { echo "FAIL: aggregate differs from raw"; exit 1; }
+import sys
+r = [float(x) for x in sys.argv[1].split(",")]; a = [float(x) for x in sys.argv[2].split(",")]
+ok = len(r) == len(a) == 4 and all(abs(x - y) <= 1e-6 * max(1.0, abs(x)) + 0.002 for x, y in zip(r, a))
+sys.exit(0 if ok else 1)
+PY
+    echo "OK: aggregate matches raw for window $VS"
+  fi
+  exit 0
+fi
 
 insert_sql() { # $1=start $2=end
 cat <<SQL
@@ -133,8 +193,9 @@ while read -r START END; do
   if printf '%s\n' "$DONE" | grep -qx "$START"; then continue; fi
   [ "$loaded" -lt "$MAX_CHUNKS" ] || { echo "Reached MAX_CHUNKS=$MAX_CHUNKS; run again tomorrow."; break; }
   SQL=$(insert_sql "$START" "$END")
-  # The estimate is the identical raw scan as the INSERT.
+  # Dry-run the exact INSERT before executing it; dry-run mode estimates only the source.
   EST_SQL="$(raw_select "$START" "$END")"
+  if [ "$MODE" = "apply" ]; then EST_SQL="$SQL"; fi
   BYTES=$(bq_q --dry_run --format=json "$EST_SQL" 2>&1 | python3 -c '
 import json,re,sys
 t=sys.stdin.read()
@@ -145,10 +206,10 @@ print(m.group(1) if m else "")')
   if [ "$BYTES" -ge "$CAP_BYTES" ]; then echo "  skipped: estimate is not below 1 GiB"; continue; fi
   total_bytes=$((total_bytes + BYTES))
   [ "$MODE" = "apply" ] || continue
-  bq_q --maximum_bytes_billed="$CAP_BYTES" "$SQL" >/dev/null
-  bq_q "$(sentinel_sql "$START" "$END")" >/dev/null
+  bq_q "$SQL" >/dev/null
+  bq_agg "$(sentinel_sql "$START" "$END")" >/dev/null
   echo "  loaded"
   loaded=$((loaded + 1))
 done <<< "$WINDOWS"
 echo "mode=$MODE windows_loaded=$loaded estimated_bytes_considered=$total_bytes"
-[ "$MODE" = "apply" ] || echo "Dry run only. Re-run with --apply, then --verify."
+[ "$MODE" = "apply" ] || echo "Dry run only. Do not apply before destination, rights, total cost and quota are approved."
