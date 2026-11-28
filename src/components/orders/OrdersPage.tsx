@@ -1223,10 +1223,10 @@ export default function OrdersPage (): React.ReactElement {
             opacity:.55;cursor:default;
           }
 
-          /* Neutral white data table, including the column headings. Lime is
-             reserved for active actions and the small payment-status cue. */
+          /* White table, with a single thin lime outer border; internal
+             dividers stay neutral and only intentional states use lime. */
           .ord-list{
-            padding:0;gap:0;border:1px solid var(--public-hairline);
+            padding:0;gap:0;border:1px solid var(--public-brand-lime);
             border-radius:var(--public-card-radius);background:var(--public-bg);box-shadow:none;
           }
           .ord-list-head{padding:10px 14px}

@@ -33,6 +33,8 @@ test('Orders action chooser and Submit Request price details use the smaller pan
 
 test('Orders neutral table headers and icons do not inherit a decorative lime fill',()=>{
   const orders=read('src/components/orders/OrdersPage.tsx'), foundation=read('src/styles/public-commerce-foundation.css'), menu=read('src/components/orders/OrderActionsMenu.tsx');
+  assert.match(foundation,/\.ord-list\s*\{\s*border-color: var\(--public-brand-lime\)/);
+  assert.match(orders,/\.ord-list\{[^}]*border:1px solid var\(--public-brand-lime\)/);
   assert.match(foundation,/\.ord-th\s*\{\s*background: var\(--public-bg\)/);
   assert.doesNotMatch(orders,/\.ord-th\s*\{[^}]*background:var\(--public-brand-lime\)/);
   assert.match(orders,/\.ord-account-action,\.ord-copy,\.ord-inv\{[^}]*background:transparent/);
@@ -40,5 +42,6 @@ test('Orders neutral table headers and icons do not inherit a decorative lime fi
   assert.match(orders,/\.ord-status::before\{[^}]*background:var\(--public-brand-lime\)/);
   const fixture=read('scripts/verify_checkout_fixture.mjs');
   assert.ok(fixture.includes('Orders column headings must be white'));
+  assert.ok(fixture.includes('Orders only uses lime on the outer border'));
   assert.ok(fixture.includes('Orders icon controls must be neutral at rest'));
 });

@@ -41,6 +41,8 @@ test('Auth picker retains restrained hover, selection and keyboard paths without
   const auth = readFileSync(new URL('../src/pages/auth.tsx', import.meta.url), 'utf8');
   const theme = readFileSync(new URL('../src/styles/public-button-theme.css', import.meta.url), 'utf8');
   for (const marker of ['.country-picker{--public-hover-radius:6px;', 'border-radius:8px;background:var(--public-bg)', ".country-row:not([aria-selected='true']):hover", "border-inline-start-color:var(--public-brand-green)", 'viewport?.addEventListener( \'resize\', place )', 'onKeyDown={ onCountryKeyDown }', 'tabIndex={ -1 }', "event.key === 'Escape'", "event.key === 'Enter'", 'phoneRef.current?.focus( { preventScroll: true } )', 'setCountryQuery( \'\' )', 'aria-controls={ countryOpen ?', 'void submitStep( { country: dialCode, phone: national } )']) assert.ok(auth.includes(marker), marker);
-  assert.ok(theme.includes('.country-search .public-search-clear'));
+  // Explicit search accessory styling now replaces the old wildcard-exclusion list.
+  assert.doesNotMatch(theme,/button:not\(/);
+  assert.match(theme,/:is\(\.public-search-clear, \.voice-search-mic\)\s*\{[^}]*--public-hover-radius: var\(--public-search-radius\);[^}]*border-radius: var\(--public-search-radius\);/);
   assert.doesNotMatch(auth, /autoFocus\s+type="search"/);
 });
