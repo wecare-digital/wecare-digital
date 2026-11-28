@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 let copies = 0;
-for (const lockfile of ['package-lock.json', 'amplify/package-lock.json']) {
+for (const lockfile of ['package-lock.json']) {
   const base = path.dirname(path.join(root, lockfile));
   const lock = JSON.parse(fs.readFileSync(path.join(root, lockfile), 'utf8'));
   for (const [relative, meta] of Object.entries(lock.packages)) {

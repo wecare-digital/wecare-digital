@@ -39,7 +39,6 @@ const JSON_MIRROR = resolve(REPO_ROOT, 'config/vendor-versions.json');
 const NPM_BACKED: Readonly<Record<string, string>> = {
   next: 'frontendFramework',
   typescript: 'typescript',
-  'aws-cdk-lib': 'awsCdk',
   '@playwright/test': 'playwright',
 };
 

@@ -32,10 +32,9 @@ frontend:
         # satisfying version at deploy time, which meant the production build could differ
         # from the one that passed CI minutes earlier, with nothing recording the difference.
         #
-        # This was blocked until the four @opentelemetry backend packages moved to
-        # amplify/package.json: their bundled subtree is internally inconsistent and
-        # `npm ci` correctly refuses it. The root lockfile no longer contains them.
-        # The backend CDK dependency tree is isolated under amplify/package.json.
+        # The Amplify Gen 2 backend install root (amplify/package.json) was removed on
+        # 2026-11-28: it was never deployed, never installed here or in CI, and carried the
+        # only unfixable advisories (zod <4.6.6 pinned by @aws-amplify/platform-core).
         #
         # NO --legacy-peer-deps: the committed lockfile is generated
         # with plain `npm install`, so the flag has nothing to resolve. The exact npm version
