@@ -85,12 +85,17 @@ def tracking_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def _session(db: Any, data: Dict[str, Any], *, phone: str):
     token = _clean_text(data, 'flow_token', required=True, limit=512)
-    session = flow_sessions.verify_session(
-        db.Table(shared_tables.flow_drafts_table_name()),
-        capability=CAPABILITY,
-        token=token,
-        rejected_message=REJECTED,
-    )
+    # A rejected session is bad input (ValueError, acknowledged). FlowSessionUnavailable
+    # propagates so the inbound worker parks the completion for retry.
+    try:
+        session = flow_sessions.verify_session(
+            db.Table(shared_tables.flow_drafts_table_name()),
+            capability=CAPABILITY,
+            token=token,
+            rejected_message=REJECTED,
+        )
+    except flow_sessions.FlowSessionRejected as exc:
+        raise ValueError(REJECTED) from exc
     if contact_store.digits(phone) != session.phone:
         raise ValueError(REJECTED)
     return session

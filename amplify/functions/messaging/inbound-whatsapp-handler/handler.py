@@ -1196,26 +1196,32 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                         error_count += 1
-                        if isinstance(e, contact_store.IdentityConflict):
-                            # Fail closed on ambiguous identity without losing the message.
-                            # A copy of THIS message (not the other messages/statuses in
-                            # the webhook batch) must reach durable retry/reconciliation.
+                        if not isinstance(e, ValueError):
+                            # ValueError is bad input and is acknowledged. Anything else (an
+                            # ambiguous identity, a store or provider error) parks a copy of
+                            # THIS message (not the other messages/statuses in the webhook
+                            # batch) for durable retry, so it is never acknowledged and lost.
                             conflict_value = {k: v for k, v in value.items() if k != 'statuses'}
                             conflict_value['messages'] = [message]
-                            parked = _send_to_dlq(
-                                wa_internal_event.build(
-                                    entry={**webhook_entry,
-                                           'changes': [{**change, 'value': conflict_value}]},
-                                    waba_id=_item.get('waba_id') or '',
-                                    meta_phone_number_ids=meta_phone_number_ids,
-                                    request_id=request_id,
-                                ), 'customer_identity_conflict', request_id)
+                            parked_event = wa_internal_event.build(
+                                entry={**webhook_entry,
+                                       'changes': [{**change, 'value': conflict_value}]},
+                                waba_id=_item.get('waba_id') or '',
+                                meta_phone_number_ids=meta_phone_number_ids,
+                                request_id=request_id,
+                            )
+                            if isinstance(e, contact_store.IdentityConflict):
+                                parked = _send_to_dlq(parked_event, 'customer_identity_conflict', request_id)
+                            else:
+                                parked = _send_to_dlq(parked_event, f'message_processing_error:{type(e).__name__}',
+                                                      request_id)
                             if not parked:
                                 raise  # force upstream retry rather than acknowledging a lost message
-                        if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
-                            # The record-level recovery path stores normalized work in
-                            # the DLQ. Do not acknowledge an idea storage failure alone.
-                            raise
+                            logger.error(json.dumps({
+                                'event': 'inbound_message_parked', 'alert': 'INBOUND_PARKED_IN_DLQ',
+                                'scope': 'message', 'messageId': message.get('id'),
+                                'errorType': type(e).__name__, 'requestId': request_id,
+                            }))
                 
                 # Process status updates
                 # Same coexistence guard, same reason: `_process_status` writes to both
@@ -1460,7 +1466,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # accepts this shape, so a replay now actually reproduces the work -
             # which it could not do when the stored record was half of an SNS
             # envelope the worker no longer looked at.
-            _send_to_dlq(
+            parked = _send_to_dlq(
                 wa_internal_event.build(
                     entry=_item.get('entry') or {},
                     waba_id=_item.get('waba_id') or '',
@@ -1470,6 +1476,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 str(e), request_id,
             )
             error_count += 1
+            if not parked:
+                raise  # nothing durable holds this work item: fail the invoke so it is retried
+            logger.error(json.dumps({
+                'event': 'inbound_record_parked', 'alert': 'INBOUND_PARKED_IN_DLQ',
+                'scope': 'record', 'errorType': type(e).__name__, 'requestId': request_id,
+            }))
     
     logger.info(json.dumps({
         'event': 'inbound_processing_complete',
@@ -5684,6 +5696,7 @@ def _send_to_dlq(record: Dict, error: str, request_id: str) -> bool:
     except Exception as e:
         logger.error(json.dumps({
             'event': 'dlq_send_error',
+            'alert': 'INBOUND_DLQ_WRITE_FAILED',
             'error': str(e),
             'requestId': request_id
         }))

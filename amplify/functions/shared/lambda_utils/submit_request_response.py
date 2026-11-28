@@ -171,9 +171,10 @@ def _paid_binding(db: Any, data: Dict[str, Any], *, phone: str):
             service_code='SUBMIT_REQUEST',
             phone=phone,
         )
-    except (flow_sessions.FlowSessionRejected, flow_sessions.FlowSessionUnavailable,
-            single_order_flow.PaidFlowBindingError) as exc:
+    except (flow_sessions.FlowSessionRejected, single_order_flow.PaidFlowBindingError) as exc:
         raise ValueError('This Submit Request payment could not be verified.') from exc
+    # FlowSessionUnavailable (an unreadable session store) propagates: it is not bad input,
+    # so the inbound worker parks the message for retry instead of acknowledging it.
 
     kind, reference = _target_parts(_clean_text(data, 'reference_number', limit=240))
     if kind != 'order' or reference.upper() != binding.order_number.upper():
