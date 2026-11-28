@@ -5,12 +5,12 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  *
  * READ THIS BEFORE TRUSTING IT AS INFRASTRUCTURE.
  *
- * This file declares 58 models and is passed to `defineBackend` by
+ * This file declares 56 models and is passed to `defineBackend` by
  * `amplify/backend.ts`. It therefore looks deployed. It is not. Measured against
  * account 775261844268 / us-east-1 on 2026-09-24:
  *
  *     AppSync GraphQL APIs        0
- *     models declared here       58
+ *     models declared here       56
  *     DynamoDB tables live       77
  *
  * Not one model below has ever been materialised. Every table the platform
@@ -24,7 +24,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  * --------------
  * Amplify would not ADOPT the live tables if this were deployed. It would create
  * its own, named after the API, and leave 77 populated tables untouched and
- * unread beside 58 empty ones. The comments in this file cite physical names like
+ * unread beside 56 empty ones. The comments in this file cite physical names like
  * `stack-wecare-digital-ContactsTable`, which makes it read as a description of
  * the live tables; it is not that either. Treat every model here as
  * documentation of intent unless you have checked the physical table yourself.
@@ -262,21 +262,6 @@ const schema = a.schema( {
       expiresAt: a.integer(), // TTL: Unix epoch seconds (180 days)
     } )
     .identifier( [ 'logId' ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
-
-  // Table 9: AIInteractions - AI query/response logs
-  AIInteraction: a
-    .model( {
-      interactionId: a.id().required(),
-      messageId: a.string(),
-      query: a.string(),
-      response: a.string(),
-      approved: a.boolean().default( false ),
-      feedback: a.string(),
-      timestamp: a.datetime(),
-    } )
-    .identifier( [ 'interactionId' ] )
-    .secondaryIndexes( ( index ) => [ index( 'messageId' ) ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
   // Table 10: Rate limiting counters. Physical table is `RateLimitTable` - the
@@ -665,21 +650,6 @@ const schema = a.schema( {
   // SubmitRequest REMOVED 2026-10-15. Its only live rows were flow_log events, which
   // now go to FlowLogTable; a submission is a FlowSubmission row. The table is
   // retired - see RETIRED in amplify/functions/shared/lambda_utils/shared_tables.py.
-
-  // Table 28: ConversationHistory - AI conversation context per phone hash
-  ConversationHistory: a
-    .model( {
-      phoneHash: a.string().required(),
-      lastMessage: a.string(),
-      lastResponse: a.string(),
-      pendingPaymentRef: a.string(),
-      customerProfile: a.string(), // JSON string
-      languagePreference: a.string(),
-      autoReplyEnabled: a.boolean().default( true ),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'phoneHash' ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
 
   // Table 29: CommerceKeys - provider-neutral commerce/order key namespace
   CommerceKey: a

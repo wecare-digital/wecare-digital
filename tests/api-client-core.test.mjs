@@ -358,10 +358,10 @@ test( 'trusted absolute and root-relative API destinations preserve query, body 
     fetch: async ( url, init ) => { calls.push( { url, init } ); return makeResponse( 200, { ok: true } ); },
     fetchAuthSession: async () => ( { tokens: { accessToken: { toString: () => 'test-token' } } } ),
   } );
-  await authFetch( '/api/workspace/mcp?scope=read#fragment', { method: 'POST', body: '{}' } );
+  await authFetch( '/api/workspace/tools?scope=read#fragment', { method: 'POST', body: '{}' } );
   const result = await apiCallResult( 'https://api.invalid/api/contacts?next=https%3A%2F%2Fexample.org' );
   assert.equal( result.ok, true );
-  assert.equal( calls[ 0 ].url, 'https://api.invalid/api/workspace/mcp?scope=read' );
+  assert.equal( calls[ 0 ].url, 'https://api.invalid/api/workspace/tools?scope=read' );
   assert.equal( calls[ 0 ].init.body, '{}' );
   assert.equal( calls[ 0 ].init.headers.Authorization, 'Bearer test-token' );
   assert.equal( calls[ 1 ].url, 'https://api.invalid/api/contacts?next=https%3A%2F%2Fexample.org' );

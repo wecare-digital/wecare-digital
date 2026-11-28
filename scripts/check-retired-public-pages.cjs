@@ -38,7 +38,7 @@ if (!block) {
 
 // Current registration is the only public-page authority. Missing names are
 // free for reuse; infrastructure and authenticated namespaces are not.
-const reserved = route => ['/get', '/api', '/r', '/mcp', '/workspace', '/ws'].some(
+const reserved = route => ['/get', '/api', '/r', '/workspace', '/ws'].some(
   prefix => route === prefix || route.startsWith(prefix + '/'))
   || ['/auth/state', '/auth/step'].includes(route);
 for (const route of approvedPublicRoutes) {

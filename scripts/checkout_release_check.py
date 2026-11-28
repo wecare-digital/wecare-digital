@@ -69,7 +69,7 @@ def check_html(path, html, export_dir=None):
                 continue
             destination = unquote(parsed.path)
             if (any(destination == stem or destination.startswith(stem + '/')
-                    for stem in ('/api', '/get', '/r', '/mcp'))
+                    for stem in ('/api', '/get', '/r'))
                     or destination.rstrip('/') in ('/auth/state', '/auth/step')):
                 continue
             target = (root / destination.lstrip('/')).resolve()

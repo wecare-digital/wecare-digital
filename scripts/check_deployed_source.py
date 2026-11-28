@@ -94,7 +94,6 @@ class DelegatedSpec:
     Those two are the ones least covered by anything else. `wecare-seo-tools` is the hottest
     function in the account and has NO `live` alias, so `$LATEST` reaches production the
     instant it is uploaded - there is no alias step in which to catch a bad deploy.
-    `wecare-mcp` is a public unauthenticated endpoint.
 
     Each carries a non-standard in-zip layout, which is precisely why it is delegated, so the
     mapping from archive path back to the working tree has to be stated per function rather
@@ -140,19 +139,6 @@ def delegated_specs(dal) -> dict:
             "scripts/deploy_seo_tools.py",
             expected=packaged_by("deploy_seo_tools", "package"),
         ),
-        # handler.py plus config/public-pages.json copied in beside it. The catalogue is
-        # the reason this cannot be a normal Spec: extra_files resolves relative to the
-        # function directory and is skipped entirely for a standalone spec.
-        "wecare-mcp": DelegatedSpec(
-            "wecare-mcp",
-            functions / "ai" / "mcp",
-            [
-                ("public-pages.json", ROOT / "config"),
-                ("handler.py", functions / "ai" / "mcp"),
-            ],
-            "scripts/deploy_mcp_server.py",
-            expected=packaged_by("deploy_mcp_server", "package"),
-        ),
         # The same blind spot again, measured 2026-10-25: "checked=68" against 74 functions,
         # while wecare-native-catalog-admin ran 25 shared modules from 2026-10-23 (its auth
         # middleware among them) and nothing reported it. These are the rest of
@@ -163,17 +149,6 @@ def delegated_specs(dal) -> dict:
             [],
             "scripts/build_blog_public.py",
             expected=packaged_by("build_blog_public", "package"),
-        ),
-        # Its pinned SDK is bundled beside three source files and one config file; only
-        # those four come from this repository. Its builder needs the installed SDK, so the
-        # four are named here rather than read from it.
-        "wecare-workspace-mcp": DelegatedSpec(
-            "wecare-workspace-mcp",
-            functions / "ai" / "workspace-mcp",
-            [("workspace-mcp.json", ROOT / "config")],
-            "scripts/build_workspace_mcp.py",
-            expected=WORKSPACE_MCP_SOURCES,
-            only=WORKSPACE_MCP_SOURCES,
         ),
         "wecare-native-catalog-admin": DelegatedSpec(
             "wecare-native-catalog-admin",
@@ -199,20 +174,7 @@ def delegated_specs(dal) -> dict:
             expected=("handler.py",),
             edge=True,
         ),
-        # Deployed by its own CloudFormation stack with the code inline (`ZipFile`), which
-        # CloudFormation packages as `index.py`. The directory holds the template and that code.
-        "wecare-customer-commerce-mcp": DelegatedSpec(
-            "wecare-customer-commerce-mcp",
-            functions / "ai" / "customer-commerce-mcp",
-            [],
-            "CloudFormation stack wecare-customer-commerce-mcp",
-            expected=("index.py",),
-        ),
     }
-
-
-WORKSPACE_MCP_SOURCES = ("handler.py", "provider_adapters.py", "chat_oauth.py",
-                         "workspace-mcp.json")
 
 
 def packaged_by(module: str, builder: str):

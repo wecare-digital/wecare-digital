@@ -91,9 +91,8 @@ const DB_TABLES: TableDef[] = [
   { name: 'MediaFile', purpose: 'WhatsApp media file metadata', keyFields: 'fileId', indexes: 'messageId', usedBy: 'inbound-whatsapp, media-cleanup', category: 'Core' },
   { name: 'DLQMessage', purpose: 'Failed message retry queue', keyFields: 'dlqMessageId', ttl: '7d', indexes: '-', usedBy: 'dlq-replay', category: 'Operations' },
   { name: 'AuditLog', purpose: 'System audit trail', keyFields: 'logId', ttl: '180d', indexes: '-', usedBy: 'all services', category: 'Core' },
-  { name: 'AIInteraction', purpose: 'Retired AI query/response logs (historical data)', keyFields: 'interactionId', indexes: 'messageId', usedBy: 'none (retired)', category: 'AI' },
   { name: 'RateLimitTracker', purpose: 'Rate limiting counters', keyFields: 'channel + windowStart', ttl: '24h', indexes: '-', usedBy: 'outbound-whatsapp', category: 'Core' },
-  { name: 'SystemConfig', purpose: 'System configuration key-value store', keyFields: 'configKey', indexes: '-', usedBy: 'ai-config-management', category: 'Core' },
+  { name: 'SystemConfig', purpose: 'System configuration key-value store', keyFields: 'configKey', indexes: '-', usedBy: 'none', category: 'Core' },
   { name: 'SmsAws', purpose: 'AWS Pinpoint SMS messages', keyFields: 'messageId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'sms-aws', category: 'SMS' },
   { name: 'VoiceAws', purpose: 'AWS Pinpoint voice calls', keyFields: 'callId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'voice-aws', category: 'Voice' },
   { name: 'DLTTemplates', purpose: 'TRAI DLT template registry (live)', keyFields: 'templateId', indexes: '-', usedBy: 'sms-aws', category: 'SMS' },
@@ -106,7 +105,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'WhatsAppOutbound', purpose: 'Outbound WhatsApp messages', keyFields: 'id', ttl: '30d', indexes: 'contactId, whatsappMessageId, templateName', usedBy: 'outbound-whatsapp', category: 'WhatsApp' },
   { name: 'TemplateAnalytics', purpose: 'WhatsApp template send/delivery tracking', keyFields: 'id', indexes: 'templateName', usedBy: 'template-analytics', category: 'WhatsApp' },
   { name: 'SubmitRequest', purpose: 'WhatsApp Flow submit request submissions', keyFields: 'id', indexes: 'phone, orderId, paymentStatus, paymentReferenceId', usedBy: 'inbound-whatsapp-handler', category: 'Payments' },
-  { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'none (retired)', category: 'AI' },
   { name: 'FlowRegistry', purpose: 'WhatsApp Flow config registry (type, payment, screens, A/B)', keyFields: 'flowId', indexes: 'flowCode, wabaId, category, status', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowSubmission', purpose: 'All flow submissions (generic, all flow types)', keyFields: 'submissionId', indexes: 'phone, flowCode, paymentStatus, paymentRefId, submissionNumber, status, orderId, flowId', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowLog', purpose: 'Audit trail for every flow screen interaction', keyFields: 'logId', ttl: '90d', indexes: 'phone, flowId, flowCode', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
@@ -150,7 +148,6 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'meta-analytics', category: 'Messaging', trigger: 'API Gateway', tables: 'MetaAnalyticsLog', description: 'Meta conversation analytics', apiRoute: '/meta-analytics' },
   { name: 'media-cleanup', category: 'Messaging', trigger: 'EventBridge Daily', tables: 'MediaFile', description: 'Clean up expired media from S3', apiRoute: '-' },
   { name: 'push-notifications', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Web push notification delivery', apiRoute: '/push' },
-  { name: 'ai-config-management', category: 'Core', trigger: 'API Gateway', tables: 'SystemConfig', description: 'Generic SystemConfig settings API', apiRoute: '/ai/config' },
   { name: 'razorpay-webhook', category: 'Payments', trigger: 'API GW Webhook', tables: 'RazorpayWebhookLog, Payment, InvoicePayment', description: 'Razorpay payment webhook', apiRoute: '/webhook/razorpay' },
   { name: 'payments-read', category: 'Payments', trigger: 'API Gateway', tables: 'Payment', description: 'Read payment records', apiRoute: '/payments' },
   { name: 'invoice-engine', category: 'Payments', trigger: 'API Gateway', tables: 'Invoice, InvoiceItem, InvoiceAsset, InvoicePayment, InvoiceDeliveryLog, InvoiceSequence', description: 'Invoice creation & PDF generation', apiRoute: '/invoices' },
@@ -172,7 +169,7 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'wecare.digital/api', type: 'API Gateway (REST)', purpose: 'Main API endpoint for all Lambda functions', module: 'All', env: 'Production', status: 'Active', risk: '' },
   { name: 'Media bucket', type: 'S3 Bucket', purpose: 'Media storage, invoices, voice, static assets (o/ and secure/d/public/ public, rest of secure/ gated)', module: 'Storage', env: 'Production', status: 'Active', risk: '' },
   { name: DB_TABLES.length + ' DynamoDB Tables', type: 'DynamoDB', purpose: 'Primary database (PAY_PER_REQUEST)', module: 'Data', env: 'Production', status: 'Active', risk: '' },
-  { name: '42 Lambda Functions', type: 'Lambda', purpose: 'Backend compute (Python 3.12)', module: 'Backend', env: 'Production', status: 'Active', risk: '' },
+  { name: '39 Lambda Functions', type: 'Lambda', purpose: 'Backend compute (Python 3.12)', module: 'Backend', env: 'Production', status: 'Active', risk: '' },
   { name: 'Bulk job queue', type: 'SQS Queue', purpose: 'Bulk message job processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
   { name: 'Inbound DLQ', type: 'SQS DLQ', purpose: 'Failed inbound message processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
   { name: 'Bulk DLQ', type: 'SQS DLQ', purpose: 'Failed bulk message chunks', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
@@ -316,7 +313,6 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'WA Calling', backend: 'whatsapp-calling', tables: 'WhatsAppCalling' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=groups', label: 'WA Groups', backend: 'waba-management', tables: 'WhatsAppGroup' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'WA Scripts', backend: 'outbound-whatsapp', tables: '-' },
-  { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'WA Auto Response', backend: 'ai-config-management', tables: 'SystemConfig' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=waba', label: 'WABA Dashboard', backend: 'waba-management, meta-analytics', tables: 'MetaAnalyticsLog' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=profile', label: 'WA Business Profile', backend: 'whatsapp-business-api', tables: '-' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=webhooks', label: 'WA Webhooks', backend: 'inbound-whatsapp-handler', tables: 'WebhookDedup, SystemEvent' },
@@ -373,13 +369,12 @@ const CODE_MAP: CodeFolder[] = [
   { path: 'src/hooks/', purpose: 'Custom hooks (keyboard, notifications, WebRTC)', files: '~3 files', linkedTo: 'Various pages' },
   { path: 'src/styles/', purpose: 'CSS modules and design tokens', files: '~8 files', linkedTo: 'All components' },
   { path: 'amplify/auth/', purpose: 'Cognito auth configuration', files: '1 file', linkedTo: 'Cognito User Pool' },
-  // "49 tables" was wrong in both directions: the file declares 58 models and the
+  // "49 tables" was wrong in both directions: the file declares 56 models and the
   // account holds 77 tables. It is a data-model document, not the deployed schema
   // — there are 0 AppSync APIs, so none of its models exist as tables. See the
   // header of amplify/data/resource.ts.
-  { path: 'amplify/data/', purpose: 'Data model document — 58 models, 0 deployed', files: '1 file', linkedTo: 'DynamoDB' },
+  { path: 'amplify/data/', purpose: 'Data model document — 56 models, 0 deployed', files: '1 file', linkedTo: 'DynamoDB' },
   { path: 'amplify/storage/', purpose: 'S3 storage + SQS queue config', files: '1 file', linkedTo: 'S3, SQS' },
-  { path: 'amplify/functions/ai/', purpose: 'MCP servers and the settings API (5)', files: '5 dirs', linkedTo: 'DynamoDB' },
   { path: 'amplify/functions/core/', purpose: 'Core Lambda functions (6)', files: '6 dirs', linkedTo: 'DynamoDB, S3' },
   { path: 'amplify/functions/messaging/', purpose: 'Messaging Lambda functions (22)', files: '22 dirs', linkedTo: 'DynamoDB, S3, SQS, SES, Pinpoint' },
   { path: 'amplify/functions/payments/', purpose: 'Payment Lambda functions (3)', files: '3 dirs', linkedTo: 'DynamoDB, Razorpay' },
@@ -419,7 +414,6 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
   { name: 'push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'ai-config-management', displayName: 'Settings API', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Generic SystemConfig settings API', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'payments-read', displayName: 'Payments Read', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read payment records', apiRoute: '/payments', envVars: { PAYMENTS_TABLE: 'Payment table' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'bulk-job-create', displayName: 'Bulk Job Create', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Create bulk messaging jobs', apiRoute: '/bulk/create', envVars: { BULK_TABLE: 'BulkJob table' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'bulk-job-control', displayName: 'Bulk Job Control', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Pause/resume/cancel bulk jobs', apiRoute: '/bulk/control', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
@@ -463,7 +457,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-faq', category: 'Core Lambdas', name: 'FAQ Handler', description: 'FAQ auto-response engine from SystemConfig.', path: 'amplify/functions/core/faq-handler/handler.py', type: 'Lambda' },
   { id: 'l-url', category: 'Core Lambdas', name: 'URL Shortener', description: 'Short link creation and redirect through wecare.digital/r.', path: 'amplify/functions/core/url-shortener/handler.py', type: 'Lambda' },
   // WhatsApp Lambdas
-  { id: 'l-inbound', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — messages, keyword triggers, flow routing, AI, media.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'Lambda' },
+  { id: 'l-inbound', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — messages, keyword triggers, flow routing, media.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'Lambda' },
   { id: 'l-outbound', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media and approved templates.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'Lambda' },
   { id: 'l-wa-biz', category: 'WhatsApp Lambdas', name: 'WhatsApp Business API', description: 'Meta Graph API wrapper — flows, payments, checkout, business profile.', path: 'amplify/functions/messaging/whatsapp-business-api/handler.py', type: 'Lambda' },
   { id: 'l-wa-calling', category: 'WhatsApp Lambdas', name: 'WhatsApp Calling', description: 'Voice/video call webhook handler and SDP relay.', path: 'amplify/functions/messaging/whatsapp-calling/handler.py', type: 'Lambda' },
@@ -476,8 +470,6 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-plivo-answer', category: 'Messaging Lambdas', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'Lambda' },
   { id: 'l-scheduled', category: 'Messaging Lambdas', name: 'Scheduled Messages', description: 'Schedule and send messages at specific times.', path: 'amplify/functions/messaging/scheduled-messages/handler.py', type: 'Lambda' },
   { id: 'l-push', category: 'Messaging Lambdas', name: 'Push Notifications', description: 'Web push notification delivery.', path: 'amplify/functions/messaging/push-notifications/handler.py', type: 'Lambda' },
-  // AI
-  { id: 'l-ai-config', category: 'Core', name: 'Settings API', description: 'Generic SystemConfig settings API', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'Lambda' },
   // Payments
   { id: 'l-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'Lambda' },
   { id: 'l-payments-read', category: 'Payments', name: 'Payments Read', description: 'Read payment records and transaction history.', path: 'amplify/functions/payments/payments-read/handler.py', type: 'Lambda' },
@@ -641,7 +633,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </div>
           <div>
             <div style={ label }>Backend Runtime</div>
-            <div style={ { marginTop: 4 } }>Python 3.12 (42 Lambda functions)</div>
+            <div style={ { marginTop: 4 } }>Python 3.12 (39 Lambda functions)</div>
           </div>
           <div>
             <div style={ label }>Database</div>
@@ -765,7 +757,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 │    │                                │                                │               │
 │    ▼                                ▼                                ▼               │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│  │ Core (6) │  │ Msg (22) │  │ AI (3)   │  │ Pay (4)  │  │ Ops (6)  │             │
+│  │ Core (6) │  │ Msg (22) │  │ Ecom (3) │  │ Pay (4)  │  │ Ops (6)  │             │
 │  │ Lambda   │  │ Lambda   │  │ Lambda   │  │ Lambda   │  │ Lambda   │             │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘             │
 │       │              │              │              │              │                  │
@@ -997,10 +989,9 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             ]
           },
           {
-            name: '⚡ Compute — Lambda (42 functions)', children: [
+            name: '⚡ Compute — Lambda (39 functions)', children: [
               { name: 'Core (6): contacts, auth, messages, faq, url-shortener' },
               { name: 'Messaging (22): whatsapp, sms, voice, email, push' },
-              { name: 'AI (3): query-kb, config, agent' },
               { name: 'Payments (3): razorpay, payments-read, invoice' },
               { name: 'Operations (6): bulk-jobs, dlq, cleanup, billing' },
               { name: 'Ecommerce (3): native-catalog-admin, catalog, image-gen' },
@@ -1271,7 +1262,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       </div>
       <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 } }>
         { [
-          { title: 'CloudWatch Logs', source: '42 Lambda log groups', retention: '90 days', status: 'Active', detail: 'All Lambda function execution logs. Access via AWS Console → CloudWatch → Log Groups → /aws/lambda/wecare-*' },
+          { title: 'CloudWatch Logs', source: '39 Lambda log groups', retention: '90 days', status: 'Active', detail: 'All Lambda function execution logs. Access via AWS Console → CloudWatch → Log Groups → /aws/lambda/wecare-*' },
           { title: 'DynamoDB AuditLog', source: 'AuditLog table', retention: '180 days (TTL)', status: 'Active', detail: 'System audit trail: user actions, resource changes, API calls. Fields: userId, action, resourceType, resourceId, details.' },
           { title: 'DLQ Messages', source: 'DLQMessage table', retention: '7 days (TTL)', status: 'Active', detail: 'Failed message processing records. Includes original payload, retry count, error details.' },
           { title: 'Webhook Logs', source: 'RazorpayWebhookLog', retention: '180 days (TTL)', status: 'Active', detail: 'Payment webhook event logs for debugging payment flows.' },

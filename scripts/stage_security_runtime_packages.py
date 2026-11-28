@@ -13,7 +13,6 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import deploy_all_lambdas as deploy
-from scripts import deploy_mcp_server as mcp
 
 TARGETS = (
     "wecare-inbound-whatsapp",
@@ -62,28 +61,6 @@ def main():
             "bytes": len(data), "members": len(members),
             "handlerSha256": hashlib.sha256(members["handler.py"]).hexdigest(),
         }
-    # MCP uses its dedicated canonical packager (handler + current public catalogue).
-    # Staging is offline; do not call its deployment/routing commands here.
-    data = mcp.package()
-    members = {"handler.py": mcp.HANDLER_FILE.read_bytes(),
-               "public-pages.json": mcp.CATALOG_FILE.read_bytes()}
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        if sorted(archive.namelist()) != sorted(members) or archive.testzip() is not None:
-            raise SystemExit("Invalid MCP release package")
-        for key, value in members.items():
-            if archive.read(key) != value:
-                raise SystemExit("MCP package differs from source: " + key)
-        compile(members["handler.py"], "handler.py", "exec")
-        json.loads(members["public-pages.json"])
-    digest = hashlib.sha256(data).digest()
-    filename = "wecare-mcp.zip"
-    (args.output / filename).write_bytes(data)
-    summary["packages"]["wecare-mcp"] = {
-        "file": filename, "sha256": digest.hex(),
-        "codeSha256": base64.b64encode(digest).decode("ascii"),
-        "bytes": len(data), "members": len(members),
-        "handlerSha256": hashlib.sha256(members["handler.py"]).hexdigest(),
-    }
     (args.output / "manifest.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary))
 

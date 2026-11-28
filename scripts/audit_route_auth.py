@@ -62,16 +62,6 @@ Scope corrections, 2026-10-26
    routes moved to it they were all UNRESOLVED: 22 routes, `DELETE
    /invoices/clear-all` among them, that this audit had stopped checking.
 
-5. An allowlisted route key no longer covers every API that reuses it. The reason
-   written for `ANY /mcp` on `wecare-mcp` ("read-only MCP server over public
-   content") was also passing `ANY /mcp` on the staff Chat API, which is the
-   administrative workspace MCP.
-
-6. A function whose code ships inline in a CloudFormation template keeps it in
-   `index.py`, the name Lambda gives `Code.ZipFile`, so a directory holding only
-   `index.py` was never read: the seven routes of `wecare-customer-commerce-mcp`
-   (ai/customer-commerce-mcp) could only ever be UNRESOLVED.
-
 Marker strength
 ---------------
 Some MARKERS are weak: `Authorization`, `api_key`/`API_KEY` and `verify_token`
@@ -140,12 +130,6 @@ STRONG_MARKERS = (
     # Match the call, not a module import or an outbound Authorization header.
     "customer_auth.require_customer(",
     "customer_auth.authenticate(",
-    # The workspace MCP checks its own callers: issuer, staff client, access-token use, the
-    # Admin group and expiry, then a live Cognito recheck of the session.
-    "owner_identity(event)",
-    # The customer commerce MCP's private tools: a `wca_` bearer bound to this resource and
-    # scope, its stored session, then a live Cognito recheck of the customer.
-    "customer_oauth.customer_event(",
 )
 
 # Markers that only prove a handler can CALL OUT with a credential, never that it
@@ -198,17 +182,6 @@ EXPECTED_PUBLIC_ROUTES = {
     # be expressed as an API Gateway authorizer. Verified in the handler.
     "GET /webhook/sinch-rcs": "Sinch health probe; POST carries the HMAC",
     "POST /webhook/sinch-rcs": "Sinch Conversation API HMAC over rawBody.nonce.timestamp",
-    # The MCP endpoint. An MCP client has no Cognito session and the protocol has no
-    # place to put one, so requiring auth would make the endpoint unusable for its only
-    # purpose. Safe because every tool is a read of ALREADY-PUBLIC content and the
-    # capability to do anything else is absent rather than merely unpermitted: the
-    # handler imports no boto3, so there is no table, queue or model it can reach, and
-    # tests/test_mcp_server.py asserts the advertised tool list for EXACT equality
-    # against a frozen read-only allowlist. Read docs/ai-discovery-surface.md before
-    # widening this. If a tool that mutates or that costs money per call is ever added,
-    # this line must come out and the route must move behind require_auth.
-    "ANY /mcp": "read-only MCP server over public content; no auth possible in-protocol",
-    "GET /workspace/mcp/oauth/callback": "provider OAuth callback; exact route, ten-minute principal-bound one-use state and PKCE; no administrative tools exposed",
     # Public catalogue artwork is fetched by browsers and Meta before any customer identity
     # exists. The dedicated handler accepts GET only, validates an exact lowercase
     # *-4096.png filename, and its execution role can only GetObject below the one
@@ -226,31 +199,10 @@ EXPECTED_PUBLIC_ROUTES = {
 
 # Route keys are reused across APIs, and a reason written for one handler says nothing about
 # another. A key listed here is allowlisted only when its route targets one of these functions.
-PUBLIC_ROUTE_TARGETS = {
-    "ANY /mcp": {"wecare-mcp"},
-}
+PUBLIC_ROUTE_TARGETS: dict[str, set[str]] = {}
 
-# Public by protocol on one function only. The Chat API fronts the staff workspace MCP with
-# OAuth for a public client, so discovery, authorize and token must be reachable before sign-in.
-# Its `ANY /mcp` is deliberately absent: it must keep passing on its own caller check.
-EXPECTED_PUBLIC_BY_FUNCTION = {
-    "wecare-workspace-mcp": {
-        "GET /.well-known/oauth-protected-resource": "RFC 9728 protected-resource metadata; a fixed discovery document that reads no request input",
-        "GET /.well-known/oauth-authorization-server": "RFC 8414 authorization-server metadata; a fixed discovery document that reads no request input",
-        "GET /authorize": "OAuth authorization endpoint for a public client: exact client_id, redirect_uri and resource, PKCE S256 only, then a 302 to the Cognito hosted UI where staff sign in; it issues nothing itself",
-        "POST /token": "OAuth token endpoint for a public client: form-encoded, exact client_id, redirect_uri and resource, PKCE verifier required for a code; it relays Cognito's token only when that token is bound to this client and resource",
-    },
-    # The customer commerce MCP is its own OAuth server; customers sign in on its form with a
-    # WhatsApp code. `POST /mcp` is absent: it keeps passing on its bearer check.
-    "wecare-customer-commerce-mcp": {
-        "GET /.well-known/oauth-protected-resource": "RFC 9728 protected-resource metadata; a fixed discovery document that reads no request input",
-        "GET /.well-known/oauth-authorization-server": "RFC 8414 authorization-server metadata; a fixed discovery document that reads no request input",
-        "GET /oauth/authorize": "OAuth authorize for a registered public client: exact parameter set, a registered redirect_uri, this resource, PKCE S256; it only opens a 10-minute sign-in form bound to an HttpOnly cookie and a CSRF hash",
-        "POST /oauth/authorize": "the sign-in form post: same origin, the session cookie and a one-use CSRF hash; the customer proves the WhatsApp number with a Cognito CUSTOM_AUTH code before a two-minute PKCE-bound code is issued",
-        "POST /oauth/token": "OAuth token endpoint for a public client: a one-use code with its PKCE S256 verifier and exact redirect, or a one-use refresh token; each grant rechecks the customer's Cognito session",
-        "POST /oauth/revoke": "OAuth revocation: exact client and resource; it can delete only the session rows of the token presented",
-    },
-}
+# Public by protocol on one function only; none remain.
+EXPECTED_PUBLIC_BY_FUNCTION: dict[str, dict[str, str]] = {}
 
 
 def packaged_sources() -> dict[str, list[pathlib.Path]]:
@@ -258,7 +210,7 @@ def packaged_sources() -> dict[str, list[pathlib.Path]]:
 
     `deploy_all_lambdas.SPECS` is the authority on which directory a function ships, so the
     directory-name guess in `handler_sources` is only the fallback for functions it does not
-    own (the delegated MCP, SEO and blog readers).
+    own (the delegated SEO and blog readers).
     """
     sys.path.insert(0, str(REPO / "scripts"))
     import deploy_all_lambdas as dal  # noqa: PLC0415

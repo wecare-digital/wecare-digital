@@ -1,6 +1,5 @@
 [
   "ANY /marketing-ads",
-  "ANY /mcp",
   "ANY /seo-tools",
   "ANY /seo-tools/{proxy+}",
   "ANY /wa-business/{proxy+}",
@@ -39,7 +38,6 @@
   "DELETE /whatsapp/templates/send-media",
   "DELETE /whatsapp/templates/{templateName}",
   "DELETE /whatsapp/{proxy+}",
-  "GET /ai/config",
   "GET /automation/rules",
   "GET /billing",
   "GET /bulk/control",
@@ -288,7 +286,6 @@
   "POST /whatsapp/templates/send-media",
   "POST /whatsapp/voice",
   "POST /whatsapp/{proxy+}",
-  "PUT /ai/config",
   "PUT /automation/rules/{id}",
   "PUT /bulk/jobs/{jobId}",
   "PUT /contacts",

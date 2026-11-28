@@ -56,7 +56,7 @@
 #
 # THE HTML RULE IS PER PAGE SECTION, NOT ON `**/*`, AND THAT IS A SAFETY RULE. `**/*` also
 # matches every response Amplify proxies through its rewrites - `/api/<*>`, `/get/<*>`,
-# `/auth/state`, `/mcp` - and Amplify applies this Cache-Control to every 200 response,
+# `/auth/state` - and Amplify applies this Cache-Control to every 200 response,
 # overriding the origin's own header. Measured 2026-11-28: GET /api/site-language/languages,
 # whose handler sends `no-store`, is served with the `**/*` value below. A cacheable `**/*` would
 # therefore let the CDN store authenticated API answers and per-session /auth/state answers and

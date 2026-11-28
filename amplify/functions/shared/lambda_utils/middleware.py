@@ -77,9 +77,8 @@ STAFF_POOL_ISSUER = staff_pool_issuer()
 #: the App Client, `shared/config.ts` holds as `COGNITO_CONFIG.APP_CLIENT_ID`, and the
 #: Amplify branch environment ships to the browser as `NEXT_PUBLIC_COGNITO_CLIENT_ID`.
 #:
-#: A LITERAL rather than an env read, deliberately, and on the precedent of
-#: `ai/workspace-mcp/handler.py:31` (`STAFF_CLIENT`), which already pins exactly this value
-#: alongside its issuer check. A new env var would make the pin optional on any function
+#: A LITERAL rather than an env read, deliberately, and so that
+#: the pin cannot be switched off by a missing variable. A new env var would make the pin optional on any function
 #: whose environment was not updated, i.e. would ship a pin that is absent where it is most
 #: needed. `USER_POOL_ID` is env-readable because the pool is a deployment coordinate; the
 #: client within that pool is not.

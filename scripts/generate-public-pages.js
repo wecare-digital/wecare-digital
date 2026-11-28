@@ -4,8 +4,7 @@
  *
  * WHAT PROBLEM THIS CLOSES
  * ------------------------
- * config/public-pages.json is what /mcp answers `list_pages` and `search_pages` from, and
- * what scripts/generate-llms-txt.js turns into /llms.txt. Until now its `pages` array was
+ * config/public-pages.json is what scripts/generate-llms-txt.js turns into /llms.txt. Until now its `pages` array was
  * retyped by hand, which made it the fifth hand-kept copy of the same list:
  *
  *   src/pages/*.tsx                          the pages that actually exist
@@ -15,10 +14,8 @@
  *   config/public-pages.json                 what a machine reader is told
  *
  * A hand-kept fifth copy fails in one direction silently and in the other direction
- * embarrassingly. Miss a new page and it is invisible to every agent that reads /llms.txt or
- * calls /mcp. Leave a deleted page in and /mcp hands an agent a URL that 404s - which already
- * happened once: [retired public path] was renamed to /orders, the catalogue was updated, and the MCP
- * Lambda kept serving the old path because nothing redeployed it.
+ * embarrassingly. Miss a new page and it is invisible to every reader of /llms.txt.
+ * Leave a deleted page in and /llms.txt hands a reader a URL that 404s.
  *
  * So the array is generated. Add a page, delete a page, or reword its description, and the
  * catalogue follows on the next build with no second edit.
@@ -317,8 +314,7 @@ function buildPages ( catalog ) {
       'or add a line to STRUCTURAL in this file:',
       ...unplaced.map( route => `    { path: '${route}', group: 'services' },` ),
       '',
-      'Guessing one would file the page under the wrong heading in /llms.txt and in every',
-      'answer /mcp gives, which is far harder to notice than this failure.',
+      'Guessing one would file the page under the wrong heading in /llms.txt, which is far harder to notice than this failure.',
     );
   }
 
@@ -425,8 +421,8 @@ for ( const entry of added ) console.log( `  + ${entry}` );
 if ( checkOnly ) {
   console.error(
     '\npublic-pages CHECK FAILED: config/public-pages.json is not what a fresh scan produces.'
-    + '\n  The committed catalogue disagrees with the pages that actually exist, so /llms.txt and'
-    + '\n  /mcp are describing a site that is not the one in this tree.'
+    + '\n  The committed catalogue disagrees with the pages that actually exist, so /llms.txt'
+    + '\n  is describing a site that is not the one in this tree.'
     + '\n\n  Regenerate and commit:  node scripts/generate-public-pages.js\n',
   );
   process.exit( 1 );
@@ -438,7 +434,3 @@ if ( dryRun ) {
 
 fs.writeFileSync( CATALOG_PATH, after, 'utf8' );
 console.log( `public-pages: wrote ${catalog.pages.length} pages -> config/public-pages.json` );
-console.log(
-  '  NOTE: /mcp carries a COPY of this file in its deployment zip. Redeploy it, or the'
-  + '\n  endpoint keeps describing the old page set: python scripts/deploy_mcp_server.py',
-);

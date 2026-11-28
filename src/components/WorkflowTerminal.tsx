@@ -364,7 +364,7 @@ const WorkflowTerminal: React.FC = () => {
    * line of text and a footer reading "running 0 / 21". Every line of the twenty-one steps
    * existed only after hydration, so a no-JS reader, a WebView with scripting off, and anything
    * reading the HTML rather than running it all got an empty panel - on the same site that just
-   * started publishing llms.txt and an /mcp endpoint for exactly those readers.
+   * started publishing llms.txt for exactly those readers.
    *
    * Shipping the COMPLETE state fixes it with no new markup: twenty-one rows, all settled, footer
    * reading "complete". It is also the most meaningful single frame the panel has, it is

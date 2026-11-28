@@ -2,10 +2,9 @@
   "_comment": [
     "THE PUBLIC SURFACE, DESCRIBED ONCE, FOR MACHINE READERS.",
     "",
-    "This file is the single source of truth for the three AI-facing artifacts:",
+    "This file is the single source of truth for the machine-readable site artifacts:",
     "  out/llms.txt        written by scripts/generate-llms-txt.js at build time",
     "  out/llms-full.txt   same generator, with the descriptions inlined",
-    "  /mcp                amplify/functions/ai/mcp-server reads it from its own zip",
     "",
     "THE `pages` ARRAY IS GENERATED. DO NOT HAND-EDIT IT.",
     "  node scripts/generate-public-pages.js          rewrites it from the tree",
@@ -26,12 +25,11 @@
     "actually exists. This file only describes it. src/test/PublicAiSurface.test.ts fails the",
     "build when the three drift apart, because the failure mode is silent and ugly in both",
     "directions: a page listed here but missing from _app.tsx serves the staff sign-in shell at",
-    "HTTP 200, and a page missing here is simply invisible to every agent that reads llms.txt or",
-    "calls the MCP server.",
+    "HTTP 200, and a page missing here is simply invisible to every reader of llms.txt.",
     "",
-    "WHY A JSON FILE RATHER THAN IMPORTING _app.tsx. The generator is Node, the MCP server is",
-    "Python, and _app.tsx executes Amplify.configure at module scope. A shared data file is the",
-    "only form all three can read without one of them booting the frontend.",
+    "WHY A JSON FILE RATHER THAN IMPORTING _app.tsx. _app.tsx executes Amplify.configure at module",
+    "scope, so a shared data file is the only form the Node generator can read without booting the",
+    "frontend.",
     "",
     "The 889 blog posts are NOT listed here. They change on a content publish rather than a code",
     "change, and the generator fetches them from /api/seo-tools/blog-public exactly as",
@@ -242,70 +240,11 @@
     "_comment": [
       "THERE IS NO human_page KEY ANY MORE, and its absence is a decision rather than an omission.",
       "",
-      "Machine-readable documentation lives in /llms.txt and the read-only MCP endpoint.",
-      "Unassigned page paths use the shared missing-page response and are not registered or reserved.",
-      "",
-      "mcp_tools MUST equal READ_ONLY_TOOLS in amplify/functions/ai/mcp/handler.py, asserted in",
-      "both directions by src/test/PublicAiSurface.test.ts. `summary` is prose for a reader and is",
-      "deliberately not the handler's `description`, which is written to instruct a model."
+      "Machine-readable documentation lives in /llms.txt.",
+      "Unassigned page paths use the shared missing-page response and are not registered or reserved."
     ],
     "llms_txt": "https://wecare.digital/llms.txt",
-    "llms_full_txt": "https://wecare.digital/llms-full.txt",
-    "mcp_endpoint": "https://wecare.digital/mcp",
-    "mcp_transport": "streamable-http",
-    "mcp_protocol_versions": [
-      "2025-11-25",
-      "2025-06-18",
-      "2025-03-26"
-    ],
-    "mcp_client_config": {
-      "mcpServers": {
-        "wecare-digital": {
-          "type": "http",
-          "url": "https://wecare.digital/mcp"
-        }
-      }
-    },
-    "mcp_tools": [
-      {
-        "name": "get_site_summary",
-        "summary": "who this business is, how to start a request, and these citation terms"
-      },
-      {
-        "name": "list_pages",
-        "summary": "the full public page catalogue, grouped, with canonical URLs"
-      },
-      {
-        "name": "search_pages",
-        "summary": "find the page that covers a topic"
-      },
-      {
-        "name": "search_blog",
-        "summary": "search the published articles by title, summary and category"
-      },
-      {
-        "name": "get_blog_post",
-        "summary": "one article by its slug"
-      }
-    ],
-    "mcp_resources": [
-      {
-        "uri": "wecare://site/summary",
-        "summary": "this block, plus who the business is and how to start a request"
-      },
-      {
-        "uri": "wecare://pages/catalog",
-        "summary": "every public page with its canonical URL, name and description"
-      }
-    ],
-    "mcp_cannot": [
-      "Send a WhatsApp message, SMS or email.",
-      "Create, amend or cancel a request.",
-      "Take, capture or refund a payment.",
-      "Read any contact, order or message record.",
-      "Reach anything behind a sign-in."
-    ],
-    "note": "The MCP endpoint is read-only and unauthenticated. It exposes the public pages and the published blog corpus, and nothing else. That is not a permission setting: the capability to act is absent from the handler, and its test suite asserts the tool list against a frozen allowlist so a tool with a side effect cannot be added quietly. A GET returns 405 by design - the server is stateless and offers no SSE stream, which the specification names as the explicit alternative."
+    "llms_full_txt": "https://wecare.digital/llms-full.txt"
   },
   "usage_terms": [
     "The public pages and published blog posts on this site may be read, quoted with attribution, and cited by AI assistants and answer engines.",

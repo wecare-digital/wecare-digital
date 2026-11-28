@@ -39,11 +39,11 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-contacts', category: 'Core Lambdas', name: 'Contacts', description: 'CRUD for contacts — create, read, update, delete, search, import. Supports structured addresses.', path: 'amplify/functions/core/contacts/handler.py', type: 'lambda' },
   { id: 'lambda-messages-read', category: 'Core Lambdas', name: 'Messages Read', description: 'Read messages from DynamoDB with pagination, filtering by channel/contact/direction.', path: 'amplify/functions/core/messages-read/handler.py', type: 'lambda' },
   { id: 'lambda-messages-delete', category: 'Core Lambdas', name: 'Messages Delete', description: 'Delete individual messages from inbound/outbound tables.', path: 'amplify/functions/core/messages-delete/handler.py', type: 'lambda' },
-  { id: 'lambda-faq', category: 'Core Lambdas', name: 'FAQ Handler', description: 'FAQ management — CRUD for FAQ entries used by AI auto-reply.', path: 'amplify/functions/core/faq-handler/handler.py', type: 'lambda' },
+  { id: 'lambda-faq', category: 'Core Lambdas', name: 'FAQ Handler', description: 'FAQ management — CRUD for FAQ entries used by auto-reply.', path: 'amplify/functions/core/faq-handler/handler.py', type: 'lambda' },
   { id: 'lambda-url', category: 'Core Lambdas', name: 'URL Shortener', description: 'Short URL creation and redirect for tracking links.', path: 'amplify/functions/core/url-shortener/handler.py', type: 'lambda' },
 
   // ── WhatsApp Lambdas ──
-  { id: 'lambda-inbound-wa', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — processes all inbound WhatsApp messages, keyword triggers, flow routing, AI automation, media handling.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'lambda' },
+  { id: 'lambda-inbound-wa', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — processes all inbound WhatsApp messages, keyword triggers, flow routing, media handling.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'lambda' },
   { id: 'lambda-outbound-wa', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media and approved templates.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'lambda' },
   { id: 'lambda-wa-voice', category: 'WhatsApp Lambdas', name: 'WhatsApp Voice', description: 'Voice note TTS via Amazon Polly, send as WhatsApp audio.', path: 'amplify/functions/messaging/whatsapp-voice/handler.py', type: 'lambda' },
   { id: 'lambda-wa-calling', category: 'WhatsApp Lambdas', name: 'WhatsApp Calling', description: 'WhatsApp calling — permission requests, call records, SIP integration.', path: 'amplify/functions/messaging/whatsapp-calling/handler.py', type: 'lambda' },
@@ -60,7 +60,6 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-voice-aws', category: 'SMS / Email / Voice', name: 'Voice AWS', description: 'AWS Connect voice call handler.', path: 'amplify/functions/messaging/voice-aws/handler.py', type: 'lambda' },
   { id: 'lambda-plivo-answer', category: 'SMS / Email / Voice', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'lambda' },
 
-  { id: 'lambda-ai-config', category: 'Core', name: 'Settings API', description: 'Generic SystemConfig settings API (GET/PUT /ai/config?key=). No AI behaviour.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'lambda' },
 
   // ── Payments ──
   { id: 'lambda-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'lambda' },

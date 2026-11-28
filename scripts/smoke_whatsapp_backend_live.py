@@ -1,7 +1,7 @@
 """Read-only production smoke check for the WhatsApp backend.
 
 This script never sends a customer message. It validates live Lambda aliases,
-the bounded internal operational contracts used by Workspace MCP, the delivery
+the bounded internal operational contracts, the delivery
 reconciliation backstop, and the two ambiguity alarms. A mutation smoke must
 remain a separate explicitly gated tool with a QA recipient.
 """
@@ -23,7 +23,6 @@ EXPECTED = {
     "wecare-outbound-whatsapp": "Active",
     "wecare-whatsapp-business-api": "Active",
     "wecare-service-api": "Active",
-    "wecare-workspace-mcp": "Active",
 }
 RECONCILIATION_RULE = "wecare-whatsapp-delivery-reconciliation"
 RECONCILIATION_SCHEDULE = "rate(10 minutes)"
@@ -79,12 +78,6 @@ def main() -> int:
         checks.append(row)
         ok &= row["ok"]
 
-    workspace_concurrency = lamb.get_function_concurrency(
-        FunctionName="wecare-workspace-mcp"
-    ).get("ReservedConcurrentExecutions")
-    workspace_concurrency_ok = workspace_concurrency == 10
-    ok &= workspace_concurrency_ok
-
     rule = events.describe_rule(Name=RECONCILIATION_RULE)
     targets = events.list_targets_by_rule(Rule=RECONCILIATION_RULE).get("Targets", [])
     target_arn = (
@@ -133,10 +126,6 @@ def main() -> int:
     print(json.dumps({
         "ok": ok,
         "functions": checks,
-        "workspaceMcp": {
-            "reservedConcurrency": workspace_concurrency,
-            "ok": workspace_concurrency_ok,
-        },
         "reconciliation": {
             "rule": RECONCILIATION_RULE,
             "state": rule.get("State"),

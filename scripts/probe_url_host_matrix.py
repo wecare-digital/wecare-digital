@@ -23,8 +23,8 @@ with a seen-set and a hop budget, and a repeat is a hard failure.
 
 READ-ONLY. HTTP GET and POST against the public site, nothing else. No AWS call, no secret
 read, no write of any kind. The POST rows exist because the provider webhooks are delivered
-by POST and a rewrite can behave differently per method - `GET /mcp` is 405 while
-`POST /mcp` is 400, which is only visible if both are probed.
+by POST and a rewrite can behave differently per method, which is only visible if
+both are probed.
 
 CURRENT POLICY: current pages resolve normally. Missing pages return HTTP 404 and the
 shared browser fallback goes home. No individual retired-path redirects are maintained.
@@ -204,9 +204,6 @@ def matrix() -> list[dict]:
                      "signed receipt link: NOT provisioned yet - 404 is the measured truth"))
     rows.append(_row("api", f"{SITE}/api/auth/verify-email", 404,
                      "verified-email callback: built but NOT provisioned (other workstream)"))
-    rows.append(_row("api", f"{SITE}/mcp", 405, "MCP rejects GET"))
-    rows.append(_row("api", f"{SITE}/mcp", 400, "MCP accepts POST and rejects an empty body",
-                     method="POST"))
     rows.append(_row("api", f"{SITE}/get/o/stream/media/m/wecare-digital.png", 200,
                      "media CDN passthrough"))
     # An unknown short code answers 302 to the canonical homepage, one hop.
