@@ -144,6 +144,9 @@ jobs:
           cat "$RUNNER_TEMP/qa-server.log"; exit 1
       - name: Verify synthetic checkout
         env:
+          # Retain Firefox browser-process stderr for reproducible page crashes.
+          # This is a synthetic-only runner; no accessibility checks are disabled.
+          DEBUG: ${{ matrix.engine == 'firefox' && 'pw:browser' || '' }}
           PUBLIC_QA_OUTPUT: ${{ runner.temp }}/checkout-fixture
         run: node scripts/verify_checkout_fixture.mjs
       - name: Retain synthetic screenshots and report

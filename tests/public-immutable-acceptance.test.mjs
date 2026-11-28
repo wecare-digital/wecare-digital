@@ -60,3 +60,25 @@ test('travel assistant send icon has no visible font-ligature fallback',()=>{
   assert.match(send[1],/<svg[^>]*aria-hidden="true"[^>]*focusable="false"/);
   assert.doesNotMatch(send[1],/symbol\(|eta-material/);
 });
+
+
+test('dark Relay editor tabs are excluded from every light public action theme selector',()=>{
+  const css=read('src/styles/public-button-theme.css');
+  const selectors=[...css.matchAll(/button:not\(:where\(([\s\S]*?)\)\)/g)];
+  assert.ok(selectors.length>=8);
+  assert.ok(selectors.every(match=>match[1].includes('.pp-tab')));
+  const relay=read('src/pages/relay-os/index.tsx');
+  assert.match(relay,/aria-pressed=\{activeCode === i\} className=\{`pp-tab/);
+  assert.match(relay,/\.pp-tab\{[^}]*color:#b8b8b8;background:transparent/);
+  assert.match(relay,/\.pp-tab:focus-visible\{outline:3px solid var\(--public-brand-lime\)/);
+});
+
+test('narrow order search retains full-size nonoverlapping voice and clear targets',()=>{
+  const menu=read('src/components/orders/OrderActionsMenu.tsx');
+  assert.match(menu,/@media\(max-width:359px\)\{[\s\S]*?\.orm-search-field > \.orm-search\{flex:0 0 100%/);
+  assert.match(menu,/\.orm-search-field > :global\(button\.voice-search-mic\)\{[^}]*min-inline-size:46px;block-size:46px;min-block-size:46px/);
+  const fixture=read('scripts/verify_checkout_fixture.mjs');
+  assert.ok(fixture.includes('control.width>=44&&control.height>=44&&control.inside&&control.hit&&!control.overlap'));
+  assert.ok(fixture.includes("phase='wait for required checkout profile'"));
+  assert.match(read('.github/workflows/public-acceptance.yml'),/DEBUG:.*pw:browser/);
+});
