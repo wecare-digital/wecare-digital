@@ -1,13 +1,15 @@
 """Privacy-bounded WhatsApp operational analytics exporter.
 
 Runs on a schedule. Reads only operational metadata from the canonical DynamoDB
-sources and writes newline-delimited JSON snapshots to the existing private S3
-analytics prefix. It never exports customer phone numbers, customer/contact IDs,
-message bodies, Flow answers, line items, names, addresses, or free-form notes.
+sources and writes newline-delimited JSON snapshots to a private S3 prefix outside
+secure/d/public/, which the CDN does not serve. It never exports customer phone numbers,
+customer/contact IDs, message bodies, Flow answers, line items, names, addresses, or
+free-form notes.
 """
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -17,9 +19,22 @@ import boto3
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 BUCKET = os.environ.get("ANALYTICS_BUCKET", "wecare-digital-get")
-PREFIX = os.environ.get(
-    "ANALYTICS_PREFIX", "secure/d/public/whatsapp/analytics/operational"
-).strip("/")
+# Equals media_paths.WHATSAPP_ANALYTICS_EXPORT_PREFIX (this package is handler-only).
+# The previous default, secure/d/public/whatsapp/analytics/operational, was served by the CDN.
+PRIVATE_PREFIX = "secure/d/analytics/whatsapp/operational"
+
+
+def _served_by_cdn(prefix: str) -> bool:
+    """True when CloudFront serves keys under the prefix: outside secure/, or in secure/d/public/."""
+    p = prefix.strip("/") + "/"
+    return not p.startswith("secure/") or p.startswith("secure/d/public/")
+
+
+CONFIGURED_PREFIX = os.environ.get("ANALYTICS_PREFIX", "").strip("/")
+# A configured prefix the CDN would serve is ignored; the live value may still be the old one.
+PREFIX = (CONFIGURED_PREFIX
+          if CONFIGURED_PREFIX and not _served_by_cdn(CONFIGURED_PREFIX)
+          else PRIVATE_PREFIX)
 MAX_ROWS_PER_DATASET = int(os.environ.get("MAX_ROWS_PER_DATASET", "100000"))
 
 OUTBOUND_TABLE = os.environ.get(
@@ -237,6 +252,12 @@ def _export_dataset(name: str, now: datetime, run_id: str) -> dict:
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    if CONFIGURED_PREFIX and CONFIGURED_PREFIX != PREFIX:
+        logging.getLogger(__name__).warning(json.dumps({
+            "event": "analytics_prefix_override_ignored",
+            "reason": "ANALYTICS_PREFIX is served by the CDN",
+            "prefix": PREFIX,
+        }))
     now = datetime.now(timezone.utc)
     request_id = getattr(context, "aws_request_id", "manual")
     run_id = f"{now.strftime('%Y%m%dT%H%M%SZ')}-{request_id[:24]}"
