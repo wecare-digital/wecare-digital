@@ -225,6 +225,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
         .sr-journey-loading p,.sr-journey-status{color:var(--public-text);font-size:15px;line-height:1.5}
         .sr-journey-status{margin:0 auto 24px;padding:0 22px;max-width:440px}
         .sr-journey-action{display:flex;align-items:center;justify-content:center;min-height:52px;width:100%;margin-top:10px;padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;cursor:pointer}
+        @media(hover:hover) and (pointer:fine){.sr-journey-action:hover{background:var(--public-button-hover)}}
         .sr-journey-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
       ` }</style>
     </div>

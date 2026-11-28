@@ -38,11 +38,11 @@ try {
         const s = await readStyle(page, selector);
         assert.equal(s.background, s.tint, route + ' surface');
         assert.equal(s.color, s.green, route + ' ink');
-        assert.equal(s.radius, '13px', route + ' radius');
+        assert.equal(s.radius, '6px', route + ' radius');
         assert.ok(s.decoration.includes('underline'), route + ' label');
         assert.ok(s.height >= 51, route + ' height');
         const compact = await readStyle(page, '.ps-contribute');
-        assert.equal(compact.radius, '13px', route + ' compact dock radius');
+        assert.equal(compact.radius, '6px', route + ' compact dock radius');
         assert.equal(compact.background, compact.tint, route + ' compact dock tint');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2), route + ' horizontal overflow');
       }

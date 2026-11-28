@@ -134,7 +134,12 @@ export default function SubmitRequestForm ( {
         { price && quote && !quoteUnavailable ? <>
           <div className="sr-total"><span>Total payable</span><strong data-wc-no-translate="true">{ price }</strong></div>
           <details>
-            <summary className="sr-action sr-details">Price details</summary>
+            <summary className="sr-details">
+              <span>Price details</span>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </summary>
             <dl>{ priceRows.map( row => <div key={ row.label }>
               <dt>{ row.label }</dt>
               <dd data-wc-no-translate="true">{ row.discount ? '−' : '' }{ formatPaiseINR( row.paise, quote.currency ) }</dd>
@@ -186,14 +191,20 @@ export default function SubmitRequestForm ( {
         .sr-total strong{font-size:24px;color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .sr-actions{display:grid;gap:10px;margin-top:26px}
         .sr-action{display:inline-flex;align-items:center;justify-content:center;min-height:52px;width:100%;max-width:100%;box-sizing:border-box;padding:10px 18px;border:0;border-radius:var(--public-hover-radius);background:var(--public-lime-tint);color:var(--public-brand-green);font:700 var(--public-responsive-cta-size)/1.35 var(--font-sans);text-align:center;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
-        .sr-action:hover:not(:disabled){background:var(--public-button-hover);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+        @media(hover:hover) and (pointer:fine){.sr-action:hover:not(:disabled){background:var(--public-button-hover);text-decoration-color:transparent}}
         .sr-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .sr-action:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
-        .sr-details{min-height:44px;font-size:14px;list-style:none;gap:8px}.sr-details::-webkit-details-marker{display:none}
-        .sr-details::after{content:'+';font-size:18px}details[open] .sr-details::after{content:'−'}
+        .sr-details{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;box-sizing:border-box;padding:8px 10px;border:0;border-radius:var(--public-hover-radius);background:transparent;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.4 var(--font-sans);cursor:pointer;list-style:none;overflow-wrap:anywhere}
+        .sr-details::-webkit-details-marker{display:none}
+        .sr-details::marker{content:''}
+        .sr-details svg{flex:none}
+        details[open] .sr-details{background:var(--public-lime-tint)}
+        details[open] .sr-details svg{transform:rotate(180deg)}
+        @media(hover:hover) and (pointer:fine){.sr-details:hover{background:var(--public-hover-surface)}}
+        .sr-details:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:2px}
         dl{margin:12px 0 0;font-size:14px}dl div{display:flex;justify-content:space-between;gap:10px;padding:5px 0}dd{margin:0;white-space:nowrap;font-variant-numeric:tabular-nums}
-        .sr-check{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin-bottom:18px;background:var(--public-lime-tint);border-radius:13px;color:var(--public-brand-green)}
-        @media(min-width:768px){.sr-form{margin:32px auto;padding:24px 32px 32px;border:1px solid var(--public-hairline);border-radius:20px}.sr-actions{margin-top:32px}}
+        .sr-check{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin-bottom:18px;background:var(--public-lime-tint);border-radius:var(--public-hover-radius);color:var(--public-brand-green)}
+        @media(min-width:768px){.sr-form{margin:32px auto;padding:24px 32px 32px;border:1px solid var(--public-hairline);border-radius:var(--public-card-radius)}.sr-actions{margin-top:32px}}
         @media(max-width:359px){.sr-form{padding-inline:16px}.sr-brand{font-size:18px}h2{font-size:27px}}
         @media(prefers-reduced-motion:reduce){.sr-action{transition:none}.sr-action:hover:not(:disabled){transform:none;box-shadow:none}}
       `}</style>
