@@ -188,7 +188,10 @@ def apply() -> dict:
     log_group=f"/aws/lambda/{FUNCTION}"
     try: logs.create_log_group(logGroupName=log_group)
     except logs.exceptions.ResourceAlreadyExistsException: pass
-    logs.put_retention_policy(logGroupName=log_group,retentionInDays=90)
+    # 7 days = the infra/cloudwatch-retention-enforcer.yml tier for "whatsapp" groups,
+    # set live on 2026-11-28 (audit AWS-7). The runtime role has no CreateLogGroup,
+    # so this group must exist before the exporter can log at all.
+    logs.put_retention_policy(logGroupName=log_group,retentionInDays=7)
 
     try: glue.get_database(Name=DATABASE)
     except glue.exceptions.EntityNotFoundException: glue.create_database(DatabaseInput={"Name":DATABASE})
