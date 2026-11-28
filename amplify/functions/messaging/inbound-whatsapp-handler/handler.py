@@ -7,7 +7,6 @@ Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.12, 15.4, 15.7
 Parses Meta webhook event format, stores messages, downloads media,
 updates contact timestamps for 24-hour customer service window.
 Tracks which WABA/phone number received the message.
-Integrates with AI automation when enabled in SystemConfig.
 """
 
 import os
@@ -110,7 +109,6 @@ SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 
 # AI Lambda function names. Every invoke target is the `live` alias: an unqualified name runs
 # $LATEST, which an upload reaches before it is published and verified.
-AI_QUERY_KB_FUNCTION = os.environ.get('AI_QUERY_KB_FUNCTION', 'wecare-ai-query-kb:live')
 
 # Outbound WhatsApp Lambda function name
 OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp:live')
@@ -2720,7 +2718,7 @@ def _process_message(
             'senderPhone': mask_phone(sender_phone),
             'requestId': request_id,
         }))
-        _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+        _send_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
         # Mark welcomeSent so brand-new contact path doesn't double-send
         try:
             dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -2766,7 +2764,7 @@ def _process_message(
         if (button_text_lower in BUTTON_MENU_TRIGGERS
                 or strip_decorative_edges(button_text_lower) in BUTTON_MENU_TRIGGERS
                 or button_text_lower.startswith('get started')):
-            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             logger.info(json.dumps({
                 'event': 'button_triggered_menu_sent',
                 'buttonText': button_text_lower,
@@ -2889,7 +2887,7 @@ def _process_message(
                 logger.warning(json.dumps({'event': 'my_id_lookup_failed',
                                            'errorType': type(e).__name__,
                                            'requestId': request_id}))
-                _send_ai_auto_reply(contact_id, 'We could not look up your WECARE.DIGITAL Customer ID '
+                _send_auto_reply(contact_id, 'We could not look up your WECARE.DIGITAL Customer ID '
                                     'right now. Please try again in a few minutes.',
                                     aws_phone_number_id, request_id)
                 return
@@ -2897,7 +2895,7 @@ def _process_message(
             reply = (f'Your WECARE.DIGITAL Customer ID is {display_id}.' if display_id else
                      'This WhatsApp number does not have a WECARE.DIGITAL Customer ID yet. '
                      'Reply here and our team will help.')
-            _send_ai_auto_reply(contact_id, reply, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, reply, aws_phone_number_id, request_id)
             return
 
         # Load flow triggers from SystemConfigTable (dashboard-configurable). Matching is EXACT:
@@ -3069,7 +3067,7 @@ def _process_message(
                 )
                 return
             # Phone 1: Step 1: Send "pulling" message immediately
-            _send_ai_auto_reply(contact_id, PAY_MSG['pulling'], aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, PAY_MSG['pulling'], aws_phone_number_id, request_id)
             try:
                 inv_payload = {
                     'rawPath': '/invoices/send-pending-by-phone',
@@ -3095,9 +3093,9 @@ def _process_message(
                 send_error = inv_body.get('error', '')
 
                 if total_count == 0:
-                    _send_ai_auto_reply(contact_id, PAY_MSG['no_dues'], aws_phone_number_id, request_id)
+                    _send_auto_reply(contact_id, PAY_MSG['no_dues'], aws_phone_number_id, request_id)
                 elif sent_count == 0:
-                    _send_ai_auto_reply(contact_id, PAY_MSG['send_failed'], aws_phone_number_id, request_id)
+                    _send_auto_reply(contact_id, PAY_MSG['send_failed'], aws_phone_number_id, request_id)
                     logger.warning(json.dumps({
                         'event': 'pay_keyword_send_failed',
                         'sent': 0, 'total': total_count,
@@ -3117,7 +3115,7 @@ def _process_message(
                     'phone': mask_phone(sender_phone),
                     'requestId': request_id,
                 }))
-                _send_ai_auto_reply(contact_id, PAY_MSG['error'], aws_phone_number_id, request_id)
+                _send_auto_reply(contact_id, PAY_MSG['error'], aws_phone_number_id, request_id)
             return  # Skip AI automation  -  payment flow handled
 
         # ── Direct "Hi" / greeting keyword trigger (LLM-independent) ──
@@ -3152,7 +3150,7 @@ def _process_message(
             }))
             # Open the site menu so a greeting is answered rather than met with
             # silence. A Graph failure degrades to SERVICE_WEBSITE_REPLY.
-            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             logger.info(json.dumps({
                 'event': 'hi_keyword_welcome_sent',
                 'contactId': mask_contact_id(contact_id),
@@ -3194,7 +3192,7 @@ def _process_message(
                 'contactId': mask_contact_id(contact_id),
                 'requestId': request_id,
             }))
-            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             return
 
         # ── The one menu's Help row, typed rather than tapped ──
@@ -3226,7 +3224,7 @@ def _process_message(
                 "/bharatstack - Explore WECARE.DIGITAL services\n"
                 "/help - Show this list"
             )
-            _send_ai_auto_reply(contact_id, commands_text, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, commands_text, aws_phone_number_id, request_id)
             return
 
         # ── Keyword: "store" / "shop" / "explore store" ──
@@ -3253,10 +3251,6 @@ def _process_message(
             _send_service_link(contact_id, aws_phone_number_id, 'About Us', 'https://wecare.digital', request_id)
             return
 
-    # Process AI automation for supported message types
-    # Now includes media types (image, audio, video, document) for multimodal AI
-    ai_eligible_types = ['text', 'interactive', 'button', 'location', 'image', 'video', 'audio', 'document']
-
     # Auto-transcribe voice notes (audio messages) for English transcription display
     if msg_type == 'audio' and s3_key:
         _auto_transcribe_voice_note(message_id, s3_key, request_id)
@@ -3269,7 +3263,7 @@ def _process_message(
         try:
             # A brand-new contact gets the site menu. The welcomeSent write below
             # MUST stay, or this re-sends on every message from a new contact.
-            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             # Mark contact so welcome isn't sent again
             try:
                 dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -3288,12 +3282,7 @@ def _process_message(
         except Exception as _we:
             logger.warning(f"Welcome message failed (non-blocking): {_we}")
 
-    if msg_type in ai_eligible_types and (content or s3_key) and not _is_brand_new_contact:
-        # ── No auto-response for unmatched messages ──
-        # Only keyword-triggered flows, welcome messages, and menu responses are sent.
-        # Unmatched messages are stored but no reply is sent.
-        # The admin can see all messages in the dashboard inbox and reply manually.
-        pass
+    # Unmatched messages are stored with no auto-reply; admins reply manually from the inbox.
 
 
 def _route_paid_drop_docs(contact_id: str, sender_phone: str, aws_phone_number_id: str,
@@ -5777,9 +5766,9 @@ def _send_auto_reaction(contact_id: str, whatsapp_message_id: str,
         }))
 
 
-def _send_ai_auto_reply(contact_id: str, content: str, phone_number_id: str, request_id: str) -> None:
+def _send_auto_reply(contact_id: str, content: str, phone_number_id: str, request_id: str) -> None:
     """
-    Send AI-generated auto-reply to WhatsApp.
+    Send a scripted text reply to WhatsApp via the outbound Lambda.
     Uses the same phone number that received the message.
     """
     if not content or not content.strip() or not contact_id:
@@ -5801,7 +5790,7 @@ def _send_ai_auto_reply(contact_id: str, content: str, phone_number_id: str, req
         )
         
         logger.info(json.dumps({
-            'event': 'ai_auto_reply_triggered',
+            'event': 'auto_reply_triggered',
             'contactId': mask_contact_id(contact_id),
             'contentLength': len(content),
             'phoneNumberId': phone_number_id,
@@ -5811,7 +5800,7 @@ def _send_ai_auto_reply(contact_id: str, content: str, phone_number_id: str, req
         
     except Exception as e:
         logger.error(json.dumps({
-            'event': 'ai_auto_reply_error',
+            'event': 'auto_reply_error',
             'contactId': mask_contact_id(contact_id),
             'error': str(e),
             'requestId': request_id
@@ -5863,7 +5852,7 @@ def _send_unreadable_hint(contact_id: str, phone_number_id: str, now: int,
             'contactId': mask_contact_id(contact_id), 'requestId': request_id,
         }))
         return False
-    _send_ai_auto_reply(contact_id, UNREADABLE_HINT_TEXT, phone_number_id, request_id)
+    _send_auto_reply(contact_id, UNREADABLE_HINT_TEXT, phone_number_id, request_id)
     logger.info(json.dumps({'event': 'unreadable_hint_sent',
                             'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
     return True
@@ -6088,7 +6077,7 @@ def _send_service_link(contact_id: str, phone_number_id: str, cta_text: str, cta
     if not contact_id or not cta_url:
         return
     content = (body_text.strip() + '\n\n' if body_text else '') + cta_text + ': ' + cta_url
-    _send_ai_auto_reply(contact_id, content, phone_number_id, request_id)
+    _send_auto_reply(contact_id, content, phone_number_id, request_id)
 
 
 def _send_help_about(contact_id: str, phone_number_id: str, request_id: str) -> None:
@@ -6366,7 +6355,7 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
                               submitted: Optional[Dict[str, Any]] = None,
                               bad_field: str = '') -> None:
     """No interactive address form: require verified website checkout instead."""
-    _send_ai_auto_reply(contact_id,
+    _send_auto_reply(contact_id,
         (body_text or CART_REPLY_ADDRESS) + '\n\nPlease provide your delivery address '
         'at https://wecare.digital/ before checkout. Interactive address forms are retired.',
         phone_number_id, request_id)
@@ -6766,7 +6755,7 @@ def _cart_refusal_kind(outcome: str, error: str) -> str:
 def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, request_id: str) -> None:
     """Tell the customer why their cart produced no payment request. Never raises.
 
-    Through outbound (`_send_service_link` / `_send_ai_auto_reply`), so the inbox records the reply
+    Through outbound (`_send_service_link` / `_send_auto_reply`), so the inbox records the reply
     and the window, live-smoke and consent rules apply exactly as to any other send.
     """
     try:
@@ -6784,7 +6773,7 @@ def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, reques
                     'partial': CART_REPLY_PARTIAL,
                     'short_only': CART_REPLY_SHORT_ONLY,
                     'items_unavailable': CART_REPLY_ITEMS_UNAVAILABLE}.get(kind, CART_REPLY_TRY_LATER)
-            _send_ai_auto_reply(contact_id, text, phone_number_id, request_id)
+            _send_auto_reply(contact_id, text, phone_number_id, request_id)
         logger.info(json.dumps({'event': 'cart_order_refusal_replied', 'kind': kind,
                                 'contactId': mask_contact_id(contact_id),
                                 'requestId': request_id}))
@@ -7552,115 +7541,6 @@ def _send_read_receipt(whatsapp_message_id: str, phone_number_id: str, request_i
             'error': str(e),
             'requestId': request_id
         }))
-
-
-# ============================================================================
-# AI AUTOMATION INTEGRATION
-# ============================================================================
-
-# Default AI configuration
-DEFAULT_AI_CONFIG = {
-    'enabled': False,
-    'autoReplyEnabled': False,
-    'respondToInteractive': True,
-    'respondToText': True,
-    'respondToMedia': True,  # Now enabled  -  multimodal AI via Converse API
-    'respondToLocation': True,
-    'maxResponseLength': 500,
-    'responseDelay': 0,
-    'supportedLanguages': ['en', 'hi', 'hi-Latn', 'bn', 'ta', 'te', 'gu', 'mr'],
-    'defaultLanguage': 'en',
-    # No agent, alias or knowledge-base id. Re-measured 2026-09-23: the account's
-    # only Bedrock Agent is an empty never-prepared shell (no model, 0-character
-    # instruction, null role, 0 action groups) and the account holds 0 knowledge
-    # bases. The values previously here - '4UUQYFWX64' / 'TSTALIASID' /
-    # 'static-faq' - named nothing, and this config is returned by an API and
-    # rendered in the dashboard, so they read as working configuration.
-    # Empty means not configured, which is the truth. See plan item 6.4.
-    'agentId': '',
-    'agentAlias': '',
-    'knowledgeBaseId': '',
-    'modelId': 'amazon.nova-pro-v1:0',
-}
-
-
-def _get_ai_config() -> Dict[str, Any]:
-    """
-    Get AI configuration from SystemConfig table.
-    Returns default config if not found or on error.
-    """
-    try:
-        config_table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        # SystemConfigTable PK is 'id', we use id=configKey for compatibility
-        response = config_table.get_item(Key={'id': 'ai_config'})
-        
-        if 'Item' in response:
-            config_value = response['Item'].get('configValue', '{}')
-            config = json.loads(config_value) if isinstance(config_value, str) else config_value
-            # Merge with defaults to ensure all keys exist
-            merged = DEFAULT_AI_CONFIG.copy()
-            merged.update(config)
-            return merged
-        
-        return DEFAULT_AI_CONFIG.copy()
-    except Exception as e:
-        logger.warning(f"Failed to get AI config: {str(e)}")
-        return DEFAULT_AI_CONFIG.copy()
-
-
-def _is_ai_enabled() -> bool:
-    """
-    Check if AI automation is enabled in SystemConfig.
-    Returns False — AI auto-reply permanently removed.
-    """
-    return False
-
-
-def _process_ai_automation(message_id: str, contact_id: str, content: str, message_type: str, phone_number_id: str, sender_phone: str, s3_key: str, mime_type: str, request_id: str, sender_bsuid: str = '') -> Optional[Dict]:
-    """
-    WhatsApp AI auto-reply — PERMANENTLY REMOVED.
-    This function is kept as a no-op stub so callers don't break.
-    """
-    return None
-
-
-def _invoke_ai_query_kb(query: str, message_id: str, request_id: str) -> Optional[Dict]:
-    """Invoke ai-query-kb Lambda function."""
-    try:
-        logger.info(json.dumps({
-            'event': 'invoking_ai_query_kb',
-            'functionName': AI_QUERY_KB_FUNCTION,
-            'messageId': message_id,
-            'requestId': request_id
-        }))
-        response = lambda_client.invoke(
-            FunctionName=AI_QUERY_KB_FUNCTION,
-            InvocationType='RequestResponse',
-            Payload=json.dumps({'query': query, 'messageId': message_id, 'requestId': request_id})
-        )
-        status_code = response.get('StatusCode')
-        logger.info(json.dumps({
-            'event': 'ai_query_kb_response',
-            'statusCode': status_code,
-            'messageId': message_id,
-            'requestId': request_id
-        }))
-        if status_code == 200:
-            payload = response['Payload'].read().decode('utf-8')
-            return json.loads(json.loads(payload).get('body', '{}'))
-        return None
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'ai_query_kb_error',
-            'error': str(e),
-            'messageId': message_id,
-            'requestId': request_id
-        }))
-        return None
-
-
-
-
 
 
 def _send_typing_indicator(sender_phone: str, phone_number_id: str, request_id: str) -> None:

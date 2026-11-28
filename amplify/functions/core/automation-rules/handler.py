@@ -29,7 +29,7 @@ RULES_TABLE = os.environ.get('AUTOMATION_RULES_TABLE', 'stack-wecare-digital-Aut
 
 VALID_CHANNELS = ('any', 'whatsapp', 'sms', 'rcs', 'email')
 VALID_TRIGGERS = ('keyword', 'any')
-VALID_ACTIONS = ('reply', 'ai')
+VALID_ACTIONS = ('reply',)
 #: The editable rule fields and their values on a new rule.
 RULE_DEFAULTS = {
     'name': 'Untitled rule', 'enabled': True, 'channel': 'any', 'triggerType': 'keyword',

@@ -1496,7 +1496,7 @@ def load_inbound() -> None:
         'canonical_flow_id': M['canonical_flows'].canonical_flow_id,
         'canonical_contract': M['canonical_flows'].canonical_contract,
         '_send_service_link': lambda *a, **k: M['cta'].append({'args': a, 'kwargs': k}),
-        '_send_ai_auto_reply': lambda contact_id, content, *a: M['replies'].append(content),
+        '_send_auto_reply': lambda contact_id, content, *a: M['replies'].append(content),
     }
     exec(compile(module, str(INBOUND), 'exec'), ns)  # noqa: S102 - our own handler source
     M['inbound'] = ns
