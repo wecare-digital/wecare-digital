@@ -191,7 +191,6 @@ export default function CheckoutStatus (): React.ReactElement {
               { vaultReturnFile && (
                 /* A full page load: /vault is rendered without the analytics tags, which a
                    client-side navigation would carry over from this page. */
-                /* eslint-disable-next-line @next/next/no-html-link-for-pages */
                 <a className="co-auth-action co-auth-primary"
                   href={ `/vault/?file=${ encodeURIComponent( vaultReturnFile ) }` }
                   onClick={ () => { try { window.sessionStorage.removeItem( 'wecare.vault.websiteCheckoutReturnFile' ); } catch { /* best effort */ } } }>
