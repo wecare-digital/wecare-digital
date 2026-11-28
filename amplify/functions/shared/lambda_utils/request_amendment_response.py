@@ -16,7 +16,7 @@ import logging
 import time
 import uuid
 from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from lambda_utils import canonical_flows, contact_store, flow_completion, flow_sessions, shared_tables
 from lambda_utils.ecommerce import single_order_flow
@@ -170,9 +170,10 @@ def _paid_binding(db: Any, data: Dict[str, Any], *, phone: str):
             service_code='REQUEST_AMENDMENT',
             phone=phone,
         )
-    except (flow_sessions.FlowSessionRejected, flow_sessions.FlowSessionUnavailable,
-            single_order_flow.PaidFlowBindingError) as exc:
+    except (flow_sessions.FlowSessionRejected, single_order_flow.PaidFlowBindingError) as exc:
         raise ValueError('This Request Amendment payment could not be verified.') from exc
+    # FlowSessionUnavailable (an unreadable session store) propagates: it is not bad input,
+    # so the inbound worker parks the message for retry instead of acknowledging it.
 
     reference = _order_reference(data)
     if reference.upper() != binding.order_number.upper():

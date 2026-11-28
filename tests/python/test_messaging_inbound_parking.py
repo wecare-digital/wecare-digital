@@ -134,13 +134,20 @@ def _token(prefix):
 
 
 def test_session_store_outage_is_not_bad_input():
-    from lambda_utils import (flow_sessions, pickup_request_response,
+    from lambda_utils import (flow_sessions, pickup_request_response, request_amendment_response,
                               submit_request_response, track_shipping_response)
 
     outage = RuntimeError("ProvisionedThroughputExceeded")
     pickup = {"flow_token": _token("request_pickup"), "reference_number": "order:WD-ORD-1"}
     track = {"flow_token": _token("shipments")}
     sr = {"flow_token": _token("srpaid"), "reference_number": "order:WD-ORD-1"}
+    amend = {"flow_token": _token("amendpaid"), "reference_number": "order:WD-ORD-1",
+             "request_number": "WD-SR-1", "amendment": "Please change the date."}
+
+    def save_amend(db):
+        return request_amendment_response.save_amendment(
+            amend, contact_id="c", phone=PHONE, sender_name="", message_id="wamid.A",
+            dynamodb=db)
 
     with pytest.raises(flow_sessions.FlowSessionUnavailable):
         pickup_request_response.save_pickup(pickup, contact_id="c", phone=PHONE, sender_name="",
@@ -149,6 +156,10 @@ def test_session_store_outage_is_not_bad_input():
         track_shipping_response._session(_db(outage), track, phone=PHONE)
     with pytest.raises(flow_sessions.FlowSessionUnavailable):
         submit_request_response._paid_binding(_db(outage), sr, phone=PHONE)
+    with pytest.raises(flow_sessions.FlowSessionUnavailable):
+        request_amendment_response._paid_binding(_db(outage), amend, phone=PHONE)
+    with pytest.raises(flow_sessions.FlowSessionUnavailable):
+        save_amend(_db(outage))  # reaches the inbound worker, which parks it
 
     # A missing session is still bad input and is acknowledged.
     with pytest.raises(ValueError):
@@ -158,3 +169,7 @@ def test_session_store_outage_is_not_bad_input():
         track_shipping_response._session(_db(), track, phone=PHONE)
     with pytest.raises(ValueError):
         submit_request_response._paid_binding(_db(), sr, phone=PHONE)
+    with pytest.raises(ValueError):
+        request_amendment_response._paid_binding(_db(), amend, phone=PHONE)
+    with pytest.raises(ValueError):
+        save_amend(_db())
