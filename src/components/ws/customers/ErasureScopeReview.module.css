@@ -1,9 +1,6 @@
-.backdrop { position: fixed; inset: 0; z-index: 1390; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.48); }
-.panel { width: min(760px,100%); max-height: min(94dvh,960px); overflow: hidden; display: flex; flex-direction: column; background: #fff; color: #202820; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.18); }
-.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 18px 20px 12px; border-bottom: 1px solid #e5e7eb; }
-.header h2 { font-size: 19px; margin: 0 0 6px; }
-.header p { font-size: 13px; line-height: 1.5; margin: 0; color: #59665e; }
-.body { padding: 15px 20px; overflow-y: auto; display: grid; gap: 13px; font-size: 13px; line-height: 1.55; }
+/* The dialog frame, header, close button and footer come from ui/Modal. */
+.intro { font-size: 13px; line-height: 1.5; margin: 0; color: #59665e; }
+.body { display: grid; gap: 13px; font-size: 13px; line-height: 1.55; color: #202820; }
 .body > p { margin: 0; }
 .search { display: grid; gap: 5px; font-weight: 700; }
 .search input { padding: 10px 12px; border: 1px solid #bacac0; border-radius: 9px; font: inherit; }
@@ -19,8 +16,6 @@
 .counts span { font-size: 11px; color: #59665e; }
 .counts strong { font-size: 21px; }
 .warning { border-left: 3px solid #c07a2d; padding: 8px 12px; background: #fdf6ec; }
-.footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 13px 20px; border-top: 1px solid #e5e7eb; }
-.cancel, .disabledDelete, .close { min-height: 40px; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; border: 1px solid #cbd5cf; background: #fff; }
+.cancel, .disabledDelete { min-height: 40px; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; border: 1px solid #cbd5cf; background: #fff; }
 .disabledDelete { opacity: .6; cursor: not-allowed; background: #f8eeee; color: #962e2e; }
-.close { flex: 0 0 auto; }
-@media (max-width: 550px) { .header { padding: 14px; } .body { padding: 12px 14px; } .counts { grid-template-columns: repeat(2,minmax(0,1fr)); } .footer { padding: 12px 14px; } }
+@media (max-width: 550px) { .counts { grid-template-columns: repeat(2,minmax(0,1fr)); } }

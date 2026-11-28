@@ -1,0 +1,13 @@
+# Direct Python dependencies of the GitHub CI "Verify (typecheck, lint, test)"
+# job in .github/workflows/ci.yml. CI does not install this file: it installs
+# requirements-ci.txt, the compiled closure with a sha256 for every package,
+# using `pip install --require-hashes`.
+#
+# After editing, regenerate requirements-ci.txt on Python 3.14 (the version
+# ci.yml sets up) from the repo root:
+#     python3.14 -m venv /tmp/pip-tools && /tmp/pip-tools/bin/pip install pip-tools
+#     /tmp/pip-tools/bin/pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-ci.txt requirements-ci.in
+#
+# Not the Lambda runtime and not the local dev venv (requirements-dev.txt).
+boto3
+pytest

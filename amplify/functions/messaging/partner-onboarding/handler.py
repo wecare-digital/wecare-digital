@@ -14,13 +14,19 @@ Routes (HTTP API zllr9lrg7j, served through https://wecare.digital/api):
 
 Doc-accurate onboarding/migration sequence (Meta Solution Partner guide):
   1. Exchange OAuth `code` -> business (system-user) access token   [server-side]
+     then prove the body's ids: debug_token granular_scopes must list the WABA, and the
+     phone must be one of that WABA's numbers. Nothing is stored or changed otherwise.
   2. Share credit line with the WABA        POST /{extended_credit_id}/whatsapp_credit_sharing_and_attach
   3. Subscribe our app to the WABA          POST /{waba_id}/subscribed_apps
   4. Register the number for Cloud API      POST /{phone_number_id}/register  { messaging_product, pin }
      (registration re-associates a migrated number to the destination WABA;
       the client must have disabled two-step verification first for migrations)
   5. Fetch WABA + phone details for the tenant record
-  6. Persist tenant + store token in per-tenant secret (auto-refreshed daily)
+  6. Persist tenant + store token in per-tenant secret (auto-refreshed daily).
+     Create-only: an existing secret or tenant row is never overwritten from here.
+
+The public route ignores `customerEmail`: it is unverified, so it creates, updates and
+groups no Cognito user.
 
 Refs:
   /whatsapp/embedded-signup  and  /solution-providers  (share credit line,
@@ -67,38 +73,9 @@ _ddb = boto3.resource('dynamodb', region_name=REGION)
 _cognito = boto3.client('cognito-idp', region_name=REGION)
 _cache = {}
 
-
-def _provision_customer_user(email: str, waba_id: str) -> dict:
-    """Create (or update) a limited-access Cognito login for the customer,
-    scoped to their own WABA via custom:partner_waba_id and the Partner group.
-    Cognito emails them an invite with a temporary password. Best-effort."""
-    if not email or not waba_id:
-        return {'step': 'customer_login', 'ok': None, 'detail': 'skipped (no email)'}
-    attrs = [
-        {'Name': 'email', 'Value': email},
-        {'Name': 'email_verified', 'Value': 'true'},
-        {'Name': 'custom:partner_waba_id', 'Value': waba_id},
-    ]
-    try:
-        _cognito.admin_create_user(
-            UserPoolId=USER_POOL_ID, Username=email, UserAttributes=attrs,
-            DesiredDeliveryMediums=['EMAIL'])
-        created = True
-    except _cognito.exceptions.UsernameExistsException:
-        try:
-            _cognito.admin_update_user_attributes(
-                UserPoolId=USER_POOL_ID, Username=email,
-                UserAttributes=[{'Name': 'custom:partner_waba_id', 'Value': waba_id}])
-        except Exception as e:  # noqa: BLE001
-            return {'step': 'customer_login', 'ok': False, 'detail': f'update failed: {e}'}
-        created = False
-    except Exception as e:  # noqa: BLE001
-        return {'step': 'customer_login', 'ok': False, 'detail': str(e)}
-    try:
-        _cognito.admin_add_user_to_group(UserPoolId=USER_POOL_ID, Username=email, GroupName=PARTNER_GROUP)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(json.dumps({'event': 'partner_group_add_error', 'email': email, 'error': str(e)}))
-    return {'step': 'customer_login', 'ok': True, 'detail': 'invited' if created else 'updated'}
+# `_provision_customer_user` was removed: its only caller was the public signup route,
+# which read `customerEmail` from the request body. Partner logins need an
+# authenticated Admin step instead.
 
 
 # ── secret / graph helpers ────────────────────────────────────────────────
@@ -139,6 +116,58 @@ def _exchange_code(code: str) -> dict:
     return _graph('GET', 'oauth/access_token', params={
         'client_id': APP_ID, 'client_secret': _app_secret(), 'code': code,
     })
+
+
+def _waba_phone_ids(waba_id: str, token: str):
+    """Every phone-number id on the WABA, read with the new token; None if unreadable."""
+    ids, after = set(), None
+    for _ in range(10):
+        params = {'fields': 'id', 'limit': 100}
+        if after:
+            params['after'] = after
+        page = _graph('GET', f'{waba_id}/phone_numbers', token=token, params=params)
+        if page.get('error'):
+            return None
+        for row in page.get('data') or []:
+            if isinstance(row, dict) and row.get('id'):
+                ids.add(str(row['id']))
+        paging = page.get('paging') or {}
+        after = (paging.get('cursors') or {}).get('after')
+        if not paging.get('next') or not after:
+            return ids
+    return None
+
+
+def _signup_scope_problem(token: str, waba_id: str, phone_number_id: str) -> str:
+    """'' when the exchanged token covers `waba_id` and the phone belongs to it.
+
+    The body's `wabaId` and `phoneNumberId` are claims. Meta's debug_token lists the
+    WABAs the business granted to this app (granular_scopes target_ids); a token that
+    does not list the WABA, or a phone the WABA does not own, is refused.
+    """
+    app_secret = _app_secret()
+    if not app_secret:
+        return 'app_secret_unavailable'
+    info = _graph('GET', 'debug_token', token=f'{APP_ID}|{app_secret}',
+                  params={'input_token': token})
+    data = info.get('data') if isinstance(info.get('data'), dict) else {}
+    if info.get('error') or not data:
+        return 'debug_token_failed'
+    if data.get('is_valid') is not True or str(data.get('app_id') or '') != str(APP_ID):
+        return 'token_not_for_app'
+    granted = set()
+    for scope in data.get('granular_scopes') or []:
+        if isinstance(scope, dict) and scope.get('scope') == 'whatsapp_business_management':
+            granted.update(str(t) for t in (scope.get('target_ids') or []))
+    if waba_id not in granted:
+        return 'waba_not_granted'
+    if phone_number_id:
+        phones = _waba_phone_ids(waba_id, token)
+        if phones is None:
+            return 'phone_list_unavailable'
+        if phone_number_id not in phones:
+            return 'phone_not_in_waba'
+    return ''
 
 
 # ── onboarding steps ──────────────────────────────────────────────────────
@@ -194,7 +223,8 @@ def _fetch_details(waba_id: str, phone_number_id: str, token: str) -> dict:
 
 
 # ── persistence ───────────────────────────────────────────────────────────
-def _store_token(waba_id: str, token: str, expires_in: int = 0) -> bool:
+def _store_token(waba_id: str, token: str, expires_in: int = 0) -> str:
+    """Create the partner secret. 'created', 'exists' (left untouched) or 'error'."""
     now = datetime.now(timezone.utc)
     ttl = expires_in if expires_in and expires_in > 0 else 60 * 24 * 3600
     secret_name = f'wecare/partners/{waba_id}'
@@ -204,23 +234,41 @@ def _store_token(waba_id: str, token: str, expires_in: int = 0) -> bool:
     })
     try:
         _secrets.create_secret(Name=secret_name, SecretString=payload)
-        return True
+        return 'created'
     except _secrets.exceptions.ResourceExistsException:
-        _secrets.put_secret_value(SecretId=secret_name, SecretString=payload)
-        return True
+        return 'exists'
     except Exception as e:  # noqa: BLE001
-        logger.error(json.dumps({'event': 'partner_token_store_error', 'wabaId': waba_id, 'error': str(e)}))
-        return False
+        logger.error(json.dumps({'event': 'partner_token_store_error', 'wabaId': waba_id,
+                                 'error': type(e).__name__}))
+        return 'error'
 
 
-def _persist_tenant(record: dict) -> None:
+def _existing_tenant(waba_id: str):
+    """The stored tenant record for this WABA, or None. Read errors propagate."""
+    item = _ddb.Table(SYSTEM_CONFIG_TABLE).get_item(
+        Key={'id': f'partner_tenant_{waba_id}'}, ConsistentRead=True).get('Item')
+    if not item:
+        return None
+    try:
+        return json.loads(item.get('configValue') or '{}') or {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _persist_tenant(record: dict) -> str:
+    """Create the tenant row. 'created', 'exists' (left untouched) or 'error'."""
     try:
         _ddb.Table(SYSTEM_CONFIG_TABLE).put_item(Item={
             'id': f"partner_tenant_{record['wabaId']}",
             'configValue': json.dumps(record), 'updatedAt': record.get('connectedAt', ''),
-        })
+        }, ConditionExpression='attribute_not_exists(id)')
+        return 'created'
     except Exception as e:  # noqa: BLE001
-        logger.error(json.dumps({'event': 'partner_tenant_persist_error', 'error': str(e)}))
+        code = (getattr(e, 'response', None) or {}).get('Error', {}).get('Code', '')
+        if code == 'ConditionalCheckFailedException':
+            return 'exists'
+        logger.error(json.dumps({'event': 'partner_tenant_persist_error', 'error': type(e).__name__}))
+        return 'error'
 
 
 def _list_tenants() -> list:
@@ -243,17 +291,21 @@ def _list_tenants() -> list:
 
 # ── HTTP handlers ─────────────────────────────────────────────────────────
 def _do_onboard(body: dict, origin: str, request_id: str):
-    code = (body.get('code') or '').strip()
-    waba_id = (body.get('wabaId') or '').strip()
-    phone_number_id = (body.get('phoneNumberId') or '').strip()
-    business_id = (body.get('businessId') or '').strip()
-    mode = (body.get('mode') or 'onboard').strip()          # 'onboard' | 'migrate'
-    pin = (body.get('pin') or REG_PIN or '').strip()
-    currency = (body.get('currency') or 'USD').strip()
-    customer_email = (body.get('customerEmail') or '').strip()
+    code = str(body.get('code') or '').strip()
+    waba_id = str(body.get('wabaId') or '').strip()
+    phone_number_id = str(body.get('phoneNumberId') or '').strip()
+    business_id = str(body.get('businessId') or '').strip()
+    mode = str(body.get('mode') or 'onboard').strip()          # 'onboard' | 'migrate'
+    pin = str(body.get('pin') or REG_PIN or '').strip()
+    currency = str(body.get('currency') or 'USD').strip()
+    # `customerEmail` is not read: this route is public, so the value is unverified.
 
     if not code:
         return cors_response(400, {'error': 'Missing authorization code'}, origin)
+    if mode not in ('onboard', 'migrate'):
+        return cors_response(400, {'error': 'Invalid mode'}, origin)
+    if not waba_id.isdigit() or (phone_number_id and not phone_number_id.isdigit()):
+        return cors_response(400, {'error': 'wabaId and phoneNumberId must be Meta ids'}, origin)
 
     logger.info(json.dumps({'event': 'partner_onboarding_start', 'mode': mode, 'wabaId': waba_id,
                             'phoneNumberId': phone_number_id, 'requestId': request_id}))
@@ -265,27 +317,61 @@ def _do_onboard(body: dict, origin: str, request_id: str):
     token = token_resp['access_token']
     expires_in = int(token_resp.get('expires_in') or 0)
 
-    steps = []
-    if waba_id:
-        steps.append(_share_credit_line(waba_id, token, currency))
-        steps.append(_subscribe_app(waba_id, token))
+    # Nothing below runs until Meta confirms the token covers this WABA and phone.
+    problem = _signup_scope_problem(token, waba_id, phone_number_id)
+    if problem:
+        logger.warning(json.dumps({'event': 'partner_onboarding_unverified', 'reason': problem,
+                                   'wabaId': waba_id, 'requestId': request_id}))
+        return cors_response(403, {'success': False,
+                                   'error': 'The signup did not grant access to this WhatsApp account.'}, origin)
+
+    try:
+        existing = _existing_tenant(waba_id)
+    except Exception as e:  # noqa: BLE001 - an unreadable store is not "no tenant"
+        logger.error(json.dumps({'event': 'partner_tenant_read_error', 'error': type(e).__name__,
+                                 'requestId': request_id}))
+        return cors_response(503, {'success': False, 'error': 'Please retry shortly.'}, origin)
+    if existing is not None:
+        if (existing.get('status') == 'CONNECTED'
+                and str(existing.get('phoneNumberId') or '') == phone_number_id):
+            # Same setup already connected: answer it, write nothing.
+            return cors_response(200, {
+                'success': True, 'alreadyConnected': True, 'mode': mode, 'wabaId': waba_id,
+                'phoneNumberId': phone_number_id, 'connectedAt': existing.get('connectedAt', ''),
+            }, origin)
+        logger.warning(json.dumps({'event': 'partner_onboarding_conflict', 'wabaId': waba_id,
+                                   'requestId': request_id}))
+        return cors_response(409, {'success': False, 'error': (
+            'This WhatsApp account is already registered with a different setup. '
+            'Contact support.')}, origin)
+
+    steps = [_share_credit_line(waba_id, token, currency), _subscribe_app(waba_id, token)]
     if phone_number_id:
         steps.append(_register_phone(phone_number_id, token, pin))
     details = _fetch_details(waba_id, phone_number_id, token)
 
-    # Provision the customer's limited-access login (scoped to their WABA)
-    if customer_email and waba_id:
-        steps.append(_provision_customer_user(customer_email, waba_id))
-
     connected_at = datetime.now(timezone.utc).isoformat()
-    token_stored = _store_token(waba_id or f'unknown-{request_id}', token, expires_in)
-    _persist_tenant({
+    stored = _store_token(waba_id, token, expires_in)
+    if stored != 'created':
+        logger.error(json.dumps({'event': 'partner_secret_not_created', 'alert': 'PARTNER_ONBOARDING_BLOCKED',
+                                 'outcome': stored, 'wabaId': waba_id, 'requestId': request_id}))
+        return cors_response(409 if stored == 'exists' else 502, {
+            'success': False, 'error': 'This WhatsApp account could not be connected. Contact support.',
+        }, origin)
+    persisted = _persist_tenant({
         'wabaId': waba_id, 'phoneNumberId': phone_number_id, 'businessId': business_id,
-        'customerEmail': customer_email, 'mode': mode, 'connectedAt': connected_at,
-        'status': 'CONNECTED', 'steps': steps, 'details': details, 'tokenStored': token_stored,
+        'mode': mode, 'connectedAt': connected_at,
+        'status': 'CONNECTED', 'steps': steps, 'details': details, 'tokenStored': True,
     })
+    if persisted != 'created':
+        # The secret above was created but has no tenant row; an Admin must reconcile it.
+        logger.error(json.dumps({'event': 'partner_tenant_not_created', 'alert': 'PARTNER_SECRET_ORPHANED',
+                                 'outcome': persisted, 'wabaId': waba_id, 'requestId': request_id}))
+        return cors_response(409 if persisted == 'exists' else 502, {
+            'success': False, 'error': 'This WhatsApp account could not be connected. Contact support.',
+        }, origin)
 
-    record_audit(action=f'partner.{mode}', actor=(customer_email or 'self-serve'),
+    record_audit(action=f'partner.{mode}', actor='self-serve',
                  resource_type='partner_waba', resource_id=waba_id,
                  details={'phoneNumberId': phone_number_id, 'steps': steps})
     logger.info(json.dumps({'event': 'partner_onboarding_done', 'mode': mode, 'wabaId': waba_id,
@@ -334,6 +420,22 @@ def _do_me(event: dict, origin: str):
     return cors_response(200, {'tenant': None, 'linked': False}, origin)
 
 
+def _is_partner_login_for(username: str, waba_id: str) -> bool:
+    """True only for a user whose sole group is Partner and whose partner WABA is this one."""
+    try:
+        user = _cognito.admin_get_user(UserPoolId=USER_POOL_ID, Username=username)
+        groups = _cognito.admin_list_groups_for_user(UserPoolId=USER_POOL_ID, Username=username)
+    except Exception as e:  # noqa: BLE001 - unknown means "do not disable"
+        logger.warning(json.dumps({'event': 'partner_login_lookup_error', 'error': type(e).__name__}))
+        return False
+    if groups.get('NextToken'):
+        return False
+    names = {g.get('GroupName') for g in groups.get('Groups') or []}
+    attrs = {a.get('Name'): a.get('Value') for a in user.get('UserAttributes') or []}
+    return (names == {PARTNER_GROUP}
+            and str(attrs.get('custom:partner_waba_id') or '').strip() == waba_id)
+
+
 def _do_disconnect(event: dict, waba_id: str, origin: str):
     if not waba_id:
         return cors_response(400, {'error': 'wabaId required'}, origin)
@@ -344,15 +446,21 @@ def _do_disconnect(event: dict, waba_id: str, origin: str):
         item = table.get_item(Key={'id': f'partner_tenant_{waba_id}'}).get('Item')
         rec = json.loads(item['configValue']) if item else {'wabaId': waba_id}
 
-        # Disable the customer's Cognito login (best-effort)
+        # Disable the customer's Cognito login (best-effort), but only a Partner-only
+        # login bound to this WABA: older records carry an unverified email.
         cust_email = rec.get('customerEmail')
         if cust_email:
-            try:
-                _cognito.admin_disable_user(UserPoolId=USER_POOL_ID, Username=cust_email)
-                cleanup['cognitoDisabled'] = True
-            except Exception as e:  # noqa: BLE001
+            if not _is_partner_login_for(cust_email, waba_id):
                 cleanup['cognitoDisabled'] = False
-                logger.warning(json.dumps({'event': 'partner_cognito_disable_error', 'error': str(e)}))
+                logger.warning(json.dumps({'event': 'partner_cognito_disable_skipped',
+                                           'reason': 'not_partner_only_for_waba', 'wabaId': waba_id}))
+            else:
+                try:
+                    _cognito.admin_disable_user(UserPoolId=USER_POOL_ID, Username=cust_email)
+                    cleanup['cognitoDisabled'] = True
+                except Exception as e:  # noqa: BLE001
+                    cleanup['cognitoDisabled'] = False
+                    logger.warning(json.dumps({'event': 'partner_cognito_disable_error', 'error': str(e)}))
 
         # Suspend the wallet so no further sends/metering occur (best-effort)
         try:
@@ -629,11 +737,24 @@ def _do_topup_order(event: dict, body: dict, origin: str):
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             data = json.loads(r.read().decode('utf-8'))
-        return cors_response(200, {'success': True, 'shortUrl': data.get('short_url'), 'id': data.get('id')}, origin)
     except urllib.error.HTTPError as e:
         return cors_response(502, {'success': False, 'error': (e.read().decode()[:200] if e.fp else str(e))}, origin)
     except Exception as e:  # noqa: BLE001
         return cors_response(502, {'success': False, 'error': str(e)}, origin)
+    # The webhook credits only a capture Razorpay lists under THIS link, so the link id goes on
+    # the intent before anyone is handed the URL. An unbound link could never be credited.
+    link_id = str(data.get('id') or '')
+    try:
+        if not link_id or not order_keys.bind_topup_payment_link(
+                keys_table, reference_id=reference_id, payment_link_id=link_id):
+            raise ValueError('payment link not bound to the intent')
+    except Exception as e:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'partner_topup_link_bind_failed',
+                                 'alert': 'TOPUP_LINK_UNBOUND', 'error': type(e).__name__,
+                                 'wabaId': waba_id}))
+        return cors_response(502, {'success': False,
+                                   'error': 'Could not record the top-up payment link'}, origin)
+    return cors_response(200, {'success': True, 'shortUrl': data.get('short_url'), 'id': link_id}, origin)
 
 
 def handler(event, context):

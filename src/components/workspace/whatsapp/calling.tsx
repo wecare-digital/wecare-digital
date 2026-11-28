@@ -41,7 +41,7 @@ const WEBHOOK_CONFIG = {
 const META_TOKEN = {
   appId: '2238810740192680',
   appName: 'WECARE.DIGITAL',
-  secretName: 'wecare/meta-system-user-token',
+  secretName: 'Meta system-user token (Secrets Manager)',
   scopes: [ 'whatsapp_business_messaging', 'whatsapp_business_management', 'public_profile' ],
   wabaAccess: [ '2094615664435155', '2513394156072604' ],
   tokenType: 'System User',
@@ -147,7 +147,7 @@ const AWS_RESOURCES = [
   { service: 'DynamoDB', resource: 'WhatsAppVoiceTable', purpose: 'TTS logs, voice note logs', status: 'active' },
   { service: 'Amazon Polly', resource: 'SynthesizeSpeech', purpose: 'Neural TTS for IVR prompts and voice notes (OPUS)', status: 'active' },
   { service: 'S3', resource: 'wecare-digital-get/secure/d/public/whatsapp/whatsapp-calling/', purpose: 'TTS audio files, call recordings', status: 'active' },
-  { service: 'Secrets Manager', resource: 'wecare/meta-app-secret', purpose: 'Meta App Secret for webhook verification', status: 'active' },
+  { service: 'Secrets Manager', resource: 'Meta app secret', purpose: 'Meta App Secret for webhook verification', status: 'active' },
 ];
 
 const CALL_LIMITS = [

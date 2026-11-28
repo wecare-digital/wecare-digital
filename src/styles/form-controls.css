@@ -603,7 +603,7 @@ input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)
 /* RTL. Padding is logical already, so it mirrors for free. The chevron does not:
    background-position-x is not a logical property, so the physical edge needs one override.
    [dir="rtl"] rather than :dir(rtl) because `dir` is declared on <html> in the exported HTML
-   and rtlcheck.js:337 fails the build if it is absent - so the attribute is guaranteed and no
+   (src/pages/_document.tsx) - so the attribute is always there and no
    engine-support question needs answering. */
 [dir="rtl"] select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
   background-position: left var(--control-arrow-inset) center !important;
@@ -876,8 +876,8 @@ input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)
 
 /* The one mirror. background-position-x is not a logical property, so the chevron needs the
    same single override the native select's arrow takes above. [dir="rtl"] rather than
-   :dir(rtl) because `dir` is declared on <html> in the exported HTML and rtlcheck.js fails
-   the build if it is absent. */
+   :dir(rtl) because `dir` is always declared on <html> in the exported HTML
+   (src/pages/_document.tsx). */
 [dir="rtl"] .ui-select-trigger {
   background-position: left var(--control-arrow-inset) center;
 }

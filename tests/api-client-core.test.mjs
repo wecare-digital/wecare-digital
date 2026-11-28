@@ -58,7 +58,7 @@ function extractCoreSlice() {
   return source.slice( start, end ).replace( /^export\s+/gm, '' );
 }
 
-function loadApiCallResult( { fetch, fetchAuthSession, retryConfig, apiBase = 'https://api.invalid' } = {} ) {
+function loadApiCallResult( { fetch, fetchAuthSession, retryConfig, apiBase = 'https://api.invalid', pageOrigin } = {} ) {
   const slice = extractCoreSlice();
   const wrapped = `${ slice }\nexport { apiCallResult, getLastApiFailure, authFetch };`;
   const code = compileTsx( wrapped );
@@ -79,10 +79,36 @@ function loadApiCallResult( { fetch, fetchAuthSession, retryConfig, apiBase = 'h
     setTimeout: ( fn, ms ) => ( ms >= 8000 ? 0 : setTimeout( fn, ms ) ),
     clearTimeout,
     Date,
+    crypto: globalThis.crypto,
+    // The page origin decides whether the Idempotency-Key header is sent (same origin only).
+    ...( pageOrigin ? { window: { location: { origin: pageOrigin } } } : {} ),
     console: { debug() {}, error() {}, warn() {}, log() {} },
   };
   vm.runInNewContext( code, sandbox );
   return compiledModule.exports;
+}
+
+// A fetch stub that records every request and answers from a queue.
+function recordingFetch( steps ) {
+  const calls = [];
+  let i = 0;
+  const fn = async ( url, init ) => {
+    calls.push( { url, init } );
+    const step = steps[ Math.min( i, steps.length - 1 ) ];
+    i++;
+    if ( step instanceof Error ) throw step;
+    return step;
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function abortError() {
+  const error = new Error( 'aborted' );
+  error.name = 'AbortError';
+  return error;
 }
 
 // Build a fake Response the shipped code understands: .ok, .status,
@@ -133,19 +159,37 @@ test( 'a 200 response returns { ok: true, data }', async () => {
   assert.equal( fetch.calls.count, 1 );
 } );
 
-test( '401 retries once with a refreshed token then classifies unauthenticated (non-retryable)', async () => {
-  const fetch = sequencedFetch( [
+test( '401 retries once with a force-refreshed token then classifies unauthenticated (non-retryable)', async () => {
+  const fetch = recordingFetch( [
     makeResponse( 401, { message: 'nope' } ),
     makeResponse( 401, { message: 'nope' } ),
   ] );
-  const { apiCallResult } = loadApiCallResult( { fetch } );
+  const sessions = [];
+  const fetchAuthSession = async ( options ) => {
+    sessions.push( options?.forceRefresh === true );
+    return { tokens: { accessToken: { toString: () => ( options?.forceRefresh ? 'fresh' : 'stale' ) } } };
+  };
+  const { apiCallResult } = loadApiCallResult( { fetch, fetchAuthSession } );
   const result = await apiCallResult( 'https://api.invalid/secure' );
   assert.equal( result.ok, false );
   assert.equal( result.failure.kind, 'unauthenticated' );
   assert.equal( result.failure.status, 401 );
   assert.equal( result.failure.retryable, false );
-  // One original attempt + one token-refresh retry.
-  assert.equal( fetch.calls.count, 2 );
+  // One original attempt + one retry, and only after a forced refresh.
+  assert.equal( fetch.calls.length, 2 );
+  assert.ok( sessions.includes( true ), 'fetchAuthSession({ forceRefresh: true }) was called' );
+  assert.equal( fetch.calls[ 0 ].init.headers.Authorization, 'Bearer stale' );
+} );
+
+test( '401 is not retried when the forced refresh returns no token', async () => {
+  const fetch = recordingFetch( [ makeResponse( 401, { message: 'nope' } ) ] );
+  const fetchAuthSession = async ( options ) => ( options?.forceRefresh
+    ? { tokens: null }
+    : { tokens: { accessToken: { toString: () => 'stale' } } } );
+  const { apiCallResult } = loadApiCallResult( { fetch, fetchAuthSession } );
+  const result = await apiCallResult( 'https://api.invalid/secure', { method: 'POST', body: '{}' } );
+  assert.equal( result.failure.kind, 'unauthenticated' );
+  assert.equal( fetch.calls.length, 1 );
 } );
 
 test( '403 classifies forbidden (non-retryable)', async () => {
@@ -342,3 +386,115 @@ test('customer provisioning does not replay a POST after an uncertain timeout', 
   assert.equal(fetch.calls.count, 1);
   assert.equal(result.failure.kind, 'timeout');
 });
+
+// ── Write safety (audit WEB-2) ───────────────────────────────────────────────────────────
+
+for ( const [ label, step ] of [
+  [ 'a timeout', abortError() ],
+  [ 'a network error', new TypeError( 'Failed to fetch' ) ],
+  [ 'a 500', makeResponse( 500, { message: 'boom' } ) ],
+  [ 'a 502', makeResponse( 502, { message: 'bad gateway' } ) ],
+  [ 'a 503', makeResponse( 503, { message: 'down' } ) ],
+  [ 'a 504', makeResponse( 504, { message: 'slow' } ) ],
+] ) {
+  for ( const method of [ 'POST', 'PUT', 'PATCH', 'DELETE' ] ) {
+    test( `a ${ method } is not re-sent after ${ label } and reports an unconfirmed outcome`, async () => {
+      const fetch = recordingFetch( [ step, makeResponse( 200, { ok: true } ) ] );
+      const { apiCallResult } = loadApiCallResult( { fetch } );
+      const result = await apiCallResult( 'https://api.invalid/whatsapp/send', { method, body: '{"content":"hi"}' } );
+      assert.equal( fetch.calls.length, 1, 'sent exactly once' );
+      assert.equal( result.ok, false );
+      assert.equal( result.failure.outcomeUnknown, true );
+      assert.equal( result.failure.retryable, false );
+      assert.match( result.failure.message, /not confirmed/ );
+    } );
+  }
+}
+
+test( 'a POST is not re-sent after a 429 either', async () => {
+  const fetch = recordingFetch( [ makeResponse( 429, {} ), makeResponse( 200, {} ) ] );
+  const { apiCallResult } = loadApiCallResult( { fetch } );
+  const result = await apiCallResult( 'https://api.invalid/contacts', { method: 'POST', body: '{}' } );
+  assert.equal( fetch.calls.length, 1 );
+  assert.equal( result.failure.kind, 'rate-limited' );
+  assert.equal( result.failure.outcomeUnknown, undefined, 'a 429 is a refusal, not an unknown outcome' );
+} );
+
+test( 'GET and HEAD still retry once after a timeout and are not marked unconfirmed', async () => {
+  for ( const method of [ undefined, 'GET', 'HEAD' ] ) {
+    const fetch = recordingFetch( [ abortError(), abortError() ] );
+    const { apiCallResult } = loadApiCallResult( { fetch } );
+    const result = await apiCallResult( 'https://api.invalid/contacts', method ? { method } : undefined );
+    assert.equal( fetch.calls.length, 2, `${ method || 'default' } retried` );
+    assert.equal( result.failure.outcomeUnknown, undefined );
+    assert.equal( result.failure.retryable, true );
+  }
+} );
+
+test( 'every write carries a fresh Idempotency-Key; reads carry none', async () => {
+  const fetch = recordingFetch( [ makeResponse( 200, {} ) ] );
+  const { apiCallResult } = loadApiCallResult( { fetch, pageOrigin: 'https://api.invalid' } );
+  await apiCallResult( 'https://api.invalid/contacts', { method: 'POST', body: '{}' } );
+  await apiCallResult( 'https://api.invalid/contacts/1', { method: 'DELETE' } );
+  await apiCallResult( 'https://api.invalid/contacts' );
+  const [ first, second, read ] = fetch.calls.map( c => c.init.headers[ 'Idempotency-Key' ] );
+  assert.match( first, UUID );
+  assert.match( second, UUID );
+  assert.notEqual( first, second, 'one key per action' );
+  assert.equal( read, undefined );
+} );
+
+test( 'the 401 retry of a write reuses its Idempotency-Key', async () => {
+  const fetch = recordingFetch( [ makeResponse( 401, {} ), makeResponse( 200, { ok: true } ) ] );
+  const fetchAuthSession = async () => ( { tokens: { accessToken: { toString: () => 't' } } } );
+  const { apiCallResult } = loadApiCallResult( { fetch, fetchAuthSession, pageOrigin: 'https://api.invalid' } );
+  const result = await apiCallResult( 'https://api.invalid/whatsapp/send', { method: 'POST', body: '{"content":"hi"}' } );
+  assert.equal( result.ok, true );
+  assert.equal( fetch.calls.length, 2 );
+  const keys = fetch.calls.map( c => c.init.headers[ 'Idempotency-Key' ] );
+  assert.match( keys[ 0 ], UUID );
+  assert.equal( keys[ 1 ], keys[ 0 ] );
+  assert.equal( fetch.calls[ 1 ].init.body, fetch.calls[ 0 ].init.body );
+} );
+
+test( 'only /whatsapp/send gets idempotencyKey in its JSON body, equal to the header', async () => {
+  const fetch = recordingFetch( [ makeResponse( 200, {} ) ] );
+  const { apiCallResult } = loadApiCallResult( { fetch, apiBase: 'https://api.invalid/api', pageOrigin: 'https://api.invalid' } );
+  await apiCallResult( 'https://api.invalid/api/whatsapp/send', { method: 'POST', body: JSON.stringify( { contactId: 'c1', content: 'hi' } ) } );
+  await apiCallResult( 'https://api.invalid/api/contacts', { method: 'POST', body: JSON.stringify( { name: 'A' } ) } );
+  await apiCallResult( 'https://api.invalid/api/whatsapp/send', { method: 'POST', body: JSON.stringify( { content: 'x', idempotencyKey: 'caller-key' } ) } );
+  const sendBody = JSON.parse( fetch.calls[ 0 ].init.body );
+  assert.equal( sendBody.contactId, 'c1' );
+  assert.equal( sendBody.content, 'hi' );
+  assert.equal( sendBody.idempotencyKey, fetch.calls[ 0 ].init.headers[ 'Idempotency-Key' ] );
+  assert.equal( fetch.calls[ 1 ].init.body, JSON.stringify( { name: 'A' } ), 'other routes keep their exact body' );
+  assert.equal( JSON.parse( fetch.calls[ 2 ].init.body ).idempotencyKey, 'caller-key', 'a caller key is kept' );
+} );
+
+test( 'a caller-supplied Idempotency-Key header is kept and used for the body', async () => {
+  const fetch = recordingFetch( [ makeResponse( 200, {} ) ] );
+  const { apiCallResult } = loadApiCallResult( { fetch, apiBase: 'https://api.invalid/api', pageOrigin: 'https://api.invalid' } );
+  await apiCallResult( 'https://api.invalid/api/whatsapp/send', {
+    method: 'POST', headers: { 'Idempotency-Key': 'retry-of-action-7' }, body: '{"content":"hi"}',
+  } );
+  assert.equal( fetch.calls[ 0 ].init.headers[ 'Idempotency-Key' ], 'retry-of-action-7' );
+  assert.equal( JSON.parse( fetch.calls[ 0 ].init.body ).idempotencyKey, 'retry-of-action-7' );
+} );
+
+test( 'the Idempotency-Key header is not sent cross-origin, the body key still is', async () => {
+  const fetch = recordingFetch( [ makeResponse( 200, {} ) ] );
+  const { apiCallResult } = loadApiCallResult( { fetch, apiBase: 'https://api.invalid/api', pageOrigin: 'capacitor://localhost' } );
+  await apiCallResult( 'https://api.invalid/api/whatsapp/send', { method: 'POST', body: '{"content":"hi"}' } );
+  assert.equal( fetch.calls[ 0 ].init.headers[ 'Idempotency-Key' ], undefined );
+  assert.match( JSON.parse( fetch.calls[ 0 ].init.body ).idempotencyKey, UUID );
+} );
+
+test( 'authFetch writes carry an Idempotency-Key; authFetch reads do not', async () => {
+  const fetch = recordingFetch( [ makeResponse( 200, {} ) ] );
+  const { authFetch } = loadApiCallResult( { fetch, apiBase: 'https://api.invalid/api', pageOrigin: 'https://api.invalid' } );
+  await authFetch( 'https://api.invalid/api/invoices', { method: 'POST', body: '{}' } );
+  await authFetch( 'https://api.invalid/api/invoices' );
+  assert.match( fetch.calls[ 0 ].init.headers[ 'Idempotency-Key' ], UUID );
+  assert.equal( fetch.calls[ 0 ].init.body, '{}' );
+  assert.equal( fetch.calls[ 1 ].init.headers[ 'Idempotency-Key' ], undefined );
+} );

@@ -50,6 +50,7 @@ from lambda_utils.message_store import put_call_breadcrumb
 from lambda_utils.middleware import require_auth  # unified timeline breadcrumb
 from lambda_utils.audit import record_audit
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
+from lambda_utils import webhook_dedup  # one claim per call event: call:{callId}:{event}
 
 logger = get_logger(__name__)
 
@@ -891,6 +892,14 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
         'caller_bsuid': caller_bsuid, 'has_caller_username': bool(caller_username),
     }))
 
+    # Meta redelivers a slow or failed webhook. Claim each call event before any side
+    # effect, so a redelivery cannot repeat the texts, reactions, greeting or SMS.
+    if call_id and event_type and not webhook_dedup.claim_event(
+            f'call:{call_id}:{event_type}', source='whatsapp_call'):
+        logger.info(json.dumps({'event': 'call_event_duplicate_skipped', 'type': event_type,
+                                'call_id': call_id, 'requestId': request_id}))
+        return
+
     if event_type == 'connect':
         # Inbound call — extract SDP offer
         session = call.get('session', {})
@@ -1698,7 +1707,6 @@ def _send_incoming_call_sms(caller_phone: str, call_id: str, receiving_phone_id:
     try:
         if not caller_phone:
             return
-        clean_phone = caller_phone.lstrip('+')
 
         # One call, every country. comms.notify picks the region and applies the
         # DLT gate; this handler no longer decides either.
@@ -1732,8 +1740,6 @@ def _send_incoming_call_sms(caller_phone: str, call_id: str, receiving_phone_id:
                 request_id=request_id,
             )
 
-        _mark_sms_sent(clean_phone)
-
         # ── WhatsApp follow-up: depends on which WABA received the call ──
         _send_call_whatsapp_notification(caller_phone, call_id, receiving_phone_id, request_id)
 
@@ -1743,13 +1749,13 @@ def _send_incoming_call_sms(caller_phone: str, call_id: str, receiving_phone_id:
 
 def _send_disconnect_sms(caller_phone: str, call_id: str, phone_number_id: str,
                          reason: str, request_id: str) -> None:
-    """Send the IVR follow-up SMS on every call disconnect — no dedup.
+    """Send the IVR follow-up SMS on every call disconnect, with no per-phone cooldown.
+    A redelivered terminate event is stopped by the call-event claim.
     Stores to WhatsAppOutboundTable for inbox visibility.
     """
     try:
         if not caller_phone:
             return
-        clean_phone = caller_phone.lstrip('+')
 
         from lambda_utils.comms.notify import send_notification_sms
         outcome = send_notification_sms(
@@ -1783,9 +1789,6 @@ def _send_disconnect_sms(caller_phone: str, call_id: str, phone_number_id: str,
                 message_type='disconnect',
                 request_id=request_id,
             )
-
-        # Mark SMS as sent for dedup
-        _mark_sms_sent(clean_phone)
 
     except Exception as e:
         logger.warning(f"Disconnect SMS failed (non-blocking): {e}")
@@ -1855,37 +1858,9 @@ def _is_postcall_wa_enabled() -> bool:
     return True
 
 
-# ── SMS Dedup: prevent duplicate SMS to the same number within a cooldown window ──
-SMS_DEDUP_WINDOW_SECONDS = 600  # 10 minutes — one SMS per phone per window
-
-
-def _sms_sent_recently(phone_digits: str) -> bool:
-    """Check if we already sent an IVR SMS to this phone number within the dedup window."""
-    try:
-        table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        result = table.get_item(Key={'id': f'sms_dedup_{phone_digits}'})
-        item = result.get('Item')
-        if item:
-            last_sent = float(item.get('configValue', 0))
-            if time.time() - last_sent < SMS_DEDUP_WINDOW_SECONDS:
-                return True
-    except Exception as e:
-        logger.warning(f"SMS dedup check failed (allowing send): {e}")
-    return False
-
-
-def _mark_sms_sent(phone_digits: str) -> None:
-    """Record that we just sent an IVR SMS to this phone number (for dedup)."""
-    try:
-        table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        now = int(time.time())
-        table.put_item(Item={
-            'id': f'sms_dedup_{phone_digits}',
-            'configValue': str(now),
-            'ttl': Decimal(str(now + SMS_DEDUP_WINDOW_SECONDS + 60)),  # auto-cleanup
-        })
-    except Exception as e:
-        logger.warning(f"SMS dedup mark failed: {e}")
+# The per-phone SMS cooldown (`_sms_sent_recently`) was never called and was removed with
+# the marker it read. A redelivered call event is stopped by the call-event claim in
+# `_handle_call_event`; a per-phone cooldown would be a new send limit (owner decision).
 
 
 def _auto_pickup_and_play(call_id: str, phone_number_id: str, from_number: str, sdp_offer: str) -> None:
@@ -1983,10 +1958,9 @@ def _auto_pickup_and_play(call_id: str, phone_number_id: str, from_number: str, 
         _send_audio_to_caller(phone_number_id, from_number, audio_url, call_id)
         logger.info(f"IVR audio sent to {mask_phone(from_number or '')}: {audio_url}")
 
-    # ── Step 4: Keep call connected briefly, then terminate ──
-    # 3s is enough for caller to hear the connection tone and the audio greeting
-    # Reduced from 5s to minimize Lambda execution time
-    time.sleep(3)
+    # ── Step 4: Terminate ──
+    # No pause: this runs inside Meta's webhook request, and the greeting is a chat
+    # message, not in-call audio, so holding the line open played only silence.
     try:
         term_result = _meta_api_call(f"{phone_number_id}/calls", 'POST', {
             'messaging_product': 'whatsapp',
@@ -2613,14 +2587,9 @@ def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_
 
         for meta_id, label in send_from:
             try:
-                # Try sending with 1 retry on failure (2s delay)
+                # One attempt: this runs inside Meta's webhook request, so it must not
+                # sleep and retry (the 2s retry pushed runs toward the 30s timeout).
                 msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
-
-                # Retry once on failure (Meta API can have transient errors)
-                if not msg_id:
-                    time.sleep(2)
-                    logger.info(f'{label} menu placeholder retry after 2s...')
-                    msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
 
                 if msg_id:
                     logger.info(json.dumps({

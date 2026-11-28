@@ -30,7 +30,7 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 FROM_EMAIL = os.environ.get('FROM_EMAIL', 'noreply@wecare.digital')
 REPLY_TO_EMAIL = os.environ.get('REPLY_TO_EMAIL', 'support@wecare.digital')
-MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
+MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60  # `expiresAt` stamp only; TTL is disabled, rows are kept
 
 
 # Module-level origin for CORS (set per-invocation in handler)

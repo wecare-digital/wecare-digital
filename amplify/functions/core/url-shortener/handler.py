@@ -352,9 +352,11 @@ def handler(event, context):
         }
 
 
-def generate_code(length=6):
+def generate_code(length=10):
     # secrets (not random) so codes stay unique under Lambda SnapStart, where a
     # restored snapshot would otherwise share the random module's PRNG state.
+    # 10 characters of [a-z0-9] is about 51 bits, so codes cannot be guessed by walking
+    # the anonymous redirect. Codes issued at the old length of 6 keep resolving.
     chars = string.ascii_lowercase + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
 

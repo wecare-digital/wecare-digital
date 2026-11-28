@@ -1037,6 +1037,37 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     return result
 
 
+#: A payment-id-only dedupe has no index to query, so it scans at most this many pages and
+#: then fails closed (503, retryable) instead of reading the whole table on the webhook path.
+_INVOICE_DEDUP_SCAN_MAX_PAGES = 10
+
+
+def _invoice_dedup_matches(table: Any, reference_id: str, payment_id: str) -> List[Dict]:
+    """Invoice rows a create must dedupe against. Raises when the answer is not complete.
+
+    With a reference: every page of `referenceId-index`. Without one: a scan for the payment id,
+    bounded by `_INVOICE_DEDUP_SCAN_MAX_PAGES`.
+    """
+    rows: List[Dict] = []
+    if reference_id:
+        kwargs = {'IndexName': 'referenceId-index', 'KeyConditionExpression': 'referenceId = :ref',
+                  'ExpressionAttributeValues': {':ref': reference_id}}
+        while True:
+            page = table.query(**kwargs)
+            rows.extend(page.get('Items', []))
+            if 'LastEvaluatedKey' not in page:
+                return rows
+            kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    kwargs = {'FilterExpression': 'paymentId = :pid', 'ExpressionAttributeValues': {':pid': payment_id}}
+    for _ in range(_INVOICE_DEDUP_SCAN_MAX_PAGES):
+        page = table.scan(**kwargs)
+        rows.extend(page.get('Items', []))
+        if 'LastEvaluatedKey' not in page:
+            return rows
+        kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    raise RuntimeError('invoice dedupe scan exceeded its page bound')
+
+
 def _release_unnumbered_claim(claim: Dict[str, Any], request_id: str) -> None:
     """Delete this request's own `claiming` row when no GST number was consumed for it."""
     invoice_id = claim.get('invoiceId')
@@ -1148,27 +1179,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
 
     if reference_id or payment_id:
         try:
-            filter_parts = []
-            expr_values = {}
-            if reference_id:
-                filter_parts.append('referenceId = :ref')
-                expr_values[':ref'] = reference_id
-            if payment_id:
-                filter_parts.append('paymentId = :pid')
-                expr_values[':pid'] = payment_id
-
-            filter_expr = ' OR '.join(filter_parts)
-            # Full pagination to avoid DynamoDB Limit bug (Limit = items evaluated, not returned).
-            # Every page is read, not just the first with a hit: a match is only safe to adopt
-            # when it is the ONLY one. The no-match path already read every page.
-            existing = []
-            scan_kwargs = {'FilterExpression': filter_expr, 'ExpressionAttributeValues': expr_values}
-            while True:
-                result = table.scan(**scan_kwargs)
-                existing.extend(result.get('Items', []))
-                if 'LastEvaluatedKey' not in result:
-                    break
-                scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+            # Every matching row, not just the first: a match is only safe to adopt when it is
+            # the ONLY one. A reference is a Query; only a payment-id-only create still scans.
+            existing = _invoice_dedup_matches(table, reference_id, payment_id)
 
             matched_ids = {str(row.get('invoiceId') or '') for row in existing}
             if len(matched_ids) > 1:
@@ -5226,15 +5239,11 @@ def _resolve_refund_context(invoice_id: str, body: Dict, auth: Optional[Dict]
         })
 
     payment_state = pay_status.canonical(payment.get('status'))
-    # SINGLE REFUND PER PAYMENT (by design). razorpay-webhook._handle_refund marks the payment
-    # REFUNDED (a monotonic rank that then blocks any later refund.* write) and SETs — does not
-    # sum — refundAmountPaise on the FIRST processed refund. So once any refund (full or the
-    # first partial) has settled, this branch reports the idempotent success and no second
-    # partial can proceed: in practice a payment receives one refund. The cap arithmetic below
-    # (captured − already_refunded) is the server authority within that single refund and fails
-    # safe — it can only block or under-refund, never over-refund. Supporting multiple partials
-    # per payment would require revisiting the webhook's refunded-state/accumulation semantics,
-    # which stays the sole authoritative setter and is deliberately out of scope here.
+    # razorpay-webhook records refunds from Razorpay's readback: a FULL refund moves the payment
+    # to REFUNDED (reported here as the idempotent success), while a partial one leaves it
+    # CAPTURED with refundAmountPaise = the SUM Razorpay reports as refunded. The cap arithmetic
+    # below (captured − already_refunded) is therefore the remaining refundable amount, and it
+    # fails safe: it can only block or under-refund, never over-refund.
     if payment_state == pay_status.REFUNDED and str(payment.get('refundId') or '').strip():
         return None, _resp(200, {
             'submitted': True,
@@ -5573,14 +5582,19 @@ def _resolve_refund_evidence(*, invoice: Dict, body: Dict, request_id: str) -> O
         }))
         return None
 
-    if str(payment.get('refundId', '') or '').strip() != refund_id:
+    # The webhook keeps the latest refund in `refundId` and every processed one in `refundIds`.
+    recorded = {str(value).strip() for value in (payment.get('refundIds') or ())}
+    recorded.add(str(payment.get('refundId', '') or '').strip())
+    if refund_id not in recorded:
         logger.warning(json.dumps({
             'event': 'refund_evidence_not_on_record', 'paymentId': payment_id,
             'requestId': request_id,
         }))
         return None
 
-    if pay_status.canonical(payment.get('status', '')) != pay_status.REFUNDED:
+    # A partial refund leaves the payment captured and says so in `refundStatus`.
+    if (pay_status.canonical(payment.get('status', '')) != pay_status.REFUNDED
+            and str(payment.get('refundStatus') or '') != 'partially_refunded'):
         logger.warning(json.dumps({
             'event': 'refund_evidence_payment_not_refunded', 'paymentId': payment_id,
             'storedStatus': pay_status.canonical(payment.get('status', '')),

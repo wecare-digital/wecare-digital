@@ -22,6 +22,7 @@ import type { Contact } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import Modal from '../../ui/Modal';
 
 interface CustomerActionsSheetProps {
   contact: Contact;
@@ -42,12 +43,6 @@ const CLEARABLE_FIELDS: { key: keyof Contact; label: string }[] = [
   { key: 'gstin', label: 'GSTIN' },
   { key: 'designation', label: 'Designation' },
 ];
-
-const CloseGlyph = (): React.JSX.Element => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M18 6 6 18M6 6l12 12" />
-  </svg>
-);
 
 const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   contact, onClose, onArchived, onChanged,
@@ -205,17 +200,10 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   };
 
   return (
-    <div className="cas-backdrop" role="dialog" aria-modal="true" aria-labelledby="cas-title" onClick={ onClose }>
-      <div className="cas-sheet" onClick={ e => e.stopPropagation() }>
-        <header className="cas-head">
-          <div className="cas-id" data-wc-no-translate="true">
-            <h2 id="cas-title" className="cas-name">{ contact.name || 'Unnamed customer' }</h2>
-            <p className="cas-phone">{ contact.phone || 'No phone' }{ contact.email ? ` · ${ contact.email }` : '' }</p>
-          </div>
-          <button type="button" className="cas-close" onClick={ onClose } aria-label="Close actions">
-            <CloseGlyph />
-          </button>
-        </header>
+    // ui/Modal moves focus in, traps Tab, closes on Escape and restores focus (audit WEB-11).
+    <Modal isOpen onClose={ onClose } title={ contact.name || 'Unnamed customer' }>
+      <div className="cas-sheet">
+        <p className="cas-phone" data-wc-no-translate="true">{ contact.phone || 'No phone' }{ contact.email ? ` · ${ contact.email }` : '' }</p>
 
         { locked && (
           <p className="cas-lock" role="note">
@@ -299,33 +287,8 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
       </div>
 
       <style jsx>{ `
-        .cas-backdrop{
-          position:fixed; inset:0; z-index:1200;
-          background:rgba(0,0,0,0.4);
-          display:flex; align-items:flex-end; justify-content:center;
-          padding:0;
-        }
-        .cas-sheet{
-          width:100%; max-width:560px; box-sizing:border-box;
-          background:var(--surface,#fff);
-          border-radius:var(--radius-2xl,16px) var(--radius-2xl,16px) 0 0;
-          padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));
-          display:grid; gap:16px;
-          max-height:88dvh; overflow-y:auto;
-          -webkit-overflow-scrolling:touch;
-        }
-        .cas-head{ display:flex; align-items:flex-start; gap:12px; }
-        .cas-id{ min-width:0; }
-        .cas-name{ margin:0; font-size:18px; font-weight:700; color:var(--text,#1a1a1a); overflow-wrap:anywhere; }
-        .cas-phone{ margin:2px 0 0; font-size:13px; color:var(--text-muted,#6b7280); overflow-wrap:anywhere; }
-        .cas-close{
-          flex:0 0 auto; margin-left:auto;
-          width:var(--tap-min,44px); height:var(--tap-min,44px);
-          display:inline-flex; align-items:center; justify-content:center;
-          border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-full,9999px);
-          background:var(--surface,#fff); color:var(--text-muted,#6b7280); cursor:pointer;
-        }
-        .cas-close:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
+        .cas-sheet{ display:grid; gap:16px; }
+        .cas-phone{ margin:0; font-size:13px; color:var(--text-muted,#6b7280); overflow-wrap:anywhere; }
 
         .cas-lock{
           margin:0; padding:10px 12px; border-radius:var(--radius-md,8px);
@@ -378,12 +341,8 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         }
         .cas-danger:hover:not(:disabled){ background:var(--danger-bg,#f5f5f5); }
 
-        @media (min-width:768px){
-          .cas-backdrop{ align-items:center; padding:20px; }
-          .cas-sheet{ border-radius:var(--radius-2xl,16px); padding:20px; max-height:86vh; }
-        }
       ` }</style>
-    </div>
+    </Modal>
   );
 };
 

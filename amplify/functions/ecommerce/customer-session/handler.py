@@ -6,6 +6,7 @@ Every response is no-store; secrets, OTPs and token-bearing request bodies are n
 import base64
 import json
 import os
+import re
 import time
 
 import boto3
@@ -15,7 +16,26 @@ from lambda_utils.customer_session_store import SessionStore
 from lambda_utils.response import cors_response, extract_origin
 
 CLIENT_ID = '4avmt9n4gpmkvkdk88qbtit33o'
+POOL_ID = 'us-east-1_46ULYuukt'
 ORIGIN = 'https://wecare.digital'
+
+#: DescribeUserPoolClient is limited to 5 requests per second per pool, so the client's
+#: refresh-token rotation setting is cached per warm container instead of read on every POST.
+ROTATION_CACHE_SECONDS = 300
+_rotation_cache = {}
+
+#: A Cognito refresh token: RevokeToken's documented character set, at most 4096 characters.
+_REFRESH_TOKEN = re.compile(r'[A-Za-z0-9_=.-]{1,4096}')
+
+
+def _rotation_enabled(cognito):
+    """Whether the app client rotates refresh tokens. Cached; a failed read is not cached."""
+    now = time.monotonic()
+    if 'value' in _rotation_cache and now - _rotation_cache['at'] < ROTATION_CACHE_SECONDS:
+        return _rotation_cache['value']
+    client = cognito.describe_user_pool_client(UserPoolId=POOL_ID, ClientId=CLIENT_ID)['UserPoolClient']
+    _rotation_cache.update(value=client.get('RefreshTokenRotation', {}).get('Feature') == 'ENABLED', at=now)
+    return _rotation_cache['value']
 
 
 def handler(event, context):
@@ -41,11 +61,14 @@ def handler(event, context):
         return base64.b64encode(kms.encrypt(KeyId=key_id, Plaintext=token.encode(),
                               EncryptionContext=encryption_context)['CiphertextBlob']).decode()
 
-    try:
-        rotation = cognito.describe_user_pool_client(UserPoolId='us-east-1_46ULYuukt',
-                     ClientId=CLIENT_ID)['UserPoolClient'].get('RefreshTokenRotation', {}).get('Feature') == 'ENABLED'
-    except Exception:
-        return response(503, {'error': 'TEMPORARILY_UNAVAILABLE'})
+    def revoke_at_cognito(ref):
+        # Revokes the refresh token and the access tokens issued from it. Fail-soft in revoke().
+        token = kms.decrypt(KeyId=key_id, CiphertextBlob=base64.b64decode(ref),
+                            EncryptionContext=encryption_context)['Plaintext'].decode()
+        cognito.revoke_token(Token=token, ClientId=CLIENT_ID)
+
+    # Read (cached) only on the paths that call a Cognito refresh API; a failure answers 503.
+    rotation = None
 
     def provider_refresh(token):
         try:
@@ -66,16 +89,25 @@ def handler(event, context):
         return {'accessToken': result['AccessToken'], 'expiresIn': result['ExpiresIn'], 'refreshRef': seal(result['RefreshToken']) if result.get('RefreshToken') else ref}
 
     try:
-        body = json.loads(event.get('body') or '{}')
+        # Shapes are checked before any Cognito call, so junk requests cost no Cognito quota.
+        try:
+            body = json.loads(event.get('body') or '{}')
+        except ValueError:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
         action = body.get('action')
         cookie = sessions.read_cookie({**(event.get('headers') or {}),
                     'cookie': '; '.join(event.get('cookies') or []) or (event.get('headers') or {}).get('cookie', '')})
         headers = {str(k).lower(): v for k, v in (event.get('headers') or {}).items()}
+        if action in ('refresh', 'logout') and not sessions.is_session_id(cookie):
+            raise sessions.SessionInvalid('no well-formed session cookie')
         if action == 'exchange':
-            identity = customer_auth.authenticate(event)
-            token = str(body.get('refreshToken') or '')
-            if not token or len(token) > 4096:
+            token = body.get('refreshToken')
+            if not isinstance(token, str) or not _REFRESH_TOKEN.fullmatch(token):
                 raise sessions.SessionInvalid('refresh custody required')
+            identity = customer_auth.authenticate(event)
+            rotation = _rotation_enabled(cognito)
             # Prove the refresh token belongs to the same customer as the access token.
             #
             # BOTH COMPARISONS CURRENTLY TEST THE SAME VALUE, AND THAT IS KNOWN. Since
@@ -98,7 +130,7 @@ def handler(event, context):
             persistent = body.get('persistent') is not False
             opaque, view = sessions.create_session(store, customer_id=identity.customer_id,
                          refresh_ref=seal(renewed.get('RefreshToken') or token), persistent=persistent, rotation_enabled=rotation)
-            if cookie:
+            if sessions.is_session_id(cookie):
                 sessions.revoke(store, cookie)
             result = response(200, {'csrfToken': view.csrf_token, 'expiresAt': view.absolute_expires_at * 1000,
                                     'persistent': persistent})
@@ -107,10 +139,11 @@ def handler(event, context):
             view = sessions.validate(store, cookie)
             sessions.assert_csrf(view, str(headers.get('x-customer-csrf') or ''))
             if action == 'logout':
-                sessions.revoke(store, cookie)
+                sessions.revoke(store, cookie, revoke_refresh=revoke_at_cognito)
                 result = response(200, {'signedOut': True})
                 result['cookies'] = [sessions.build_clear_cookie()]
             else:
+                rotation = _rotation_enabled(cognito)
                 renewed = sessions.refresh_access_token(store, cookie, cognito_refresh=refresh)
                 result = response(200, {'accessToken': renewed['accessToken'],
                     'expiresAt': (int(time.time()) + renewed['expiresIn']) * 1000})

@@ -94,10 +94,15 @@ def save_pickup(data: Dict, *, contact_id: str, phone: str, sender_name: str,
     if not token.startswith(TOKEN_PREFIX):
         raise ValueError(REJECTED)
 
-    session = flow_sessions.verify_session(
-        dynamodb.Table(shared_tables.flow_drafts_table_name()),
-        capability=CAPABILITY, token=token, rejected_message=REJECTED,
-    )
+    # A rejected session is bad input (ValueError, acknowledged). FlowSessionUnavailable
+    # propagates so the inbound worker parks the paid completion for retry.
+    try:
+        session = flow_sessions.verify_session(
+            dynamodb.Table(shared_tables.flow_drafts_table_name()),
+            capability=CAPABILITY, token=token, rejected_message=REJECTED,
+        )
+    except flow_sessions.FlowSessionRejected as exc:
+        raise ValueError(REJECTED) from exc
     if contact_store.digits(phone) != session.phone:
         raise ValueError(REJECTED)
     binding = single_order_flow.verify_paid_session(

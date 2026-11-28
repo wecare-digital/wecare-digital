@@ -9,21 +9,22 @@ from typing import Dict
 
 from flows.orders import (
     fetch_orders_for_flow, get_order, get_submissions_for_order,
-    extract_short_id, format_order_dropdown,
+    extract_short_id, format_order_dropdown, order_belongs_to,
 )
-from flows.common import get_phone_from_token, save_draft, restore_draft
+from flows.common import require_session, reject, save_draft, restore_draft
 from lambda_utils import payment_status as pay_status
 
 logger = logging.getLogger(__name__)
 
 FLOW_CODE = '02.WD_TR'
+#: Server-issued session capability; the customer comes from the session, not the token.
+CAPABILITY = 'track_request'
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """INIT → fetch orders, navigate to ORDER_SELECT."""
-    phone = get_phone_from_token(flow_token)
-    email = data.get('email', '')
-    orders = fetch_orders_for_flow(phone, email)
+    """INIT → the session customer's orders, navigate to ORDER_SELECT."""
+    session = require_session(flow_token, CAPABILITY, allow_consumed=False)
+    orders = fetch_orders_for_flow(session.phone, '')
     if not orders:
         orders = [{'id': 'none', 'title': 'No orders found'}]
     return {'screen': 'ORDER_SELECT', 'data': {'orders': orders}}
@@ -31,12 +32,15 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
     """ORDER_SELECT → look up order + all submissions → return STATUS screen data."""
+    session = require_session(flow_token, CAPABILITY)
     order_id = data.get('order_id', '')
     if not order_id or order_id == 'none':
         return {
             'screen': 'STATUS',
             'data': _empty_status('No order selected'),
         }
+    if not order_belongs_to(order_id, session.phone):
+        reject('order_not_owned')
 
     # Fetch order details from the one order table (website, WhatsApp and staff orders alike)
     order = get_order(order_id)

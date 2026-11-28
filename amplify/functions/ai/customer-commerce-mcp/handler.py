@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import base64
 from decimal import Decimal
+import hashlib
 import json
 import os
 import re
+import secrets
+import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,6 +22,8 @@ import customer_oauth
 
 MAX_BODY = 32_768
 MAX_PRODUCTS = 50
+#: How long a previewed account change stays confirmable.
+CONFIRM_TTL_SECONDS = 600
 _ddb = None
 _lambda = None
 
@@ -127,6 +132,13 @@ def delegate(function: str, body: dict, original: dict, path: str) -> dict:
 
 READ_ANNOTATIONS = {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}
 WRITE_ANNOTATIONS = {**READ_ANNOTATIONS, 'readOnlyHint': False}
+#: A saved email or address replaces the old one, and a repeat call is another change.
+#: A WhatsApp payment request messages the customer outside this conversation.
+ANNOTATION_OVERRIDES = {
+    'update_my_account': {'destructiveHint': True, 'idempotentHint': False},
+    'request_whatsapp_payment': {'openWorldHint': True},
+}
+CONFIRMATION_SCHEMA = {'type': 'string', 'minLength': 32, 'maxLength': 64, 'pattern': '[A-Za-z0-9_-]+'}
 ADDRESS_SCHEMA = {'type': 'object', 'properties': {
     key: {'type': 'string', 'minLength': 1, 'maxLength': 200}
     for key in ['addressLine1', 'addressLine2', 'locality', 'city', 'state', 'postalCode']
@@ -155,7 +167,7 @@ def tools() -> list[dict]:
     profile = {key: {'type': 'string', 'minLength': 1, 'maxLength': 200}
                for key in ['firstName', 'lastName', 'companyName', 'designation', 'email']}
     profile['address'] = ADDRESS_SCHEMA
-    update_schema = {**object_schema(profile), 'minProperties': 1}
+    update_schema = {**object_schema({**profile, 'confirmationId': CONFIRMATION_SCHEMA}), 'minProperties': 1}
     definitions = [
         ('browse_products', 'Find WECARE products',
          'Find explicitly approved purchasable products. Reply in plain chat text; do not render images or open a storefront.',
@@ -167,7 +179,10 @@ def tools() -> list[dict]:
          'Read only the connected customer account. Ask the host to connect the account if authentication is required. Never ask for codes or tokens in chat.',
          object_schema(), True, False),
         ('update_my_account', 'Update my WECARE details',
-         'Save the customer-provided profile or delivery-address changes after the customer confirms them. The server binds the record to the connected account.',
+         'Change the customer profile or delivery address in two steps. Without confirmationId it saves nothing and returns '
+         'the current and proposed values with a confirmationId. Show them to the customer; only after the customer '
+         'explicitly confirms, call again with the same fields and that confirmationId to save. The server binds the record '
+         'to the connected account.',
          update_schema, True, True),
         ('list_my_orders', 'Read my WECARE orders',
          'Read the connected customer order history. A failed payment is not a confirmed purchase.',
@@ -192,8 +207,9 @@ def tools() -> list[dict]:
     for name, title, description, schema, private, write in definitions:
         scope = 'commerce:write' if name in {'update_my_account', 'request_whatsapp_payment'} else 'commerce:read'
         security = [{'type': 'oauth2', 'scopes': [scope]}] if private else [{'type': 'noauth'}]
+        annotations = {**(WRITE_ANNOTATIONS if write else READ_ANNOTATIONS), **ANNOTATION_OVERRIDES.get(name, {})}
         result.append({'name': name, 'title': title, 'description': description, 'inputSchema': schema,
-                       'annotations': WRITE_ANNOTATIONS if write else READ_ANNOTATIONS,
+                       'annotations': annotations,
                        'securitySchemes': security, '_meta': {'securitySchemes': security}})
     return result
 
@@ -268,6 +284,55 @@ def customer_call(function: str, body: dict, event: dict, path: str) -> dict:
     return tool_result(data)
 
 
+def customer_subject(event: dict) -> str:
+    """The Cognito subject of the access token that `customer_event` verified and attached."""
+    token = str((event.get('headers') or {}).get('authorization', ''))[len('Bearer '):]
+    try:
+        segment = token.split('.')[1]
+        subject = json.loads(base64.urlsafe_b64decode(segment + '=' * (-len(segment) % 4))).get('sub')
+    except (IndexError, ValueError, AttributeError):
+        subject = None
+    if not isinstance(subject, str) or not subject:
+        raise ValueError('Customer subject unavailable')
+    return subject
+
+
+def update_account(args: dict, event: dict) -> dict:
+    """Two steps. Without confirmationId nothing is saved: return current and proposed values
+    and a single-use id bound to this customer and these exact fields. With it, consume the
+    id and save the same fields."""
+    changes = {key: value for key, value in args.items() if key != 'confirmationId'}
+    if not changes:
+        raise ValueError('No account change requested')
+    subject = customer_subject(event)
+    digest = hashlib.sha256(json.dumps([subject, changes], sort_keys=True,
+                                       separators=(',', ':')).encode()).hexdigest()
+    if 'confirmationId' not in args:
+        current = customer_call('wecare-commerce:live', {'action': 'profile'}, event, '/ecommerce/prepare-checkout')
+        if current['isError']:
+            return current
+        before = current['structuredContent']
+        confirmation_id = secrets.token_urlsafe(24)
+        customer_oauth.STORE.put({'sidHash': customer_oauth.row_key('confirm', confirmation_id),
+                                  'kind': 'account-change', 'subject': subject, 'changes': digest,
+                                  'absoluteExpiresAt': int(time.time()) + CONFIRM_TTL_SECONDS})
+        data = {'status': 'CONFIRMATION_REQUIRED', 'saved': False,
+                'changes': [{'field': key, 'current': before.get(key), 'proposed': value}
+                            for key, value in changes.items()],
+                'confirmationId': confirmation_id, 'expiresInSeconds': CONFIRM_TTL_SECONDS}
+        return tool_result(data, 'Nothing is saved yet. Show these changes to the customer. Only after they '
+                           'explicitly confirm, call update_my_account again with the same fields and this '
+                           'confirmationId.\n' + json.dumps(data))
+    key = customer_oauth.row_key('confirm', args['confirmationId'])
+    row = customer_oauth.STORE.get(key)
+    if (not row or row.get('kind') != 'account-change' or row.get('subject') != subject
+            or row.get('changes') != digest or customer_oauth.STORE.take(key) is None):
+        return tool_result({'status': 'CONFIRMATION_INVALID', 'saved': False},
+                           'This confirmation is invalid, expired, already used or for different changes. '
+                           'Nothing was saved. Preview the change again.', error=True)
+    return customer_call('wecare-customer-profile:live', changes, event, '/customer/profile')
+
+
 def call_tool(name: str, args: dict, event: dict) -> dict:
     descriptor = next((t for t in tools() if t['name'] == name), None)
     if descriptor is None or not validate(args, descriptor['inputSchema']):
@@ -303,7 +368,7 @@ def call_tool(name: str, args: dict, event: dict) -> dict:
     if name == 'get_my_account':
         return customer_call('wecare-commerce:live', {'action': 'profile'}, event, '/ecommerce/prepare-checkout')
     if name == 'update_my_account':
-        return customer_call('wecare-customer-profile:live', args, event, '/customer/profile')
+        return update_account(args, event)
     if name == 'list_my_orders':
         return customer_call('wecare-customer-orders:live', args, event, '/ecommerce/my-orders')
     if name == 'check_my_payment':

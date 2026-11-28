@@ -67,6 +67,12 @@ export interface ApiFailure {
   url: string;
   /** True when trying the same call again could plausibly succeed. */
   retryable: boolean;
+  /**
+   * True when a write (POST/PUT/PATCH/DELETE) timed out, lost its connection or got a 5xx, so it
+   * may or may not have been applied. Such a write is never re-sent automatically and is not
+   * `retryable`: check the record before sending it again.
+   */
+  outcomeUnknown?: boolean;
   at: number;
 }
 
@@ -77,6 +83,14 @@ export type ApiResult<T> =
 const RETRYABLE_KINDS: ReadonlySet<ApiFailureKind> = new Set<ApiFailureKind>( [
   'server', 'unavailable', 'timeout', 'rate-limited', 'network',
 ] );
+
+/** Failure kinds after which a write may or may not have been applied. */
+const UNCERTAIN_WRITE_KINDS: ReadonlySet<ApiFailureKind> = new Set<ApiFailureKind>( [
+  'server', 'unavailable', 'timeout', 'network',
+] );
+
+/** The only methods that are re-sent automatically. See sendApiRequest. */
+const RETRY_SAFE_METHODS: ReadonlySet<string> = new Set( [ 'GET', 'HEAD' ] );
 
 let lastApiFailure: ApiFailure | null = null;
 const failureListeners = new Set<( failure: ApiFailure ) => void>();
@@ -93,15 +107,21 @@ function recordFailure (
   url: string,
   code?: string,
   details?: Record<string, unknown>,
+  /** True for a POST/PUT/PATCH/DELETE: an uncertain failure then reports `outcomeUnknown`. */
+  write = false,
 ): ApiFailure {
+  const outcomeUnknown = write && UNCERTAIN_WRITE_KINDS.has( kind );
   const failure: ApiFailure = {
     kind,
     status,
-    message,
+    message: outcomeUnknown
+      ? `${ message.replace( /\.$/, '' ) }. The result is not confirmed; check it before trying again.`
+      : message,
     ...( code ? { code } : {} ),
     ...( details ? { details } : {} ),
     url,
-    retryable: RETRYABLE_KINDS.has( kind ),
+    retryable: RETRYABLE_KINDS.has( kind ) && !outcomeUnknown,
+    ...( outcomeUnknown ? { outcomeUnknown: true } : {} ),
     at: Date.now(),
   };
   lastApiFailure = failure;
@@ -148,11 +168,12 @@ function delay ( ms: number ): Promise<void> {
   return new Promise( resolve => setTimeout( resolve, ms ) );
 }
 
-// Get the current Cognito access token for API calls
-async function getAuthToken (): Promise<string | null> {
+// Get the current Cognito access token for API calls. `forceRefresh` asks Cognito for new
+// tokens even when the cached ones have not expired yet.
+async function getAuthToken ( forceRefresh = false ): Promise<string | null> {
   try
   {
-    const session = await fetchAuthSession();
+    const session = await fetchAuthSession( { forceRefresh } );
     return session.tokens?.accessToken?.toString() ?? null;
   } catch
   {
@@ -177,6 +198,63 @@ function trustedApiUrl ( input: string ): string {
   return base.href;
 }
 
+/* ------------------------------------------------------------------------- *
+ * Write safety (WEB-2)
+ *
+ * A write is never re-sent automatically after a timeout, a network error or a 5xx: the first
+ * attempt may have succeeded, and replays of slow sends produced duplicate WhatsApp messages and
+ * the "Sending is not confirmed" payment state. Each write call carries one Idempotency-Key, so a
+ * server that dedupes by key can recognise the same action; only the call's own 401 retry
+ * reuses it, and a new staff action gets a new key.
+ * ------------------------------------------------------------------------- */
+
+/** API paths whose handler reads `idempotencyKey` from the JSON body (outbound-whatsapp lists it
+ *  in _SEND_FIELDS). Other handlers reject unknown body fields: read the handler before adding. */
+const BODY_IDEMPOTENCY_PATHS: readonly string[] = [ '/whatsapp/send' ];
+
+function newIdempotencyKey (): string | null {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : null;
+}
+
+/**
+ * The write request with this call's Idempotency-Key. A caller that sends the same action again
+ * on purpose can pass its own `Idempotency-Key` header, which is kept. The header is sent only to
+ * a same-origin API: the API's CORS configuration does not allow it, so a cross-origin caller
+ * (the native app shell, local development) would fail its preflight. The body copy has no such
+ * limit.
+ */
+function withIdempotencyKey ( destination: string, init: RequestInit = {} ): RequestInit {
+  const headers: Record<string, string> = { ...( init.headers as Record<string, string> | undefined ) };
+  const supplied = Object.keys( headers ).find( ( name ) => name.toLowerCase() === 'idempotency-key' );
+  const key = supplied ? headers[ supplied ] : newIdempotencyKey();
+  if ( !key ) return init;
+  const target = new URL( destination );
+  const prefix = new URL( API_BASE ).pathname.replace( /\/$/, '' );
+  let body = init.body;
+  if ( typeof body === 'string' && BODY_IDEMPOTENCY_PATHS.some( ( p ) => target.pathname === prefix + p ) )
+  {
+    try
+    {
+      const parsed: unknown = JSON.parse( body );
+      if ( parsed && typeof parsed === 'object' && !Array.isArray( parsed ) && !( 'idempotencyKey' in parsed ) )
+      {
+        body = JSON.stringify( { ...parsed, idempotencyKey: key } );
+      }
+    } catch { /* not JSON: sent unchanged */ }
+  }
+  if ( !supplied && typeof window !== 'undefined' && target.origin === window.location.origin )
+  {
+    headers[ 'Idempotency-Key' ] = key;
+  }
+  return { ...init, body, headers };
+}
+
+function isWriteMethod ( init?: RequestInit ): boolean {
+  return !RETRY_SAFE_METHODS.has( ( init?.method || 'GET' ).toUpperCase() );
+}
+
 /**
  * Authenticated fetch — attaches the Cognito access token as a Bearer header.
  * Use on pages that make raw fetch() calls to protected API routes instead of
@@ -184,12 +262,13 @@ function trustedApiUrl ( input: string ): string {
  */
 export async function authFetch ( input: string, init: RequestInit = {} ): Promise<Response> {
   const destination = trustedApiUrl( input );
+  const request = isWriteMethod( init ) ? withIdempotencyKey( destination, init ) : init;
   const token = await getAuthToken();
   return fetch( destination, {
-    ...init,
+    ...request,
     headers: {
       'Content-Type': 'application/json',
-      ...( init.headers as Record<string, string> || {} ),
+      ...( request.headers as Record<string, string> || {} ),
       ...( token ? { Authorization: `Bearer ${token}` } : {} ),
     },
   } );
@@ -213,19 +292,18 @@ async function apiCall<T> ( url: string, options?: RequestInit ): Promise<T | nu
   return result.ok ? result.data : null;
 }
 
-/**
- * API call with retry logic that reports the reason a request failed.
- * Retries a 401 once with a refreshed token, and backs off on 429/502/503/504
- * and network errors up to `RETRY_CONFIG.maxRetries`.
- */
-export async function apiCallResult<T> ( url: string, options?: RequestInit, retryCount = 0, timeoutMs = 8000, allowRetries = true ): Promise<ApiResult<T>> {
-  let destination: string;
-  try { destination = trustedApiUrl( url ); }
-  catch {
-    return { ok: false, failure: recordFailure(
-      'http', null, 'Request destination is outside the configured API', API_BASE,
-    ) };
-  }
+/** One prepared API request; see sendApiRequest. */
+interface ApiRequest {
+  url: string;
+  destination: string;
+  options?: RequestInit;
+  write: boolean;
+  timeoutMs: number;
+  allowRetries: boolean;
+}
+
+async function sendApiRequest<T> ( request: ApiRequest, retryCount: number, tokenRefreshed: boolean ): Promise<ApiResult<T>> {
+  const { url, destination, options, write, timeoutMs, allowRetries } = request;
   try
   {
     const controller = new AbortController();
@@ -275,11 +353,12 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
 
     if ( response.status === 401 )
     {
-      // Token may have expired — try once with a fresh session
-      if ( retryCount === 0 )
+      // Send once more, and only with a token Cognito has just refreshed. A 401 means the
+      // request was refused before the handler did anything, so this holds for writes too.
+      if ( !tokenRefreshed && await getAuthToken( true ) )
       {
-        console.debug( 'Got 401, retrying with refreshed token...' );
-        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
+        console.debug( 'Got 401, retrying with a refreshed token...' );
+        return sendApiRequest<T>( request, retryCount, true );
       }
       kind = 'unauthenticated';
       message = 'Authentication failed - please sign in again';
@@ -308,7 +387,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
         );
         console.debug( `Retrying API call (${retryCount + 1}/${RETRY_CONFIG.maxRetries}) after ${delayMs}ms...` );
         await delay( delayMs );
-        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
+        return sendApiRequest<T>( request, retryCount + 1, tokenRefreshed );
       }
     } else if ( response.status === 429 )
     {
@@ -321,7 +400,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
         );
         console.debug( `Rate limited, retrying after ${delayMs}ms...` );
         await delay( delayMs );
-        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
+        return sendApiRequest<T>( request, retryCount + 1, tokenRefreshed );
       }
       kind = 'rate-limited';
       message = 'Rate limited - too many requests';
@@ -353,6 +432,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       url,
       typeof refusalCode === 'string' ? refusalCode : undefined,
       errorBody || undefined,
+      write,
     );
     console.error( `API error: ${failure.message}`, url );
     return { ok: false, failure };
@@ -367,7 +447,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       );
       console.debug( `Network error, retrying (${retryCount + 1}/${RETRY_CONFIG.maxRetries}) after ${delayMs}ms...` );
       await delay( delayMs );
-      return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
+      return sendApiRequest<T>( request, retryCount + 1, tokenRefreshed );
     }
 
     let kind: ApiFailureKind;
@@ -385,10 +465,39 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       kind = 'network';
       message = e.message || 'Connection failed';
     }
-    const failure = recordFailure( kind, null, message, url );
+    const failure = recordFailure( kind, null, message, url, undefined, undefined, write );
     console.error( 'API call failed:', failure.message, url, e );
     return { ok: false, failure };
   }
+}
+
+/**
+ * API call with retry logic that reports the reason a request failed.
+ *
+ * GET and HEAD back off and retry on 429/502/503/504 and network errors, up to
+ * `RETRY_CONFIG.maxRetries`, unless `allowRetries` is false. POST, PUT, PATCH and DELETE are
+ * never retried after a timeout, a network error, a 429 or a 5xx: they carry an Idempotency-Key
+ * (see withIdempotencyKey), and an uncertain failure is reported with `outcomeUnknown`. Any
+ * method that gets a 401 is sent once more, and only after `fetchAuthSession({ forceRefresh:
+ * true })` returned a new token.
+ */
+export async function apiCallResult<T> ( url: string, options?: RequestInit, retryCount = 0, timeoutMs = 8000, allowRetries = true ): Promise<ApiResult<T>> {
+  let destination: string;
+  try { destination = trustedApiUrl( url ); }
+  catch {
+    return { ok: false, failure: recordFailure(
+      'http', null, 'Request destination is outside the configured API', API_BASE,
+    ) };
+  }
+  const write = isWriteMethod( options );
+  return sendApiRequest<T>( {
+    url,
+    destination,
+    options: write ? withIdempotencyKey( destination, options ) : options,
+    write,
+    timeoutMs,
+    allowRetries: allowRetries && !write,
+  }, retryCount, false );
 }
 
 // Test API connection

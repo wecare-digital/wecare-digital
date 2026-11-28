@@ -113,7 +113,7 @@ const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags
            DIRECTION IS NOT HARD-CODED. overflow-x on a flex row follows the document's dir
            so under the RTL languages SupportWidget switches to, the row starts at the right and
            scrolls leftward with no separate rule. That is why there is no direction or
-           margin-left declaration here - a logical layout gets RTL for free, and rtlcheck asserts it.
+           margin-left declaration here - a logical layout gets RTL for free.
 
            padding-bottom:6px is for the FOCUS RING, not for looks. A scroll container clips its
            children, and these pills carry a 3px outline at 2px offset; without the room the ring

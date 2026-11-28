@@ -138,11 +138,14 @@ def test_real_worker_completes_message_lease_only_after_success(inbound, succeed
 
     with mock.patch.object(inbound, "_process_message", side_effect=process), \
             mock.patch.object(inbound, "_process_status") as status, \
+            mock.patch.object(inbound, "_send_to_dlq", return_value=True) as dlq, \
             mock.patch.object(webhook_dedup, "complete_event", side_effect=complete):
         result = inbound.handler(_event("messages"), _context())
     assert json.loads(result["body"]) == {"errors": int(not succeeds), "processed": int(succeeds)}
     assert timeline == (["processed", "completed"] if succeeds else ["processed"])
     status.assert_called_once()
+    # A failed message is parked for replay (MSG-3), never only acknowledged.
+    assert dlq.call_count == int(not succeeds)
 
 
 @pytest.mark.parametrize("lease, exists, skip, completed, tracked", [

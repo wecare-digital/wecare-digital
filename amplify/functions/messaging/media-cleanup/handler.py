@@ -78,14 +78,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # DELETES media from Meta. Anonymous, destructive, and irreversible.
     # The legitimate callers are the schedule and the dashboard: a scheduled or
     # internal invoke carries no API Gateway context, so require_auth passes it
-    # through untouched and only the public route is gated.
-    auth_failure = require_auth(event)
+    # through untouched and only the public route is gated. Deleting media is Admin-only.
+    auth_failure = require_auth(event, required_role='Admin')
     if auth_failure is not None:
         return auth_failure
 
     deleted = 0
     failed = 0
     skipped = 0
+    candidates = 0
+    scan_failed = False
 
     cutoff = int(time.time()) - (CLEANUP_AGE_DAYS * 86400)
 
@@ -100,8 +102,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         table = dynamodb.Table(MEDIA_FILES_TABLE)
         items = []
+        # Cleaned rows are excluded here; otherwise the first MAX_DELETIONS cleaned rows
+        # fill every run and newer media is never reached.
         scan_kwargs = {
-            'FilterExpression': 'uploadedAt < :cutoff AND attribute_exists(whatsappMediaId)',
+            'FilterExpression': ('uploadedAt < :cutoff AND attribute_exists(whatsappMediaId) '
+                                 'AND attribute_not_exists(cleanedUp)'),
             'ExpressionAttributeValues': {':cutoff': Decimal(str(cutoff))},
         }
         while True:
@@ -116,11 +121,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'requestId': request_id
         }))
 
+        candidates = len(items[:MAX_DELETIONS])
         for item in items[:MAX_DELETIONS]:
             media_id = item.get('whatsappMediaId', '')
-            file_id = item.get('fileId', '')
+            # `id` is the table's hash key; `fileId` is a copy that older rows may lack.
+            file_id = item.get('id', '')
 
-            if not media_id:
+            if not media_id or not file_id:
                 skipped += 1
                 continue
 
@@ -159,19 +166,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }))
 
     except Exception as e:
+        scan_failed = True
         logger.error(json.dumps({
             'event': 'media_cleanup_error',
             'error': str(e),
             'requestId': request_id
         }))
 
-    logger.info(json.dumps({
+    summary = {
         'event': 'media_cleanup_complete',
+        'candidates': candidates,
         'deleted': deleted,
         'failed': failed,
         'skipped': skipped,
         'requestId': request_id
-    }))
+    }
+    if scan_failed or (candidates and not deleted):
+        # Nothing could be processed: a metric filter on this key is what notices.
+        summary['alert'] = 'MEDIA_CLEANUP_NOTHING_PROCESSED'
+        logger.error(json.dumps(summary))
+    else:
+        logger.info(json.dumps(summary))
 
     return {
         'statusCode': 200,

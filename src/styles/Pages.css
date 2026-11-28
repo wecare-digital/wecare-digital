@@ -2012,7 +2012,7 @@
      belongs on whichever side the avatar is on. As margin-left it stayed on the physical left
      under rtl - where the avatar no longer is - which put the gap on the far side of the text
      and pulled the name 10px tighter to the avatar than intended. It was the last physical
-     direction property in any stylesheet, and rtlcheck measured it as a 10px mirror asymmetry
+     direction property in any stylesheet, and an RTL mirror check measured it as a 10px asymmetry
      on /grahak-os/ across all six viewports. */
   margin-inline-start: 10px;
 }

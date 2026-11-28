@@ -447,7 +447,7 @@ def _block_users_api(phone_number_id: str, users: list, action: str) -> Dict:
 # Constants
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
 MAX_TEXT_LENGTH = 4096  # Requirement 5.4
-MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
+MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60  # `expiresAt` stamp only; TTL is disabled, rows are kept
 CUSTOMER_SERVICE_WINDOW_HOURS = 24  # Requirement 16.2
 
 # The status a row gets the moment Meta's send response returns 200.

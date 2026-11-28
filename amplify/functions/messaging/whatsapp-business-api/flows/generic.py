@@ -13,7 +13,7 @@ from typing import Dict
 
 from flows.common import (
     dynamodb, FLOW_SUBMISSIONS_TABLE,
-    get_phone_from_token, get_phone_number_id_for_flow,
+    require_session, get_phone_number_id_for_flow,
     find_contact_by_phone, record_completion,
 )
 
@@ -28,9 +28,9 @@ def handle_welcome(data: Dict, flow_token: str, request_id: str) -> Dict:
 def handle_form(data: Dict, flow_token: str, request_id: str,
                 flow_key: str = '') -> Dict:
     """FORM → SUCCESS: save submission and close flow.
-    response_payload is set FIRST.
+    response_payload is set FIRST. The customer comes from a session issued for `flow_key`.
     """
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, flow_key).phone
     submission_id = f'WD-{flow_key[:6].upper()}-{uuid.uuid4().hex[:8].upper()}'
 
     # ── SET SUCCESS RESPONSE FIRST ──

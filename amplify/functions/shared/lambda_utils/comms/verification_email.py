@@ -49,9 +49,32 @@ from __future__ import annotations
 import html
 import logging
 import os
+import unicodedata
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+#: Longest first name placed in the email. The field comes from a public request body.
+FIRST_NAME_MAX = 60
+
+#: Bidirectional embedding, override, isolate and mark characters, which can reorder text.
+_BIDI_CONTROLS = frozenset("\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e"
+                           "\u2066\u2067\u2068\u2069")
+
+
+def clean_first_name(value: Any) -> str:
+    """The first name as it may appear in the email: one line, at most FIRST_NAME_MAX characters.
+
+    Control characters and line or paragraph separators become spaces, bidirectional controls
+    are removed, and runs of whitespace collapse to one space. Joiners used in Indic scripts
+    (U+200C, U+200D) are kept.
+    """
+    kept = []
+    for ch in str(value or ""):
+        if ch in _BIDI_CONTROLS:
+            continue
+        kept.append(" " if unicodedata.category(ch) in ("Cc", "Zl", "Zp") else ch)
+    return " ".join("".join(kept).split())[:FIRST_NAME_MAX].strip()
 
 #: Verified identity, DKIM SUCCESS (measured live). Already the invoice engine's sender.
 #: Not overridable per call: under DMARC `p=reject` an unaligned From hard-bounces, so the
@@ -101,6 +124,7 @@ def text_body(code: str, *, first_name: str = "", ttl_minutes: int = 10) -> str:
     gateways strip HTML entirely, and a verification email that arrives blank is
     indistinguishable to the customer from one that never arrived.
     """
+    first_name = clean_first_name(first_name)
     greeting = f"Hi {first_name}," if first_name else "Hi,"
     return "\n".join([
         greeting,
@@ -132,7 +156,7 @@ def html_body(code: str, *, first_name: str = "", ttl_minutes: int = 10) -> str:
     today, which is exactly why it is easy to omit and then be wrong later.
     """
     safe_code = html.escape(str(code))
-    safe_name = html.escape(str(first_name or "")).strip()
+    safe_name = html.escape(clean_first_name(first_name))
     greeting = f"Hi {safe_name}," if safe_name else "Hi,"
 
     return f"""<!DOCTYPE html>
@@ -312,6 +336,8 @@ __all__ = [
     "COLOR_BG_SECONDARY",
     "COLOR_ACCENT",
     "COLOR_LIME",
+    "FIRST_NAME_MAX",
+    "clean_first_name",
     "VerificationEmailFailed",
     "subject_line",
     "text_body",

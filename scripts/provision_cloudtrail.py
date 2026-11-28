@@ -54,17 +54,19 @@ TRAIL_ARN = f"arn:aws:cloudtrail:{REGION}:{ACCOUNT}:trail/{TRAIL}"
 #: `InsufficientS3BucketPolicyException` this script hit on its first run.
 OBJECT_PATH = f"AWSLogs/{ACCOUNT}/*"
 
-#: Glacier Instant Retrieval after 90 days is the point where the console's own
-#: 90-day history stops being an alternative, and 400 days covers a full year of
-#: audit plus a month of overlap for annual reviews.
+#: Keep trail logs for 365 days (audit AWS-7, owner-approved 2026-11-28). This
+#: matches the live rule exactly: on 2026-11-28 the bucket's only rule,
+#: `expire-7-days`, was replaced by this one, keeping its noncurrent-version and
+#: multipart settings. Re-running --apply must not shorten or reshape it, so change
+#: retention here and live together. No storage-class transition is applied.
 LIFECYCLE = {
     "Rules": [
         {
-            "ID": "archive-then-expire",
+            "ID": "expire-365-days",
             "Status": "Enabled",
             "Filter": {"Prefix": ""},
-            "Transitions": [{"Days": 90, "StorageClass": "GLACIER_IR"}],
-            "Expiration": {"Days": 400},
+            "Expiration": {"Days": 365},
+            "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
             "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7},
         }
     ]
@@ -91,7 +93,7 @@ ADVANCED_SELECTORS = [MANAGEMENT_SELECTOR]
 # narrowly scopes future DeleteObject events to the customer Drop Docs source
 # prefix; it does NOT recover or attribute deletions that occurred before
 # the selector was enabled. Audit event details can include opaque object keys,
-# so review 400-day trail retention and bucket access before enabling it.
+# so review 365-day trail retention and bucket access before enabling it.
 DROP_DOCS_DELETE_SELECTOR = {
     "Name": "Drop Docs source deletion audit",
     "FieldSelectors": [

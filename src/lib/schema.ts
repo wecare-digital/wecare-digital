@@ -42,7 +42,7 @@ export const WEBSITE_ID = `${ORIGIN}/#website`;
 
 /** The square mark. Google renders `Organization.logo` in the knowledge panel and wants the
  *  logo, not a 16:9 banner — which is why this is not `SOCIAL_CARD_URL`'s sibling asset.
- *  Pinned by `src/test/BrandAssets.test.ts`; keep it square. */
+ *  Keep it square. */
 export const LOGO_URL = `${MEDIA_BASE}/wecare-digital.png`;
 
 /** Intrinsic size of that asset, measured: 1080x1080. Declared because Google's logo
@@ -274,11 +274,20 @@ export const WEBSITE = {
  * The two site-level nodes as one array, for a surface that needs to emit both.
  *
  * Returned as separate objects rather than a single `@graph` so a caller can drop one
- * without rewriting the other, and so `seocheck.js`'s per-block `@id` walk keeps working
+ * without rewriting the other, and so a per-block `@id` check keeps working
  * unchanged.
  */
 export const SITE_ENTITIES: readonly unknown[] = [ ORGANIZATION, WEBSITE ];
 
-/** Serialise for `dangerouslySetInnerHTML`. Centralised so every call site is identical. */
+/**
+ * Serialise for `dangerouslySetInnerHTML`. Centralised so every call site is identical.
+ *
+ * `<` is escaped so a value containing `</script>` or `<!--` (CMS text, a product name) cannot
+ * end the script element early, and U+2028/U+2029 so the output is also valid JavaScript. The
+ * escapes are JSON-equivalent: a JSON-LD parser reads the same values.
+ */
 export const ld = ( value: unknown ): { __html: string } =>
-  ( { __html: JSON.stringify( value ) } );
+  ( { __html: ( JSON.stringify( value ) ?? 'null' )
+    .replace( /</g, '\\u003c' )
+    .replace( /\u2028/g, '\\u2028' )
+    .replace( /\u2029/g, '\\u2029' ) } );

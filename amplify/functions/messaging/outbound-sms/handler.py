@@ -66,7 +66,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # working while the public route stops being anonymous. This endpoint had
     # NO auth at either layer.
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Operator')  # every method sends
     if _auth is not None:
         return _auth
 

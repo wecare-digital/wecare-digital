@@ -40,11 +40,10 @@ import React, { useEffect, useRef, useState } from 'react';
  * THE TRADE-OFF, STATED: that endpoint is long-lived and very widely used but it is NOT
  * formally documented by Google, so it carries no compatibility promise the way the Embed
  * API does. If it is ever withdrawn the frame goes blank and the address block below it
- * keeps working. tools/browser/contactcheck.js is the canary, so a silent regression is
- * caught rather than discovered by a visitor. It enters the cross-origin frame, counts
- * the tiles that actually loaded, and converts the lat/lng in our own iframe src into a
- * Web Mercator tile index to confirm Google served THAT location - currently 39 tiles,
- * 9 of them within 4 tiles of the expected z18 x195411 y114193.
+ * keeps working. A browser harness (contactcheck.js, no longer in this repo) was the canary.
+ * It entered the cross-origin frame, counted the tiles that actually loaded, and converted
+ * the lat/lng in our own iframe src into a Web Mercator tile index to confirm Google served
+ * THAT location - 39 tiles, 9 of them within 4 tiles of the expected z18 x195411 y114193.
  *
  * It does NOT look for the string "Kolkata", which an earlier version of this comment
  * claimed: place names are rasterised into the tile images, so the frame exposes about
@@ -206,6 +205,29 @@ const EMAIL = 'one@wecare.digital';
  */
 const DIRECTIONS_URL = `https://www.google.com/maps/dir/?api=1&destination=WECARE.DIGITAL&destination_place_id=${PLACE_ID}`;
 
+/** Keyless link to the same verified listing, offered while the map is not loaded. */
+const PLACE_URL = `https://www.google.com/maps/search/?api=1&query=WECARE.DIGITAL&query_place_id=${PLACE_ID}`;
+
+/**
+ * OUR PIN, IN OUR PALETTE - and the stroke is not decoration.
+ *
+ * The owner asked for a lime pin. Lime #d1f470 alone will not do the job: it
+ * measures about 1.4:1 against white, which is the measured reason the brand dot in
+ * BrandLockup could not be lime either, and on pale satellite imagery a flat lime
+ * pin disappears. So it is lime FILL with a #1a3a2a stroke - the contract's own
+ * lime-plus-dark-green pairing, the same one used for .cl-cta and BrandBadge. The
+ * stroke is what makes it legible over both bright roofs and dark foliage.
+ *
+ * Drawn as an SVG data URI rather than a PNG so it stays crisp on any DPR and
+ * carries no network request. Also drawn in the frame before the map is loaded.
+ */
+const PIN_PATH = 'M20 1.5c-10.2 0-18.5 8.3-18.5 18.5 0 13.2 15.6 28.4 17.2 29.9a1.9 1.9 0 0 0 2.6 0C22.9 48.4 38.5 33.2 38.5 20 38.5 9.8 30.2 1.5 20 1.5z';
+const PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52">
+  <path d="${ PIN_PATH }" fill="#d1f470" stroke="#1a3a2a" stroke-width="3"/>
+  <circle cx="20" cy="20" r="6.5" fill="#1a3a2a"/>
+</svg>`;
+const PIN_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( PIN )}`;
+
 const ContactLocation: React.FC = () => {
   // NULL UNTIL MOUNTED, and that is a correctness requirement rather than caution. With
   // output:'export' this component is rendered to HTML at build time in Node, so formatting
@@ -215,6 +237,11 @@ const ContactLocation: React.FC = () => {
   // way either value can be honest.
   const [ istTime, setIstTime ] = useState<string | null>( null );
   const [ weather, setWeather ] = useState<{ temp: number; label: string } | null>( null );
+  // THE MAP LOADS ON REQUEST, NOT ON MOUNT (audit WEB-6). The Maps JS API cost about 1 MB, a
+  // billed map load and a 5.5 s throttled-mobile LCP on every view of /contact/, for a map
+  // nobody can pan. Until the visitor asks for it the frame shows our own pin and card.
+  const [ mapRequested, setMapRequested ] = useState( false );
+  const mapFrame = useRef<HTMLDivElement | null>( null );
   const mapHost = useRef<HTMLDivElement | null>( null );
 
   // Maps JS API, only when a key is configured. Everything in the options block is
@@ -226,7 +253,7 @@ const ContactLocation: React.FC = () => {
   //   keyboardShortcuts false no focus-then-arrow-keys route back into panning
   //   clickableIcons false    no POI click opening Google's own info card over ours
   useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' ) return;
+    if ( !mapRequested || !MAPS_KEY || typeof window === 'undefined' ) return;
     const w = window as unknown as {
       google?: { maps?: Record<string, unknown> };
       __wecareContactMapReady?: () => void;
@@ -252,31 +279,13 @@ const ContactLocation: React.FC = () => {
         clickableIcons: false,
       } );
 
-      /**
-       * OUR PIN, IN OUR PALETTE - and the stroke is not decoration.
-       *
-       * The owner asked for a lime pin. Lime #d1f470 alone will not do the job: it
-       * measures about 1.4:1 against white, which is the measured reason the brand dot in
-       * BrandLockup could not be lime either, and on pale satellite imagery a flat lime
-       * pin disappears. So it is lime FILL with a #1a3a2a stroke - the contract's own
-       * lime-plus-dark-green pairing, the same one used for .cl-cta and BrandBadge. The
-       * stroke is what makes it legible over both bright roofs and dark foliage.
-       *
-       * Drawn as an SVG data URI rather than a PNG so it stays crisp on any DPR and
-       * carries no network request.
-       */
-      const PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52">
-        <path d="M20 1.5c-10.2 0-18.5 8.3-18.5 18.5 0 13.2 15.6 28.4 17.2 29.9a1.9 1.9 0 0 0 2.6 0C22.9 48.4 38.5 33.2 38.5 20 38.5 9.8 30.2 1.5 20 1.5z"
-              fill="#d1f470" stroke="#1a3a2a" stroke-width="3"/>
-        <circle cx="20" cy="20" r="6.5" fill="#1a3a2a"/>
-      </svg>`;
-
+      // The pin artwork is PIN, above.
       new maps.Marker( {
         position: { lat: LAT, lng: LNG },
         map,
         title: 'WECARE.DIGITAL',
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( PIN )}`,
+          url: PIN_URL,
           scaledSize: new maps.Size( 40, 52 ),
           // Anchor at the point of the pin, not its centre, so the tip sits on the
           // premises rather than the artwork being centred on them.
@@ -304,7 +313,12 @@ const ContactLocation: React.FC = () => {
     script.async = true;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&loading=async&callback=${CALLBACK}`;
     document.head.appendChild( script );
-  }, [] );
+  }, [ mapRequested ] );
+
+  // The Show map button unmounts once pressed; keep keyboard focus on the map frame.
+  useEffect( () => {
+    if ( mapRequested ) mapFrame.current?.focus();
+  }, [ mapRequested ] );
 
   useEffect( () => {
     const format = () => new Intl.DateTimeFormat( 'en-IN', {
@@ -353,11 +367,18 @@ const ContactLocation: React.FC = () => {
       <h2 className="cl-h2" id="cl-title">Where to find us</h2>
 
       <div className="cl-grid">
-        {/* A map renders on every load either way. The branch is about WHICH map, never
+        {/* Until the visitor presses Show map, the frame holds our own pin and card and
+            nothing is fetched from Google. After that the branch is about WHICH map, never
             about whether one appears - the earlier keyed version degraded to a link out
             to Google when the key was absent, and that is the one outcome ruled out. */}
-        <div className="cl-map">
-          { MAPS_KEY ? (
+        <div className="cl-mapcol">
+        <div className="cl-map" ref={ mapFrame } tabIndex={ -1 }>
+          { !mapRequested ? (
+            <svg className="cl-pin" width="40" height="52" viewBox="0 0 40 52" aria-hidden="true" focusable="false">
+              <path d={ PIN_PATH } fill="#d1f470" stroke="#1a3a2a" strokeWidth="3" />
+              <circle cx="20" cy="20" r="6.5" fill="#1a3a2a" />
+            </svg>
+          ) : MAPS_KEY ? (
             /* KEYED PATH. A plain div the JS API draws into. No overlay is needed here -
                gestureHandling:'none' and disableDefaultUI do natively what the overlay
                below has to fake, and there are no controls left to block. */
@@ -402,8 +423,8 @@ const ContactLocation: React.FC = () => {
               does work - it swallows drag, scroll-zoom, clicks and POI info dialogs.
 
               IT DOES NOT MAKE GOOGLE'S CONTROLS INERT. This comment used to claim it did.
-              Measured with tools/browser/contactcheck.js, which enters the cross-origin
-              frame and then hit-tests each control through the page:
+              Measured with a browser harness (contactcheck.js, no longer in this repo) that
+              entered the cross-origin frame and hit-tested each control through the page:
 
                 frame 668x500, lock covers y 0..474 (inset:0 0 26px 0)
                 "Show satellite imagery"  42x42 at (10,447)   15px below the lock
@@ -433,8 +454,7 @@ const ContactLocation: React.FC = () => {
                 3. pointer-events:none on the iframe plus our OWN attribution links rendered
                    outside it. Robust and keyless, but it moves a licence-bearing element
                    into our markup, so it needs a decision rather than a commit.
-              Until one is chosen, contactcheck.js reports these provider controls as
-              diagnostics while enforcing layout, map imagery/location and attribution. */}
+              Until one is chosen these provider controls stay reachable on this path. */}
               <div className="cl-lock" aria-hidden="true" />
             </>
           ) }
@@ -501,6 +521,15 @@ const ContactLocation: React.FC = () => {
               </p>
             ) }
           </div>
+        </div>
+        { !mapRequested && (
+          <p className="cl-map-actions">
+            <button type="button" className="cl-cta cl-map-show" onClick={ () => setMapRequested( true ) }>
+              Show map
+            </button>
+            <a className="cl-link" href={ PLACE_URL } target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+          </p>
+        ) }
         </div>
 
         <div className="cl-copy">
@@ -576,6 +605,14 @@ const ContactLocation: React.FC = () => {
         /* display:block kills the inline-element baseline gap under the iframe, which
            otherwise shows as a few pixels of tint along the bottom edge. */
         .cl-frame{display:block;width:100%;height:100%;border:0}
+        /* Before the map is requested: our pin on the frame's own tint, the tip at the centre,
+           and the two actions under the frame, where the card can never cover them. */
+        .cl-mapcol{min-width:0}
+        .cl-map:focus{outline:none}
+        .cl-map:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+        .cl-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);display:block}
+        .cl-map-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin:16px 0 0}
+        .cl-map-actions .cl-map-show{margin-top:0;cursor:pointer;font-family:inherit}
         /* Narrow hide: remove only Google attribution/branding nodes; keep map controls intact. */
         .cl :global(.gm-style-cc),
         .cl :global(a[aria-label="Google Maps"]),
@@ -708,8 +745,7 @@ const ContactLocation: React.FC = () => {
              top:16px, so both overrides say what the default already says.
              The reasoning given here for hiding the pill - "the card already carries the
              WECARE.DIGITAL name, so the wordmark is not lost" - is what the owner applied at
-             every width. The card stays visible at every viewport, which contactcheck.js
-             requires. */
+             every width. The card stays visible at every viewport. */
         }
 
         /* 112px below 768px, matching .lgd-section, because .hdr-in drops to 96px there.

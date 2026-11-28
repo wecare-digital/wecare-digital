@@ -8,17 +8,20 @@ import logging
 from typing import Dict
 
 from flows.common import (
-    get_phone_from_token, find_contact_by_phone,
+    require_session, find_contact_by_phone,
     get_contact_name, record_completion,
 )
 
 logger = logging.getLogger(__name__)
 
 FLOW_CODE = 'WD_APPT'
+#: Server-issued session capability; the customer comes from the session, not the token.
+CAPABILITY = 'schedule_appointment'
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
     """INIT → show BOOKING_FORM with type/location options."""
+    require_session(flow_token, CAPABILITY, allow_consumed=False)
     return {
         'screen': 'BOOKING_FORM',
         'data': {
@@ -39,6 +42,7 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 def handle_booking_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     """BOOKING_FORM → REVIEW with collected data."""
+    require_session(flow_token, CAPABILITY)
     return {
         'screen': 'REVIEW',
         'data': {
@@ -53,7 +57,7 @@ def handle_booking_form(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
     """REVIEW → save appointment, return CONFIRM."""
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
     contact_id = find_contact_by_phone(phone)
     name = get_contact_name(contact_id)
     # Derived from the completion key rather than random. A Meta retry of this data_exchange

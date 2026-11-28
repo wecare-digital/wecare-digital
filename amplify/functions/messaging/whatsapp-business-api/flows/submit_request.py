@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError, ConnectTimeoutError, EndpointConnec
 
 from flows.common import (
     PHONE1_ID,
-    get_phone_from_token, get_phone_number_id_for_flow,
+    require_session, reject, get_phone_number_id_for_flow,
     find_contact_by_phone, get_contact_name,
     record_completion, send_payment, send_confirmation,
     save_draft, restore_draft, clear_draft,
@@ -40,21 +40,28 @@ SUBMISSION_PREFIX = 'WD-SR'
 # Payment config comes from FlowRegistry — these are just safe defaults
 DEFAULT_REQUIRES_PAYMENT = False
 DEFAULT_PAYMENT_AMOUNT = 0
+#: Server-issued session capability; the customer comes from the session, not the token.
+CAPABILITY = 'submit_request'
 
 
-def handle_init(data: Dict, flow_token: str, request_id: str,
-                fetch_orders_fn=None) -> Dict:
+def _require_owned_order(order_id: str, phone: str) -> None:
+    """Refuse (HTTP 427) an order id the session customer does not own. '' and 'none' pass."""
+    from flows.orders import order_belongs_to
+    if order_id and order_id != 'none' and not order_belongs_to(order_id, phone):
+        reject('order_not_owned')
+
+
+def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
     """INIT → check for draft, fetch orders, navigate to ORDER_SELECT or resume screen."""
     from flows.orders import fetch_orders_for_flow
-    phone = get_phone_from_token(flow_token)
-    email = data.get('email', '')
+    phone = require_session(flow_token, CAPABILITY, allow_consumed=False).phone
 
     # Check for existing draft
     draft = restore_draft(phone, FLOW_CODE)
 
     orders = []
     try:
-        orders = fetch_orders_for_flow(phone, email)
+        orders = fetch_orders_for_flow(phone, '')
     except Exception as e:
         logger.warning(f'Order fetch failed: {e}')
     if not orders:
@@ -78,8 +85,9 @@ def handle_init(data: Dict, flow_token: str, request_id: str,
 def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
     """ORDER_SELECT → show SUBMIT_REQUEST_FORM with order context. Save draft."""
     from flows.orders import order_label
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
     order_id = data.get('order_id', '')
+    _require_owned_order(order_id, phone)
     short_id = order_label(order_id) if order_id else ''
     # Save draft at this step
     save_draft(phone, FLOW_CODE, 'SUBMIT_REQUEST_FORM', {
@@ -96,8 +104,9 @@ def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 def handle_request_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     """SUBMIT_REQUEST_FORM → show TERMS with collected form data. Save draft."""
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
     order_id = data.get('order_id', '')
+    _require_owned_order(order_id, phone)
     subject = data.get('subject', '')
     description = data.get('description', '')
     # Save draft with form data
@@ -120,10 +129,12 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
     response_payload is set FIRST, saves happen after.
     Payment config comes from flow_config (FlowRegistry).
     """
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
+    # The token is verified above, so its WABA slot is the one we issued.
     phone_number_id = get_phone_number_id_for_flow(flow_token)
 
     order_id = data.get('order_id', '')
+    _require_owned_order(order_id, phone)
     subject = data.get('subject', '')
     description = data.get('description', '')
     request_type = data.get('request_type', '')

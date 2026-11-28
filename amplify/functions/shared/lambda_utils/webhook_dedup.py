@@ -42,6 +42,10 @@ the cases where a permanent claim is right. `lambda_utils/pstn/__init__.py` and
 Legacy rows are never re-claimable. A row written before leases existed, or by plain
 `claim_event`, carries no `leaseExpiresAt`, and the re-claim path requires one — so the 271 rows
 already in the table cannot be reprocessed by this change.
+
+`claim_event_lease` is the same claim, returning a `LeaseClaim` that tells a completed event
+apart from a lease still held by an unfinished attempt. `release_event_lease` hands a held lease
+back early, so a failed handler's retry is not refused as a duplicate for the rest of the lease.
 """
 import os
 import time
@@ -110,6 +114,31 @@ def is_duplicate(event_id: Optional[str], source: str = 'whatsapp', ttl_days: in
 DEFAULT_LEASE_SECONDS = int(os.environ.get('WEBHOOK_LEASE_SECONDS', '900'))
 
 
+#: `claim_event_lease` states. Only CLAIMED may process.
+LEASE_CLAIMED = 'CLAIMED'
+#: The event finished (`completedAt` is set). A redelivery is a true duplicate.
+LEASE_COMPLETED = 'COMPLETED'
+#: Another attempt holds an unexpired lease and has not completed. It may still be running, or
+#: it may have died; either way this delivery must not process it now.
+LEASE_IN_PROGRESS = 'IN_PROGRESS'
+#: A row without a lease (plain `claim_event` or pre-lease): a permanent claim.
+LEASE_PERMANENT = 'PERMANENT'
+
+
+class LeaseClaim:
+    """Result of `claim_event_lease`. `lease_expires_at` identifies the lease for a release."""
+
+    __slots__ = ('state', 'lease_expires_at')
+
+    def __init__(self, state: str, lease_expires_at: Optional[int] = None) -> None:
+        self.state = state
+        self.lease_expires_at = lease_expires_at
+
+    @property
+    def claimed(self) -> bool:
+        return self.state == LEASE_CLAIMED
+
+
 def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
                            lease_seconds: int = DEFAULT_LEASE_SECONDS,
                            ttl_days: int = DEFAULT_TTL_DAYS) -> bool:
@@ -132,9 +161,24 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
     order creation is now guarded by its own conditional markers in
     `lambda_utils/ecommerce/order_keys`, so processing a payment event twice converges on one
     order instead of making two.
+
+    Same answers as before `claim_event_lease` existed: True exactly when that returns CLAIMED.
+    """
+    return claim_event_lease(event_id, source=source, lease_seconds=lease_seconds,
+                             ttl_days=ttl_days).claimed
+
+
+def claim_event_lease(event_id: Optional[str], source: str = 'razorpay',
+                      lease_seconds: int = DEFAULT_LEASE_SECONDS,
+                      ttl_days: int = DEFAULT_TTL_DAYS) -> LeaseClaim:
+    """`claim_event_with_lease`, but says WHY a delivery may not process.
+
+    COMPLETED and PERMANENT are true duplicates. IN_PROGRESS means an unfinished attempt holds
+    the lease; a provider that retries non-2xx responses should get a non-2xx so it tries again
+    later instead of treating the event as done. Fails open to CLAIMED, like the bool form.
     """
     if not event_id:
-        return True
+        return LeaseClaim(LEASE_CLAIMED)
 
     now = int(time.time())
     lease_until = now + max(1, int(lease_seconds))
@@ -151,16 +195,16 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
     try:
         _table().put_item(Item=item,
                           ConditionExpression='attribute_not_exists(eventId)')
-        return True
+        return LeaseClaim(LEASE_CLAIMED, lease_until)
     except ClientError as error:
         if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
             logger.warning('{"event":"webhook_dedup_error","source":"%s","error":"%s"}'
                            % (source, str(error)[:160]))
-            return True  # fail open
+            return LeaseClaim(LEASE_CLAIMED)  # fail open
     except Exception as error:  # noqa: BLE001
         logger.warning('{"event":"webhook_dedup_error","source":"%s","error":"%s"}'
                        % (source, str(error)[:160]))
-        return True
+        return LeaseClaim(LEASE_CLAIMED)
 
     # Someone holds it. Salvage only an expired, uncompleted lease.
     try:
@@ -168,12 +212,12 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
     except Exception as error:  # noqa: BLE001
         logger.warning('{"event":"webhook_dedup_error","source":"%s","error":"%s"}'
                        % (source, str(error)[:160]))
-        return True
+        return LeaseClaim(LEASE_CLAIMED)
 
     if existing.get('completedAt'):
         logger.info('{"event":"webhook_duplicate_skipped","source":"%s","reason":"completed"}'
                     % source)
-        return False
+        return LeaseClaim(LEASE_COMPLETED)
 
     held_until = existing.get('leaseExpiresAt')
     if held_until is None:
@@ -181,12 +225,12 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
         # permanent claim, so legacy rows can never be reprocessed by this path.
         logger.info('{"event":"webhook_duplicate_skipped","source":"%s","reason":"no_lease"}'
                     % source)
-        return False
+        return LeaseClaim(LEASE_PERMANENT)
 
     if now < int(held_until):
         logger.info('{"event":"webhook_duplicate_skipped","source":"%s","reason":"lease_held"}'
                     % source)
-        return False
+        return LeaseClaim(LEASE_IN_PROGRESS)
 
     try:
         _table().put_item(
@@ -197,17 +241,42 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
             ExpressionAttributeValues={':seen': held_until},
         )
         logger.warning('{"event":"webhook_lease_salvaged","source":"%s"}' % source)
-        return True
+        return LeaseClaim(LEASE_CLAIMED, lease_until)
     except ClientError as error:
         if error.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-            return False
+            # Another delivery salvaged it first and is processing it now.
+            return LeaseClaim(LEASE_IN_PROGRESS)
         logger.warning('{"event":"webhook_dedup_error","source":"%s","error":"%s"}'
                        % (source, str(error)[:160]))
-        return True
+        return LeaseClaim(LEASE_CLAIMED)
     except Exception as error:  # noqa: BLE001
         logger.warning('{"event":"webhook_dedup_error","source":"%s","error":"%s"}'
                        % (source, str(error)[:160]))
+        return LeaseClaim(LEASE_CLAIMED)
+
+
+def release_event_lease(event_id: Optional[str], lease_expires_at: Optional[int]) -> bool:
+    """Give up a lease this caller holds so the provider's next retry can claim it at once.
+
+    For a handler that failed and is about to answer non-2xx. Conditional on the lease still
+    being the one `claim_event_lease` returned and not completed, so it cannot reopen a finished
+    event or take over another delivery's lease. Never raises; True when released.
+    """
+    if not event_id or lease_expires_at is None:
+        return False
+    now = int(time.time())
+    try:
+        _table().update_item(
+            Key={'eventId': str(event_id)},
+            UpdateExpression='SET leaseExpiresAt = :released, leaseReleasedAt = :released',
+            ConditionExpression='leaseExpiresAt = :mine AND attribute_not_exists(completedAt)',
+            ExpressionAttributeValues={':released': now, ':mine': lease_expires_at},
+        )
         return True
+    except Exception as error:  # noqa: BLE001 - a kept lease still lapses on its own
+        logger.warning('{"event":"webhook_lease_release_failed","error":"%s"}'
+                       % type(error).__name__)
+        return False
 
 
 def complete_event(event_id: Optional[str], ttl_days: int = DEFAULT_TTL_DAYS) -> None:

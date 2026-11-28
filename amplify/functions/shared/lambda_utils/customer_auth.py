@@ -40,7 +40,10 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any, Dict, Optional, Tuple
+
+from lambda_utils.customer_session_config import CUSTOMER_APP_CLIENT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +147,33 @@ def _unverified_issuer(token: str) -> str:
         return ""
 
 
+def _plausible_access_token(token: str, now: Optional[float] = None) -> bool:
+    """A cheap screen run before `GetUser`, with claims read WITHOUT a signature check.
+
+    Used only to reject, so junk bearer strings never spend the pool's GetUser quota: the token
+    must be a three-part JWT from the customer pool's app client, an access token, and not past
+    `exp`. `GetUser` stays the check that proves the token.
+    """
+    import base64
+    parts = token.split(".")
+    if len(parts) != 3 or not all(parts):
+        return False
+    try:
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:  # noqa: BLE001 - a malformed token is simply refused
+        return False
+    if not isinstance(claims, dict):
+        return False
+    exp = claims.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return False
+    return (claims.get("iss") == CUSTOMER_POOL_ISSUER
+            and claims.get("client_id") == CUSTOMER_APP_CLIENT_ID
+            and claims.get("token_use") == "access"
+            and exp > (time.time() if now is None else now))
+
+
 #: A Cognito `sub` is a canonical lowercase UUID. The single copy of this pattern in the tree:
 #: every `Filter='sub = "' + value + '"'` call site reads it through `is_cognito_subject` below.
 _COGNITO_SUBJECT_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
@@ -222,6 +252,9 @@ def authenticate(event: Dict[str, Any]) -> CustomerIdentity:
     token = bearer_token(event)
     if not token:
         raise CustomerNotAuthenticated("no bearer token on the request")
+    if not _plausible_access_token(token):
+        logger.info('{"event":"customer_auth_rejected","reason":"precheck"}')
+        raise CustomerNotAuthenticated("token is not valid")
 
     try:
         user = _client().get_user(AccessToken=token)

@@ -6,7 +6,6 @@ import { buildPageTitle } from '../lib/page-title';
 
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import Script from 'next/script';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
@@ -49,7 +48,7 @@ import { useState, useEffect } from 'react';
    authenticated branch below), none of them functions without JavaScript, and the shell they
    used to ship was the half-render described above rather than a usable sign-in screen.
    DO NOT RESTORE `ssr: true` to put that HTML back - it is what blanked the page, and
-   src/test/PublicBundleWeight.test.ts now fails the change.
+   tests/public-bundle-isolation.test.mjs now fails the change.
    The perf win is untouched: the public branch still never renders this module, so no public
    page downloads the 450 kB chunk. `ssr: false` splits it at least as aggressively.
    `aws-amplify` itself used to stay a static import here, on the reasoning that the configuration
@@ -65,6 +64,12 @@ const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: fal
    AuthShell does. It exposes the same `({ signOut, user }) => ReactNode` render contract, so
    the render function below is identical whichever shell wraps it. */
 const WsAuthShell = dynamic( () => import( '../components/ws/WsAuthShell' ), { ssr: false } );
+/* THE /workspace CHROME IS LAZY TOO (WEB-3). It was a static import, and through PushOptIn and
+   useUserRole it put aws-amplify/auth, the staff API client and Capacitor into the bundle every
+   public page downloads, including the staff pool id. It renders only inside the authenticated
+   branch below, which is already client-only, so ssr:false changes no exported HTML.
+   tests/public-bundle-isolation.test.mjs fails if any of these shells becomes static again. */
+const WorkspaceShell = dynamic( () => import( '../components/WorkspaceShell' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single
@@ -105,7 +110,6 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PublicShare from '../components/PublicShare';
 import PublicToastProvider from '../components/public/PublicToastProvider';
-import WorkspaceShell from '../components/WorkspaceShell';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
@@ -197,12 +201,12 @@ const FAVICON_URL = `${MEDIA_BASE}/wecare-digital.ico`;
    upload.
    THE CARD TYPE MOVED WITH THE SHAPE. twitter:card is "summary" below, because
    summary_large_image centre-crops anything that is not roughly 1.91:1 and would cut the top and
-   bottom off this mark - the defect the link-preview test in BrandAssets.test.ts exists to catch.
+   bottom off this mark.
    DECLARED AFTER LOGO_URL, not before it. These used to sit above it, and aliasing a const to one
    that is declared later is a temporal-dead-zone error at module evaluation, not a lint warning.
    These two values must equal the real pixels of the object at the URL; the pair once read
    512x512 against a 1080x1080 file. src/config/share.ts holds the same values for the content
-   pages and ShareMeta.test.tsx holds the two copies equal. */
+   pages; keep the two copies equal. */
 const SOCIAL_CARD_URL = LOGO_URL;
 const SOCIAL_CARD_W = '1080';
 const SOCIAL_CARD_H = '1080';
@@ -438,8 +442,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
   // the '/shop' entry in PUBLIC_EXACT in scripts/generate-sitemap.js and the STRUCTURAL entry in
-  // scripts/generate-public-pages.js by src/test/PublicRouteRegistration.test.ts, so the three
-  // move together. src/pages/shop/index.tsx is restored to emit out/shop/index.html.
+  // scripts/generate-public-pages.js; the three must move together. src/pages/shop/index.tsx
+  // is restored to emit out/shop/index.html.
   //
   // THE SEVEN PRODUCT PAGES stay in the isContentPublic chain as '/shop/[slug]', NOT here: this
   // map is keyed on router.pathname, so a dynamic route keyed here would compute every URL from
@@ -450,11 +454,9 @@ const PUBLIC_PAGE_META: Record<string, {
   // every product and service the site sells: most cards now link to /<slug>/ rather than to
   // /shop/<slug>/, so "Individual products live under /shop/<slug>/" had become inaccurate. The
   // same sentence is carried by the STRUCTURAL fallback in scripts/generate-public-pages.js and by
-  // the generated config/public-pages.json, and src/test/PublicAiSurface.test.ts compares the
-  // catalogue to this literal - so rewording it means re-running
+  // the generated config/public-pages.json - so rewording it means re-running
   // `node scripts/generate-public-pages.js`. Keep the single-quoted `name:` then `description:`
-  // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
-  // both parse this block as text and both require literals.
+  // shape: renderAllowlist() in that generator parses this block as text and requires literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   // Shipments is a non-clickable family label; Track and Pickup Request
   // are customer actions, not separate public pages.
@@ -476,9 +478,8 @@ const getPublicPageSchema = ( pathname: string ) => {
      * page's URL, which is a cross-route entity collision: two URLs defining one node with
      * different content is exactly the conflicting-copy case Google's guidance is about.
      *
-     * seocheck.js could not see it. Its @id-clash check is per-route - it looks for the same
-     * @id twice within one page - so a collision ACROSS routes was invisible to it, and /get
-     * is not in its ROUTES list anyway.
+     * A per-route @id-clash check cannot see it: it looks for the same @id twice within one
+     * page, so a collision ACROSS routes is invisible to it.
      *
      * The home page still resolves to `${SITE}/#webpage` and `${SITE}/`, because pathname
      * is '/' there, so its markup is unchanged. Only /get moves, onto its own identity.
@@ -555,8 +556,7 @@ const getPublicPageSchema = ( pathname: string ) => {
    Its documentation - why the sign-in screen is the third place site chrome is mounted, why
    SupportWidget belongs on it, why .ag-shell pads 108px rather than 96px, and why the
    Amplify ThemeProvider's hardcoded dir="ltr" had to be overridden - travelled with the code
-   and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
-   mounts across both files. */
+   and is unchanged there. */
 
 // /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
 // Bare /vault/ navigates Home. All other former standalone request/tracking
@@ -707,7 +707,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   useEffect( () => {
 
     // The web Service Worker/cache layer has been removed. Clean up any worker/cache
-    // left behind in returning browsers without touching Cognito/OTP auth storage.
+    // left behind in returning browsers; the customer OTP session storage is not touched.
     if ( 'serviceWorker' in navigator )
     {
       navigator.serviceWorker.getRegistrations()
@@ -720,6 +720,14 @@ export default function App ( { Component, pageProps }: AppProps ) {
         .then( ( keys ) => Promise.all( keys.map( ( k ) => caches.delete( k ) ) ) )
         .catch( () => { } );
     }
+    // Staff Cognito tokens now live in sessionStorage (lib/amplifyConfig.ts). Remove the copies
+    // older builds left in localStorage, where any script on this origin could read them.
+    try
+    {
+      Object.keys( window.localStorage )
+        .filter( ( k ) => k.startsWith( 'CognitoIdentityServiceProvider.' ) )
+        .forEach( ( k ) => window.localStorage.removeItem( k ) );
+    } catch { /* storage unavailable */ }
     // Init Capacitor native plugins - inside a native shell only, and loaded on demand there. On
     // the web nothing below runs and none of the plugin code is downloaded (see isNativeShell).
     // onPushToken arms push registration (SNS endpoint via POST /push/register); the API client it
@@ -754,9 +762,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // webview where the bundle failed showed white.
   //
   // It guarded nothing specific: `mounted` was set in one effect and read in one place,
-  // with no client-only value in the render path. The window.dataLayer and
-  // window.fbAsyncInit references below are inside inline <script> strings, so they are
-  // never evaluated during render and cannot cause a mismatch.
+  // with no client-only value in the render path.
   //
   // If a hydration warning does surface, fix the element that causes it rather than
   // restoring this. Grammarly injecting attributes into <body> is the known one, and
@@ -797,15 +803,13 @@ export default function App ( { Component, pageProps }: AppProps ) {
             Measured on the live site before this change: / carried the icon tag, /blog/ and
             /post/<slug>/ carried none, and /favicon.ico returned 404 text/html.
             RENDERED HERE RATHER THAN IN _document.tsx - the obvious sitewide home - because
-            MEDIA_BASE and the URLs derived from it are module-private to this file, and
-            src/test/BrandAssets.test.ts pins those declarations to this file by source string.
+            MEDIA_BASE and the URLs derived from it are module-private to this file.
             Reaching them from the document would mean importing this module into _document or
             restating MEDIA_BASE there, and a second source of truth for the brand asset base is
-            the exact thing that test exists to prevent. Every public route passes through this
+            to be avoided. Every public route passes through this
             branch, so the coverage is the same; the authenticated branch keeps its own pair.
-            The keys are placed after href so the attribute order BrandAssets.test.ts matches on
-            is preserved. next/head dedupes by key, so a page that wants a different icon
-            overrides this one instead of appending a second. */}
+            The keys are placed after href. next/head dedupes by key, so a page that wants a
+            different icon overrides this one instead of appending a second. */}
         <Head>
           <link rel="icon" href={ FAVICON_URL } key="icon" />
           <link rel="apple-touch-icon" href={ LOGO_URL } key="apple-touch-icon" />
@@ -847,8 +851,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
               nothing was going to collapse them. _document.tsx is the right owner because
               the font is sitewide and unconditional, whereas this block is one branch of a
               route test - keeping a copy per branch is how the duplication happened.
-              seocheck.js did not catch it: its "exactly one of each head tag" assertion
-              covers the nine og/twitter/canonical/title/description tags, not <link>. */}
+              A check for exactly one of each og/twitter/canonical/title/description tag would
+              not catch it, because it does not look at <link>. */}
           {/* SITEWIDE FALLBACK, AND IT MUST STAY PRODUCT-NEUTRAL.
               This block is inherited by every public route that does not declare its own, so
               whatever it says becomes the identity of 15 pages. It used to read "Enterprise
@@ -980,10 +984,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
               below instead. There is no BreadcrumbList: public pages render no visible
               trail (components/Breadcrumbs.tsx returns null), and a trail in the markup
               that the reader cannot see is exactly what the steering file forbids. */}
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( organizationSchema ) } />
           {/* No SoftwareApplication here any more - see the note where softwareSchema was
               declared. /relay-os/ declares its own, which is the one page it describes. */}
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( websiteSchema ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( websiteSchema ) } />
           {/* serviceSchema IS SCOPED TO /grahak-os, as the deleted sitewide
               SoftwareApplication should have been. It declares serviceType "WhatsApp Business
               API Platform" and a hasOfferCatalog of WhatsApp / Bulk SMS / Email Marketing
@@ -997,9 +1001,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
               On /relay-os the entity is accurate, so the value needs no rewording - only
               the scope was wrong. */}
           { router.pathname === '/relay-os' && (
-            <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
+            <script type="application/ld+json" dangerouslySetInnerHTML={ ld( serviceSchema ) } />
           ) }
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( getPublicPageSchema( router.pathname ) ) } />
         </Head>
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
@@ -1015,8 +1019,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
-            request log shows it. tagcheck.js now asserts the container loads once and
-            no direct gtag.js accompanies it. */}
+            request log shows it. */}
         {/* Public-only reflow defaults; explicit layout, code and table styles win. */}
         <style jsx global>{`
           :where(main){min-inline-size:0;max-inline-size:100%;overflow-wrap:anywhere}
@@ -1026,9 +1029,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
         `}</style>
         <Header />
         <Component { ...pageProps } />
-        <PublicPolicyDetails />
+        {/* The widgets get their own boundary with no fallback (audit WEB-10): if one of them
+            throws, it disappears and the page around it stays, instead of the error card
+            replacing checkout or the article. */}
+        <ErrorBoundary fallback={ null }><PublicPolicyDetails /></ErrorBoundary>
         <div className="public-action-tail" data-public-auth-button-theme={ router.pathname === '/' ? undefined : 'active' }>
-          <PublicShare />
+          <ErrorBoundary fallback={ null }><PublicShare /></ErrorBoundary>
         </div>
         <Footer />
         <style jsx>{`
@@ -1065,9 +1071,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
             Telugu, Bengali or most other Indic languages, so the button was hidden for
             nearly every language this serves), and the widget IS on the dashboard now -
             see the mount in the authenticated branch below for the one attribute that
-            makes that safe. Three mounts total, all in this file: here, AuthGate, and the
-            authenticated branch. PublicWidgets.test.tsx counts them. */}
-        <SupportWidget />
+            makes that safe. Three mounts total: here, AuthGate in AuthShell.tsx, and the
+            authenticated branch. */}
+        <ErrorBoundary fallback={ null }><SupportWidget /></ErrorBoundary>
         </PublicToastProvider>
       </ErrorBoundary>
     );
@@ -1116,7 +1122,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <link rel="manifest" href="/manifest-workspace.json" />
         {/* No BreadcrumbList here any more: it was derived from the pathname rather than from
             the trail on screen, on pages that are noindex and robots-Disallowed anyway. */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
+        <script type="application/ld+json" dangerouslySetInnerHTML={ ld( organizationSchema ) } />
       </Head>
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
             _document.tsx states that all Google tracking on this property is delivered
@@ -1131,23 +1137,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
             was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
-            request log shows it. tagcheck.js now asserts the container loads once and
-            no direct gtag.js accompanies it. */}
-      {/* Facebook SDK for JavaScript */ }
-      <Script id="facebook-sdk-init" strategy="afterInteractive">
-        { `
-          window.fbAsyncInit = function() {
-            FB.init({
-              appId: '${process.env.NEXT_PUBLIC_FB_APP_ID || ''}',
-              cookie: true,
-              xfbml: true,
-              version: 'v27.0'
-            });
-            FB.AppEvents.logPageView();
-          };
-        `}
-      </Script>
-      <Script src="https://connect.facebook.net/en_US/sdk.js" strategy="afterInteractive" id="facebook-jssdk" />
+            request log shows it. */}
+      {/* No Facebook SDK on the staff pages any more (WEB-1). It ran with an empty appId and
+          logged CompletedRegistration on every render. */}
       {/* The Amplify UI tree - ThemeProvider, Authenticator.Provider, AuthGate and the
           Authenticator itself - now lives in AuthShell and arrives as a dynamic chunk. The
           render function below is unchanged: the page, its signOut wiring and the two widget
@@ -1158,10 +1150,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
           render contract, so only the surrounding sign-in UI differs by route. */}
       <Shell>
         { ( { signOut, user } ) => {
-          if ( typeof window !== 'undefined' && ( window as any ).FB )
-          {
-            ( window as any ).FB.AppEvents.logEvent( 'CompletedRegistration' );
-          }
           const handleSignOut = () => { signOut?.(); void router.push( '/' ); };
           const routedPage = (
             <Component { ...pageProps } signOut={ handleSignOut } user={ user as any } />
@@ -1189,7 +1177,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
                     attribute this mount would let an operator machine-translate
                     live customer data, which is why it was previously excluded.
                     The retired legacy AI widget is no longer mounted. */}
-                <SupportWidget />
+                <ErrorBoundary fallback={ null }><SupportWidget /></ErrorBoundary>
               </ConfirmProvider>
             </ToastProvider>
           );

@@ -105,6 +105,18 @@ def get_order(order_id: str) -> Dict:
         return {}
 
 
+def order_belongs_to(order_id: str, phone: str) -> bool:
+    """True when the stored order's `customerPhone` is one of this customer's spellings.
+
+    The same match `fetch_orders_for_flow` uses to offer an order, so a Flow step accepts
+    only an order its picker could have shown. A failed read is False.
+    """
+    if not order_id or order_id == 'none' or not phone:
+        return False
+    stored = contact_store.digits((get_order(order_id) or {}).get('customerPhone'))
+    return bool(stored) and stored in {contact_store.digits(v) for v in _phone_variants(phone)}
+
+
 def order_label(order_id: str) -> str:
     """The short order number to show a customer for a stored orderId, from either channel.
 

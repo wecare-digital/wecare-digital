@@ -181,9 +181,11 @@ const describeSendOutcome = (
 
   // 502 / PENDING / anything else the command could not resolve: genuinely unknown, so reconcile
   // before any retry. "Unknown" never means "not paid" and never means "safe to resend".
+  // outcomeUnknown covers a timeout, a lost connection and any 5xx: the send is not re-sent
+  // automatically (src/api/core.ts), so the operator is told it is unconfirmed.
   const pending = result.ok
     ? String( result.data.sendStatus || '' ).toUpperCase() === 'PENDING'
-    : ( result.failure.status === 502 || result.failure.kind === 'unavailable' );
+    : ( result.failure.status === 502 || result.failure.kind === 'unavailable' || result.failure.outcomeUnknown === true );
   if ( pending ) {
     return {
       tone: 'error',

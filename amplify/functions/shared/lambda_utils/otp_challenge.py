@@ -243,7 +243,7 @@ def issue(table: Any, *,
     key = challenge_key(pepper, purpose, subject)
 
     try:
-        existing = table.get_item(Key={key_attr: key}).get("Item") or {}
+        existing = table.get_item(Key={key_attr: key}, ConsistentRead=True).get("Item") or {}
     except Exception as error:  # noqa: BLE001
         raise OtpStorageUnavailable(
             f"could not read the challenge store: {type(error).__name__}"
@@ -291,9 +291,18 @@ def issue(table: Any, *,
         "consumed": False,
     }
 
+    # One conditional write: it lands only if no other issue() wrote since the read above, so
+    # two concurrent requests cannot both send a code or lose a sendCount increment.
+    if last_sent:
+        condition = {"ConditionExpression": "lastSentAt = :prev",
+                     "ExpressionAttributeValues": {":prev": last_sent}}
+    else:
+        condition = {"ConditionExpression": "attribute_not_exists(lastSentAt)"}
     try:
-        table.put_item(Item=item)
+        table.put_item(Item=item, **condition)
     except Exception as error:  # noqa: BLE001
+        if _error_code(error) == "ConditionalCheckFailedException":
+            raise ResendTooSoon(max(1, resend_cooldown)) from error
         raise OtpStorageUnavailable(
             f"could not store the challenge: {type(error).__name__}"
         ) from error
@@ -320,7 +329,7 @@ def verify(table: Any, *,
     key = challenge_key(pepper, purpose, subject)
 
     try:
-        item = table.get_item(Key={key_attr: key}).get("Item")
+        item = table.get_item(Key={key_attr: key}, ConsistentRead=True).get("Item")
     except Exception as error:  # noqa: BLE001
         raise OtpStorageUnavailable(
             f"could not read the challenge store: {type(error).__name__}"
@@ -346,19 +355,26 @@ def verify(table: Any, *,
     # computed one. `hmac.compare_digest` is what `secrets.compare_digest` aliases.
     if not expected or not hmac.compare_digest(expected, supplied):
         try:
-            table.update_item(
+            # Atomic and conditional, so concurrent wrong answers cannot overwrite each other's
+            # count or push it past the cap.
+            counted = table.update_item(
                 Key={key_attr: key},
-                UpdateExpression="SET attempts = :next, lastAttemptAt = :now",
-                ExpressionAttributeValues={":next": attempts + 1, ":now": moment},
+                UpdateExpression="ADD attempts :one SET lastAttemptAt = :now",
+                ConditionExpression="attempts < :max",
+                ExpressionAttributeValues={":one": 1, ":now": moment, ":max": max_attempts},
+                ReturnValues="UPDATED_NEW",
             )
         except Exception as error:  # noqa: BLE001
+            if _error_code(error) == "ConditionalCheckFailedException":
+                return VerificationResult(ATTEMPTS_EXHAUSTED)
             raise OtpStorageUnavailable(
                 f"could not record a failed attempt: {type(error).__name__}"
             ) from error
+        used = int(((counted or {}).get("Attributes") or {}).get("attempts") or attempts + 1)
         logger.info('{"event":"otp_incorrect","purpose":"%s","attempts":%d}',
-                    purpose, attempts + 1)
+                    purpose, used)
         return VerificationResult(CODE_INCORRECT,
-                                  attempts_remaining=max_attempts - (attempts + 1))
+                                  attempts_remaining=max_attempts - used)
 
     try:
         table.update_item(
@@ -371,14 +387,18 @@ def verify(table: Any, *,
             #
             # The alias is required on BOTH expressions. `UpdateExpression` is validated first,
             # so aliasing only the condition still fails.
+            #
+            # `attempts < :max` as well: wrong answers that landed after the read above can
+            # exhaust the code before this correct one is accepted.
             UpdateExpression="SET #consumed = :true, consumedAt = :now",
-            ConditionExpression="#consumed = :false",
+            ConditionExpression="#consumed = :false AND attempts < :max",
             ExpressionAttributeNames={"#consumed": "consumed"},
-            ExpressionAttributeValues={":true": True, ":false": False, ":now": moment},
+            ExpressionAttributeValues={":true": True, ":false": False, ":now": moment,
+                                       ":max": max_attempts},
         )
     except Exception as error:  # noqa: BLE001
-        # A lost conditional race means a concurrent request consumed it first. That request
-        # succeeded, this one must not - exactly one verification per code.
+        # A lost conditional race means a concurrent request consumed it first (or exhausted
+        # it). That request decided the code, this one must not - one verification per code.
         if _error_code(error) == "ConditionalCheckFailedException":
             return VerificationResult(ALREADY_USED)
         if _is_permanent_request_error(error):

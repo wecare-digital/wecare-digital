@@ -1,4 +1,4 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import { Html, Head, Main, NextScript, type DocumentProps } from 'next/document';
 
 import { META } from '../config/analytics';
 import { MATERIAL_SYMBOLS_STYLESHEET } from '../config/materialSymbols';
@@ -24,6 +24,17 @@ import { MATERIAL_SYMBOLS_STYLESHEET } from '../config/materialSymbols';
  * Set NEXT_PUBLIC_GTM_ID to '' to disable all Google tracking at build time.
  */
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TXZ8JT78';
+
+/**
+ * Routes that get no Google Tag Manager and no Meta Pixel, with their sub-paths. The staff apps
+ * keep Cognito tokens and customer data in the page, and /auth and /vault are customer sign-in
+ * and file hand-off screens. The export renders this document once per route, so the decision
+ * is made here from the route pattern. A link from a tracked page into one of these routes must
+ * be a full page load (a plain <a>), or the already-loaded trackers stay in the document.
+ */
+const UNTRACKED_ROUTE_PREFIXES = [ '/workspace', '/ws', '/auth', '/vault' ];
+const isUntrackedRoute = ( page: string ): boolean =>
+  UNTRACKED_ROUTE_PREFIXES.some( ( prefix ) => page === prefix || page.startsWith( `${prefix}/` ) );
 
 /**
  * GOOGLE TAG GATEWAY (first-party serving) — OPT-IN, OFF BY DEFAULT.
@@ -101,9 +112,8 @@ d.readyState==='complete'?idle():w.addEventListener('load',idle,{once:true});})(
  * double-count every PageView, so the base code lives here and nowhere else. Do not add
  * an fbq snippet to a page or a component.
  *
- * It is NOT the Facebook JS SDK that _app.tsx loads. That one is FB.init with
- * NEXT_PUBLIC_FB_APP_ID, for social plugins, and it sends no pixel events — the two are
- * different assets with different ids and neither substitutes for the other.
+ * The Facebook JS SDK (FB.init) that _app.tsx used to load on staff pages is removed; it was a
+ * different asset and sent no pixel events.
  *
  * Only META.pixelId is interpolated. META.datasetId is the server-side Conversions API
  * destination and must never appear in browser code or be passed to fbq().
@@ -132,8 +142,7 @@ fbq('track', 'PageView');
  * visitor picks Arabic, Persian, Hebrew, Urdu, Pashto or Sindhi, and back to "ltr"
  * otherwise. Stating the default in the served HTML means the document says which direction
  * it is in rather than depending on a browser default - the same argument as declaring
- * color-scheme instead of letting a browser infer one. Asserted by rtlcheck.js, which reads
- * the exported index.html before any script has run.
+ * color-scheme instead of letting a browser infer one.
  */
 /**
  * DEPLOY-SKEW GUARD: one reload when the page's own build files fail to load.
@@ -145,7 +154,8 @@ fbq('track', 'PageView');
  * mid-audit and both Chromium and WebKit refused the old _buildManifest.js. This branch
  * deploys many times an hour, so the window keeps reopening.
  *
- * Reloading fetches fresh HTML (the site is no-store) that names the new files. That is the
+ * Reloading fetches fresh HTML (HTML revalidates on every request and each deploy clears the
+ * CDN cache, see customHttp.yml) that names the new files. That is the
  * fix rather than Amplify's skew protection, which pins a browser to the deployment it first
  * loaded - the stale-after-deploy behaviour PR #1467 removed the cache layer to get rid of.
  *
@@ -195,7 +205,10 @@ const deploySkewGuard = `
 })();
 `.trim();
 
-export default function Document () {
+export default function Document ( { __NEXT_DATA__ }: DocumentProps ) {
+  const tracked = !isUntrackedRoute( __NEXT_DATA__.page );
+  const gtmId = tracked ? GTM_ID : '';
+  const pixelId = tracked ? META.pixelId : '';
   return (
     <Html lang="en" dir="ltr">
       <Head>
@@ -227,7 +240,7 @@ export default function Document () {
         {/* Subset to the ligatures the site renders: 15.8 KB instead of the 3.1 MB full family.
             The list, and the type that keeps it complete, live in config/materialSymbols.ts. */}
         <link href={ MATERIAL_SYMBOLS_STYLESHEET } rel="stylesheet" />
-        { GTM_ID ? (
+        { gtmId ? (
           <>
             {/* Consent Mode v2 must run BEFORE the container loads. */ }
             <script dangerouslySetInnerHTML={ { __html: consentBootstrap } } />
@@ -239,7 +252,7 @@ export default function Document () {
           </>
         ) : null }
         {/* After the GTM block on purpose, so Consent Mode still runs first. */ }
-        { META.pixelId ? (
+        { pixelId ? (
           <>
             <link rel="preconnect" href="https://connect.facebook.net" />
             <script dangerouslySetInnerHTML={ { __html: pixelBootstrap } } />
@@ -247,7 +260,7 @@ export default function Document () {
         ) : null }
       </Head>
       <body>
-        { GTM_ID ? (
+        { gtmId ? (
           <noscript
             dangerouslySetInnerHTML={ {
               __html:
@@ -260,7 +273,7 @@ export default function Document () {
             } }
           />
         ) : null }
-        { META.pixelId ? (
+        { pixelId ? (
           <noscript
             dangerouslySetInnerHTML={ {
               __html:

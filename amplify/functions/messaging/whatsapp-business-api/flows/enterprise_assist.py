@@ -8,15 +8,18 @@ EnterpriseAssistTable was folded into the flow-response table; see
 import logging
 from typing import Dict
 from flows.common import (
-    get_phone_from_token, find_contact_by_phone,
+    require_session, find_contact_by_phone,
     get_contact_name, record_completion,
 )
 
 logger = logging.getLogger(__name__)
 FLOW_CODE = 'WD_ENT'
+#: Server-issued session capability; the customer comes from the session, not the token.
+CAPABILITY = 'enterprise_assist'
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
+    require_session(flow_token, CAPABILITY, allow_consumed=False)
     return {
         'screen': 'INTAKE_FORM',
         'data': {
@@ -30,7 +33,7 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 
 def handle_intake_form(data: Dict, flow_token: str, request_id: str) -> Dict:
-    phone = get_phone_from_token(flow_token)
+    phone = require_session(flow_token, CAPABILITY).phone
     contact_id = find_contact_by_phone(phone)
     # Derived from the completion key rather than random. A Meta retry of this data_exchange
     # recomputes the same id, and the conditional put inside record_completion refuses the

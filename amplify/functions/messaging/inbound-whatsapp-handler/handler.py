@@ -45,6 +45,7 @@ from lambda_utils import direct_send  # trusted Meta sender-phone-ID -> messagin
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
+from lambda_utils.identity import consent as consent_evidence  # marketing consent ledger
 from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response, pickup_request_response, referral_response
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
@@ -652,7 +653,8 @@ def _send_direct_api_typing(whatsapp_message_id: str, meta_phone_id: str = None)
 # reading that parameter. The surviving call sites pass keyword arguments.
 
 
-# TTL: 30 days in seconds
+# Stamped as `expiresAt` (30 days). DynamoDB TTL is disabled on the message tables
+# (scripts/disable_dynamodb_ttl.py), so nothing deletes these rows; retention is open.
 MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60
 
 # ── Payment flow messages (hardcoded, LLM-independent, edit here to change) ──
@@ -1148,34 +1150,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
                 # Process incoming messages
                 for _message_index, message in enumerate(_inbound_messages):
+                    # Timeout guard: skip remaining messages if <15s left. It sits outside the
+                    # per-message try, so its failure is never handled as one message's error.
+                    if context and context.get_remaining_time_in_millis() < 15000:
+                        logger.warning(json.dumps({
+                            'event': 'timeout_guard_triggered',
+                            'remainingMs': context.get_remaining_time_in_millis(),
+                            'processedCount': processed_count,
+                            'requestId': request_id
+                        }))
+                        # Park the unprocessed rest as the typed event dlq-replay hands back
+                        # to this worker. The old `{'messages': [...]}` record matched no
+                        # shape wa_internal_event.parse accepts, so a replay reproduced
+                        # nothing; and slicing by the request-wide processed_count dropped
+                        # messages once an earlier change had any. Statuses stay out: this
+                        # run still processes them below.
+                        _remaining_value = {k: v for k, v in value.items() if k != 'statuses'}
+                        _remaining_value['messages'] = _inbound_messages[_message_index:]
+                        parked = _send_to_dlq(
+                            wa_internal_event.build(
+                                entry={**webhook_entry,
+                                       'changes': [{**change, 'value': _remaining_value}]},
+                                waba_id=_item.get('waba_id') or '',
+                                meta_phone_number_ids=meta_phone_number_ids,
+                                request_id=request_id,
+                            ),
+                            'timeout_guard', request_id)
+                        if not parked:
+                            # Nothing durable holds these messages. The record-level handler
+                            # parks the work item or fails the invocation; never acknowledge.
+                            raise RuntimeError('timeout_guard_park_failed')
+                        break
                     try:
-                        # Timeout guard: skip remaining messages if <15s left
-                        if context and context.get_remaining_time_in_millis() < 15000:
-                            logger.warning(json.dumps({
-                                'event': 'timeout_guard_triggered',
-                                'remainingMs': context.get_remaining_time_in_millis(),
-                                'processedCount': processed_count,
-                                'requestId': request_id
-                            }))
-                            # Park the unprocessed rest as the typed event dlq-replay hands back
-                            # to this worker. The old `{'messages': [...]}` record matched no
-                            # shape wa_internal_event.parse accepts, so a replay reproduced
-                            # nothing; and slicing by the request-wide processed_count dropped
-                            # messages once an earlier change had any. Statuses stay out: this
-                            # run still processes them below.
-                            _remaining_value = {k: v for k, v in value.items() if k != 'statuses'}
-                            _remaining_value['messages'] = _inbound_messages[_message_index:]
-                            _send_to_dlq(
-                                wa_internal_event.build(
-                                    entry={**webhook_entry,
-                                           'changes': [{**change, 'value': _remaining_value}]},
-                                    waba_id=_item.get('waba_id') or '',
-                                    meta_phone_number_ids=meta_phone_number_ids,
-                                    request_id=request_id,
-                                ),
-                                'timeout_guard', request_id)
-                            break
-                        
                         message_dedup.process_tracked_message(
                             _process_message,
                             message=message,
@@ -1196,26 +1202,32 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                         error_count += 1
-                        if isinstance(e, contact_store.IdentityConflict):
-                            # Fail closed on ambiguous identity without losing the message.
-                            # A copy of THIS message (not the other messages/statuses in
-                            # the webhook batch) must reach durable retry/reconciliation.
+                        if not isinstance(e, ValueError):
+                            # ValueError is bad input and is acknowledged. Anything else (an
+                            # ambiguous identity, a store or provider error) parks a copy of
+                            # THIS message (not the other messages/statuses in the webhook
+                            # batch) for durable retry, so it is never acknowledged and lost.
                             conflict_value = {k: v for k, v in value.items() if k != 'statuses'}
                             conflict_value['messages'] = [message]
-                            parked = _send_to_dlq(
-                                wa_internal_event.build(
-                                    entry={**webhook_entry,
-                                           'changes': [{**change, 'value': conflict_value}]},
-                                    waba_id=_item.get('waba_id') or '',
-                                    meta_phone_number_ids=meta_phone_number_ids,
-                                    request_id=request_id,
-                                ), 'customer_identity_conflict', request_id)
+                            parked_event = wa_internal_event.build(
+                                entry={**webhook_entry,
+                                       'changes': [{**change, 'value': conflict_value}]},
+                                waba_id=_item.get('waba_id') or '',
+                                meta_phone_number_ids=meta_phone_number_ids,
+                                request_id=request_id,
+                            )
+                            if isinstance(e, contact_store.IdentityConflict):
+                                parked = _send_to_dlq(parked_event, 'customer_identity_conflict', request_id)
+                            else:
+                                parked = _send_to_dlq(parked_event, f'message_processing_error:{type(e).__name__}',
+                                                      request_id)
                             if not parked:
                                 raise  # force upstream retry rather than acknowledging a lost message
-                        if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
-                            # The record-level recovery path stores normalized work in
-                            # the DLQ. Do not acknowledge an idea storage failure alone.
-                            raise
+                            logger.error(json.dumps({
+                                'event': 'inbound_message_parked', 'alert': 'INBOUND_PARKED_IN_DLQ',
+                                'scope': 'message', 'messageId': message.get('id'),
+                                'errorType': type(e).__name__, 'requestId': request_id,
+                            }))
                 
                 # Process status updates
                 # Same coexistence guard, same reason: `_process_status` writes to both
@@ -1325,6 +1337,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'event': 'user_preferences_error',
                             'error': str(e),
                             'requestId': request_id
+                        }))
+                    # Marketing stop/resume is consent evidence for the ledger outbound
+                    # MARKETING sends read. A failed write is parked, never dropped.
+                    try:
+                        _record_marketing_preferences(value, metadata, meta_waba_ids, request_id)
+                    except Exception as e:
+                        parked = _send_to_dlq(
+                            wa_internal_event.build(
+                                entry={**webhook_entry, 'changes': [change]},
+                                waba_id=_item.get('waba_id') or '',
+                                meta_phone_number_ids=meta_phone_number_ids,
+                                request_id=request_id,
+                            ), f'user_preferences_consent:{type(e).__name__}', request_id)
+                        if not parked:
+                            raise
+                        logger.error(json.dumps({
+                            'event': 'user_preferences_consent_parked', 'alert': 'INBOUND_PARKED_IN_DLQ',
+                            'scope': 'user_preferences', 'errorType': type(e).__name__,
+                            'requestId': request_id,
                         }))
                 
                 # Process group webhook events (group_participant_change, group_membership_approval_request)
@@ -1460,7 +1491,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # accepts this shape, so a replay now actually reproduces the work -
             # which it could not do when the stored record was half of an SNS
             # envelope the worker no longer looked at.
-            _send_to_dlq(
+            parked = _send_to_dlq(
                 wa_internal_event.build(
                     entry=_item.get('entry') or {},
                     waba_id=_item.get('waba_id') or '',
@@ -1470,6 +1501,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 str(e), request_id,
             )
             error_count += 1
+            if not parked:
+                raise  # nothing durable holds this work item: fail the invoke so it is retried
+            logger.error(json.dumps({
+                'event': 'inbound_record_parked', 'alert': 'INBOUND_PARKED_IN_DLQ',
+                'scope': 'record', 'errorType': type(e).__name__, 'requestId': request_id,
+            }))
     
     logger.info(json.dumps({
         'event': 'inbound_processing_complete',
@@ -1805,7 +1842,8 @@ def _process_message(
                     'requestId': request_id
                 }))
     
-    # Log full message for unsupported or unrecognized types to help debug
+    # Log the shape of an unsupported or unrecognized type to help debug: type, key names
+    # and a masked sender only. The message itself carries text, names, numbers, places.
     if msg_type in ('unsupported', 'unknown') or msg_type not in (
         'text', 'image', 'video', 'audio', 'document', 'sticker',
         'location', 'contacts', 'reaction', 'interactive', 'button',
@@ -1813,13 +1851,14 @@ def _process_message(
         'referral', 'ad_click', 'product', 'product_inquiry', 'poll',
         'edit', 'revoke',
     ):
+        _typed = message.get(str(message.get('type') or ''))
         logger.warning(json.dumps({
             'event': 'unsupported_or_new_message_type',
             'senderPhone': mask_phone(sender_phone),
             'whatsappMessageId': whatsapp_message_id,
             'messageType': msg_type,
             'messageKeys': list(message.keys()),
-            'fullMessage': message,
+            'typeKeys': sorted(str(k) for k in _typed.keys())[:30] if isinstance(_typed, dict) else [],
             'requestId': request_id
         }))
     
@@ -2090,7 +2129,7 @@ def _process_message(
                 'requestId': request_id
             }))
     
-    # Generate message ID and calculate TTL
+    # Generate message ID and the `expiresAt` stamp (not enforced: TTL is disabled)
     message_id = str(uuid.uuid4())
     now = int(time.time())
     expires_at = now + MESSAGE_TTL_SECONDS
@@ -5684,6 +5723,7 @@ def _send_to_dlq(record: Dict, error: str, request_id: str) -> bool:
     except Exception as e:
         logger.error(json.dumps({
             'event': 'dlq_send_error',
+            'alert': 'INBOUND_DLQ_WRITE_FAILED',
             'error': str(e),
             'requestId': request_id
         }))
@@ -7982,6 +8022,88 @@ def _process_account_update(value: Dict, request_id: str) -> None:
             'action': 'Contact Meta support immediately',
             'requestId': request_id
         }))
+
+
+#: Meta `user_preferences` (category marketing_messages) value -> consent ledger state.
+_MARKETING_PREFERENCE_STATES = {
+    'stop': consent_evidence.OPTED_OUT,
+    'resume': consent_evidence.OPTED_IN,
+}
+
+
+def _append_consent_record(table, contact: Dict, record: Dict) -> None:
+    """Append one record to a contact's consent ledger without losing a concurrent append."""
+    contact_id = contact_key.resolve(contact)
+    for attempt in range(2):
+        stored = contact.get(consent_evidence.ATTRIBUTE)
+        ledger = consent_evidence.append(contact, record)
+        if ledger == consent_evidence.ledger_of(contact):
+            return  # a redelivery: this exact record is already the latest
+        values = {':ledger': ledger, ':now': int(time.time())}
+        if isinstance(stored, list):
+            condition = 'attribute_exists(id) AND size(#ledger) = :n'
+            values[':n'] = len(stored)
+        else:
+            condition = 'attribute_exists(id) AND attribute_not_exists(#ledger)'
+        try:
+            table.update_item(
+                Key=contact_key.key(contact_id),
+                UpdateExpression='SET #ledger = :ledger, updatedAt = :now',
+                ConditionExpression=condition,
+                ExpressionAttributeNames={'#ledger': consent_evidence.ATTRIBUTE},
+                ExpressionAttributeValues=values,
+            )
+            return
+        except ClientError as exc:
+            if attempt or exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                raise
+        contact = table.get_item(Key=contact_key.key(contact_id), ConsistentRead=True).get('Item')
+        if not contact:
+            return
+
+
+def _record_marketing_preferences(value: Dict, metadata: Dict, meta_waba_ids: list,
+                                  request_id: str) -> None:
+    """Write Meta's marketing stop/resume to the contact's consent ledger.
+
+    `stop` appends OPTED_OUT and `resume` OPTED_IN (source CUSTOMER_REQUEST, at = Meta's
+    timestamp), the records outbound MARKETING sends read. A preference for a number with no
+    contact is skipped: a MARKETING send to it is refused anyway. Store errors and an
+    ambiguous identity raise, so the caller parks the change for replay.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    for pref in value.get('user_preferences') or []:
+        if not isinstance(pref, dict) or pref.get('category') != 'marketing_messages':
+            continue
+        choice = str(pref.get('value') or '').strip().lower()
+        state = _MARKETING_PREFERENCE_STATES.get(choice)
+        if not state:
+            continue
+        phone = str(pref.get('wa_id') or '').strip()
+        bsuid = str(pref.get('user_id') or '').strip()
+        if phone:
+            contact = contact_store.lookup(table, phone)
+        elif bsuid:
+            contact = _find_scoped_bsuid(
+                table, bsuid, _message_account_id(metadata, meta_waba_ids, needs_bsuid=True))
+        else:
+            contact = None
+        if not contact:
+            logger.info(json.dumps({'event': 'marketing_preference_no_contact', 'value': choice,
+                                    'phone': mask_phone(phone), 'requestId': request_id}))
+            continue
+        try:
+            at = int(pref.get('timestamp') or 0)
+        except (TypeError, ValueError):
+            at = 0
+        record = consent_evidence.build_record(
+            channel='WHATSAPP', state=state, source='CUSTOMER_REQUEST',
+            at=at if at > 0 else int(time.time()), purpose=consent_evidence.MARKETING,
+            reference=f'meta:user_preferences:{choice}')
+        _append_consent_record(table, contact, record)
+        logger.info(json.dumps({'event': 'marketing_preference_recorded', 'state': state,
+                                'contactId': mask_contact_id(contact_key.resolve(contact)),
+                                'requestId': request_id}))
 
 
 def _store_system_event(event_type: str, event_data: Dict, request_id: str) -> None:

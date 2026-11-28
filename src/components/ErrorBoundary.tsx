@@ -8,6 +8,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
+  /** Rendered instead of the error card. `null` hides the failed part and keeps the page. */
   fallback?: ReactNode;
 }
 
@@ -41,10 +42,9 @@ class ErrorBoundary extends Component<Props, State> {
    *
    * This target used to be the staff dashboard route inside the authenticated workspace
    * tree, with the button below labelled "Dashboard". The old path is deliberately NOT
-   * spelled out here: `src/test/PublicWorkspaceLinks.test.ts` asserts this file contains no
-   * workspace path at all, on the grounds that a small component mounted on every public
-   * page has no legitimate use for the token - not in a target, and not in a comment that a
-   * later edit could copy back into one.
+   * spelled out here: a small component mounted on every public page has no legitimate use
+   * for the token - not in a target, and not in a comment that a later edit could copy back
+   * into one.
    *
    * It was wrong because of where this component is mounted: `src/pages/_app.tsx` renders
    * `<ErrorBoundary>` inside its `if ( isPublic )` branch, so a CUSTOMER who hits a render
@@ -61,7 +61,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback;
+      if (this.props.fallback !== undefined) return this.props.fallback;
 
       return (
         <div style={styles.container}>

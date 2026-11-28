@@ -26,6 +26,10 @@ ACCOUNT = "775261844268"
 FUNCTION = "wecare-whatsapp-analytics-export"
 BUCKET = "wecare-digital-get"
 PREFIX = "secure/d/public/whatsapp/analytics/operational"
+# OPS-1: the export moves to this edge-gated prefix (outside secure/d/public/). The
+# runtime role may write both until the exporter code has moved; drop PREFIX from the
+# grant only after that release.
+GATED_PREFIX = "secure/d/analytics/whatsapp/operational"
 DATABASE = "wecare_analytics"
 RULE = "wecare-whatsapp-operational-analytics"
 SNS = "arn:aws:sns:us-east-1:775261844268:wecare-alarm-notifications"
@@ -88,7 +92,8 @@ def runtime_policy() -> dict:
         {"Sid":"ReadOperationalSources","Effect":"Allow","Action":["dynamodb:Scan"],
          "Resource":[f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{x}" for x in SOURCE_TABLES]},
         {"Sid":"WriteAnalyticsOnly","Effect":"Allow","Action":["s3:PutObject"],
-         "Resource":[f"arn:aws:s3:::{BUCKET}/{PREFIX}/*"]},
+         "Resource":[f"arn:aws:s3:::{BUCKET}/{PREFIX}/*",
+                     f"arn:aws:s3:::{BUCKET}/{GATED_PREFIX}/*"]},
         {"Sid":"WriteLogs","Effect":"Allow","Action":["logs:CreateLogStream","logs:PutLogEvents"],
          "Resource":[f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{FUNCTION}:*"]},
         {"Sid":"WriteXRay","Effect":"Allow",
@@ -134,7 +139,8 @@ def smoke_policy() -> dict:
 
 
 def table_input(name: str, dataset: str, columns: list[tuple[str,str]]) -> dict:
-    location=f"s3://{BUCKET}/{PREFIX}/{dataset}/"
+    # The exporter writes the gated prefix (OPS-1); run this after deploying it.
+    location=f"s3://{BUCKET}/{GATED_PREFIX}/{dataset}/"
     return {
         "Name":name,
         "Description":"Privacy-bounded WhatsApp operational analytics; excludes customer PII/content.",
@@ -188,7 +194,10 @@ def apply() -> dict:
     log_group=f"/aws/lambda/{FUNCTION}"
     try: logs.create_log_group(logGroupName=log_group)
     except logs.exceptions.ResourceAlreadyExistsException: pass
-    logs.put_retention_policy(logGroupName=log_group,retentionInDays=90)
+    # 7 days = the infra/cloudwatch-retention-enforcer.yml tier for "whatsapp" groups,
+    # set live on 2026-11-28 (audit AWS-7). The runtime role has no CreateLogGroup,
+    # so this group must exist before the exporter can log at all.
+    logs.put_retention_policy(logGroupName=log_group,retentionInDays=7)
 
     try: glue.get_database(Name=DATABASE)
     except glue.exceptions.EntityNotFoundException: glue.create_database(DatabaseInput={"Name":DATABASE})
@@ -204,10 +213,14 @@ def apply() -> dict:
     except ClientError as e:
         if e.response.get("Error",{}).get("Code")!="NoSuchLifecycleConfiguration": raise
         rules=[]
-    rules=[r for r in rules if r.get("ID")!="wecare-whatsapp-operational-analytics-retention"]
-    rules.append({"ID":"wecare-whatsapp-operational-analytics-retention","Status":"Enabled",
-                  "Filter":{"Prefix":PREFIX+"/"},"Expiration":{"Days":400},
-                  "NoncurrentVersionExpiration":{"NoncurrentDays":30}})
+    retention_ids={"wecare-whatsapp-operational-analytics-retention",
+                   "wecare-whatsapp-operational-analytics-gated-retention"}
+    rules=[r for r in rules if r.get("ID") not in retention_ids]
+    for rule_id,prefix in (("wecare-whatsapp-operational-analytics-retention",PREFIX),
+                           ("wecare-whatsapp-operational-analytics-gated-retention",GATED_PREFIX)):
+        rules.append({"ID":rule_id,"Status":"Enabled",
+                      "Filter":{"Prefix":prefix+"/"},"Expiration":{"Days":400},
+                      "NoncurrentVersionExpiration":{"NoncurrentDays":30}})
     s3.put_bucket_lifecycle_configuration(Bucket=BUCKET,LifecycleConfiguration={"Rules":rules})
 
     for alarm,namespace,metric,dims in [

@@ -562,9 +562,10 @@ def _mint_confirmation(selectable_ids: List[str], counts: Dict[str, int],
         ttl_seconds=CONFIRM_TOKEN_TTL_SECONDS)
 
 
-def _consume_confirmation(token: str, selection: List[str]) -> Dict[str, Any]:
+def _consume_confirmation(token: str, selection: List[str],
+                          actor: Optional[str] = None) -> Dict[str, Any]:
     """Verify and consume the token. `{'ok': True, ...}` or `{'error': ..., 'status': ...}`."""
-    return destructive_confirm.consume(CONFIRM_SCOPE, token, selection)
+    return destructive_confirm.consume(CONFIRM_SCOPE, token, selection, actor=actor)
 
 
 
@@ -795,7 +796,7 @@ def _cleanup(event: Dict[str, Any]) -> Dict[str, Any]:
             'error': 'confirmationToken required — call GET /system-cleanup first',
         })}
 
-    consumed = _consume_confirmation(token, selected)
+    consumed = _consume_confirmation(token, selected, actor=_actor(event))
     if not consumed.get('ok'):
         return {'statusCode': consumed.get('status', 409), 'headers': cors_headers(origin),
                 'body': json.dumps({'error': consumed.get('error', 'Confirmation failed')})}
@@ -831,6 +832,7 @@ def _cleanup(event: Dict[str, Any]) -> Dict[str, Any]:
                 'requested': sorted(selected),
                 'protected': sorted(k for k in selected if (all_resources.get(k) or {}).get('protected')),
                 'previewCounts': consumed.get('counts', {}),
+                'previewActor': consumed.get('actor', ''),
             },
         )
         if not log_id:
