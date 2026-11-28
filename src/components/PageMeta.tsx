@@ -31,6 +31,7 @@
 
 import Head from 'next/head';
 import { buildPageTitle } from '../lib/page-title';
+import { ld } from '../lib/schema';
 
 const SITE = 'https://wecare.digital';
 
@@ -104,7 +105,7 @@ export default function PageMeta( { title, description, path, jsonLd, image }: P
           // eslint-disable-next-line react/no-danger
           key={ node['@type'] === 'BreadcrumbList' ? 'public-breadcrumbs' : `ld-${i}` }
           type="application/ld+json"
-          dangerouslySetInnerHTML={ { __html: JSON.stringify( node ) } }
+          dangerouslySetInnerHTML={ ld( node ) }
         />
       ) ) }
     </Head>

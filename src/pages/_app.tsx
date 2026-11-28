@@ -1004,10 +1004,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
               below instead. There is no BreadcrumbList: public pages render no visible
               trail (components/Breadcrumbs.tsx returns null), and a trail in the markup
               that the reader cannot see is exactly what the steering file forbids. */}
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( organizationSchema ) } />
           {/* No SoftwareApplication here any more - see the note where softwareSchema was
               declared. /relay-os/ declares its own, which is the one page it describes. */}
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( websiteSchema ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( websiteSchema ) } />
           {/* serviceSchema IS SCOPED TO /grahak-os, as the deleted sitewide
               SoftwareApplication should have been. It declares serviceType "WhatsApp Business
               API Platform" and a hasOfferCatalog of WhatsApp / Bulk SMS / Email Marketing
@@ -1021,9 +1021,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
               On /relay-os the entity is accurate, so the value needs no rewording - only
               the scope was wrong. */}
           { router.pathname === '/relay-os' && (
-            <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
+            <script type="application/ld+json" dangerouslySetInnerHTML={ ld( serviceSchema ) } />
           ) }
-          <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />
+          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( getPublicPageSchema( router.pathname ) ) } />
         </Head>
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
@@ -1140,7 +1140,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <link rel="manifest" href="/manifest-workspace.json" />
         {/* No BreadcrumbList here any more: it was derived from the pathname rather than from
             the trail on screen, on pages that are noindex and robots-Disallowed anyway. */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
+        <script type="application/ld+json" dangerouslySetInnerHTML={ ld( organizationSchema ) } />
       </Head>
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
             _document.tsx states that all Google tracking on this property is delivered

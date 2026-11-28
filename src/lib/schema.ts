@@ -279,6 +279,15 @@ export const WEBSITE = {
  */
 export const SITE_ENTITIES: readonly unknown[] = [ ORGANIZATION, WEBSITE ];
 
-/** Serialise for `dangerouslySetInnerHTML`. Centralised so every call site is identical. */
+/**
+ * Serialise for `dangerouslySetInnerHTML`. Centralised so every call site is identical.
+ *
+ * `<` is escaped so a value containing `</script>` or `<!--` (CMS text, a product name) cannot
+ * end the script element early, and U+2028/U+2029 so the output is also valid JavaScript. The
+ * escapes are JSON-equivalent: a JSON-LD parser reads the same values.
+ */
 export const ld = ( value: unknown ): { __html: string } =>
-  ( { __html: JSON.stringify( value ) } );
+  ( { __html: ( JSON.stringify( value ) ?? 'null' )
+    .replace( /</g, '\\u003c' )
+    .replace( /\u2028/g, '\\u2028' )
+    .replace( /\u2029/g, '\\u2029' ) } );
