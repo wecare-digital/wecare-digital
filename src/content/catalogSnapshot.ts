@@ -158,7 +158,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   {
     id:'abe4870e-fae3-59cc-b1a7-9bd28eff048a', name:'Niji Setu', slug:'niji-setu',
     formattedPrice:'₹299.00', price:'299.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/niji-setu/',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/shop/',
     descriptionHtml:'<p>Niji Setu from WECARE.DIGITAL.</p>',
     variants:[{ id:'NJS5K8Q3', label:'Standard', inStock:true }],
   },

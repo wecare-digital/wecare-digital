@@ -33,7 +33,6 @@ const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/aastha/panchang': [ HOME, SHOP, here( 'Panchang' ) ],
   '/aastha/vidhi': [ HOME, SHOP, here( 'Vidhi' ) ],
   '/aastha/samagri': [ HOME, SHOP, here( 'Samagri' ) ],
-  '/shipments/track': [ HOME, SHOP, here( 'Track' ) ],
 };
 
 /**

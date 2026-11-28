@@ -46,7 +46,7 @@ CUSTOMER_TAG = "Customer"
 #: so the row never stores a second copy of the customer's identity.
 CLAIM_EVIDENCE_INBOUND = "WHATSAPP_INBOUND"
 
-#: The staff-visible marker on a refused link. `/workspace/contacts` renders arbitrary tags as
+#: The staff-visible marker on a refused link. `/workspace/customers` renders arbitrary tags as
 #: chips and already searches them, so this literal is both the badge and the filter.
 CONFLICT_TAG = "Identity Conflict"
 
@@ -373,7 +373,7 @@ def _refuse_claim(rows: Any, phone: str, reason: str, identity_session: Any) -> 
     the `Identity Conflict` tag on every live row on that number.
 
     The tag is the whole of the staff surface and needs no frontend change:
-    `/workspace/contacts` renders arbitrary tags as chips and already searches them, so the badge
+    `/workspace/customers` renders arbitrary tags as chips and already searches them, so the badge
     and the filter come for free. Ambiguity marks every row involved, because with two records on
     one number either could be the one that is wrong.
 

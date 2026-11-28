@@ -197,7 +197,7 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     clearLog();
     addLog('⚡ PageSpeed Insights (mobile)');
     addLog('');
-    const pages = ['/', '/elsewhere', '/contact', '/blog'];
+    const pages = ['/', '/elsewhere/trip/', '/contact/', '/blog/'];
     for (const pg of pages) {
       const url = SITE_BASE + pg;
       addLog(`Testing ${pg}...`);
