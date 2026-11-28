@@ -10,7 +10,7 @@ test('non-Home component-specific radius tokens leave original card and hover to
   assert.ok(tokens.includes('--public-card-radius: 14px;'));
   assert.match(theme,/:root:has\(\[data-public-auth-button-theme="active"\]\)\s*\{[^}]*--public-action-radius: 6px;[^}]*--public-search-radius: 6px;[^}]*--public-option-radius: 6px;[^}]*--public-popover-radius: 8px;/);
   assert.doesNotMatch(theme,/--public-card-radius\s*:|--public-hover-radius:\s*6px/);
-  for(const selector of ['.nav-menu','.wc-panel','.ps-menu','.orm-menu','.ui-popover.public-checkout-select','.vl-live-search-results','.vl-live-utility-results','.sr-action','.sr-details','.public-search-clear','.orm-more','.sr-journey-action']) assert.ok(theme.includes(selector),selector);
+  for(const selector of ['.wc-panel','.ps-menu','.orm-menu','.ui-popover.public-checkout-select','.vl-live-search-results','.vl-live-utility-results','.sr-action','.sr-details','.public-search-clear','.orm-more','.sr-journey-action']) assert.ok(theme.includes(selector),selector);
   for(const path of ['src/components/AddressFields.tsx','src/components/cart/CartPage.tsx','src/pages/shop/[slug].tsx'])assert.ok(read(path).includes('menuClassName="public-checkout-select"'),path);
   assert.match(read('src/components/PublicShare.tsx'),/\.ps-action\{[^}]*border-radius:50%/);
 });

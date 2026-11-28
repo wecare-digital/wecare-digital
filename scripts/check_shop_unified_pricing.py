@@ -46,7 +46,7 @@ APPROVED_PAIRS = [
     ("Partner · Merchandise", 199900, 35982, 1179, 4500, 5980, 1076, 246259),
     ("Partner · Kiosk", 2699900, 485982, 5000, 4500, 79635, 14334, 3279351),
     ("Contribute", 23541, 4237, 138, 1500, 729, 131, 30000),
-    ("Request · Submit Request", 9900, 1782, 58, 4500, 403, 73, 16600),
+    ("Request · Submit Request", 4900, 882, 28, 1500, 181, 33, 7468),
     ("Request · Amendment", 19900, 3582, 117, 4500, 697, 125, 28687),
     ("Request · Drop Docs", 19900, 3582, 117, 4500, 697, 125, 28687),
     ("Request · Vault", 4900, 882, 28, 2500, 206, 37, 8497),
@@ -163,14 +163,25 @@ class UnifiedShopPricingTests(unittest.TestCase):
     def test_five_request_services_and_shipment_preview_use_same_formula(self):
         for kind in service_requests.SERVICE_KIND_BY_SLUG.values():
             with self.subTest(service=kind):
-                expected = (express_policy.VAULT_EXPRESS_PAISE
-                            if kind == service_requests.VAULT
+                expected = (express_policy.VAULT_EXPRESS_PAISE if kind == service_requests.VAULT
+                            else express_policy.SUBMIT_REQUEST_EXPRESS_PAISE if kind == service_requests.SUBMIT_REQUEST
                             else express_policy.STANDARD_EXPRESS_PAISE)
                 self.assertEqual(
                     service_pricing_native._collect_breakdown(kind, 9_900),
                     unified_pricing.price_components(9_900, express_paise=expected),
                 )
         self.assertIsNone(service_pricing_native._collect_breakdown("bad-kind", 9_900))
+
+    def test_f004_registered_sku_and_price(self):
+        item = {"productId": express_policy.SUBMIT_REQUEST_PRODUCT_ID,
+                "variantId": express_policy.SUBMIT_REQUEST_VARIANT_ID,
+                "quantity": 1, "unitPricePaise": 4900, "expressPaise": 1500}
+        self.assertEqual(unified_pricing.quote_from_base_snapshot(
+            self.base_snapshot([item])).quote.total_payable_paise, 7468)
+        for invalid in (dict(item, expressPaise=4500), dict(item, quantity=2),
+                        dict(item, productId="other-product")):
+            with self.assertRaises(checkout_pricing.PricingError):
+                unified_pricing.quote_from_base_snapshot(self.base_snapshot([invalid]))
 
     def test_contribute_gross_contract_unchanged(self):
         terms = contribute_taxable.breakdown(30_000)
@@ -225,7 +236,7 @@ class UnifiedShopPricingTests(unittest.TestCase):
         self.assertEqual(len({x["variantId"] for x in records}), 29)
         self.assertNotIn("native:commerce-test-2", {x["productId"] for x in records})
         self.assertEqual(Counter(x["expressPaise"] for x in records),
-                         Counter({1500: 1, 2500: 1, 4500: 27}))
+                         Counter({1500: 2, 2500: 1, 4500: 26}))
         vault = next(x for x in records if x["slug"] == "vault")
         self.assertEqual((vault["productId"], vault["variantId"], vault["basePricePaise"]),
                          (express_policy.VAULT_PRODUCT_ID, express_policy.VAULT_VARIANT_ID, 4900))
@@ -243,8 +254,8 @@ class UnifiedShopPricingTests(unittest.TestCase):
         from lambda_utils.ecommerce import blog_contribution
         lookup = {}
         for kind,sku in service_requests.SERVICE_VARIANT_BY_KIND.items():
-            lookup[sku] = {"priceMinor": 4900 if kind == service_requests.VAULT else 9900,
-                           "expressPaise": (2500 if kind == service_requests.VAULT else 4500),
+            lookup[sku] = {"priceMinor": 4900 if kind in (service_requests.VAULT, service_requests.SUBMIT_REQUEST) else 9900,
+                           "expressPaise": (2500 if kind == service_requests.VAULT else 1500 if kind == service_requests.SUBMIT_REQUEST else 4500),
                            "currency": "INR", "status": "active"}
         lookup[service_pricing_native.SHIPMENT_TRACK_SKU] = {
             "priceMinor": 4900, "expressPaise": 4500, "currency": "INR",
@@ -274,7 +285,8 @@ class UnifiedShopPricingTests(unittest.TestCase):
         }
         self.assertEqual(fees["Request · Vault"], 2500)
         self.assertEqual(fees["Contribute"], 1500)
-        self.assertEqual(sum(v == 4500 for v in fees.values()), 27)
+        self.assertEqual(fees["Request · Submit Request"], 1500)
+        self.assertEqual(sum(v == 4500 for v in fees.values()), 26)
         self.assertEqual(
             next(r for r in rows if r["name"] == "Request · Vault")["totalPayablePaise"],
             8497)

@@ -164,7 +164,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'f829697a-b1db-5c4e-bfce-51d1487278a7', name:'Request · Submit Request', slug:'submit-request',
-    formattedPrice:'₹99.00', price:'99.00', currency:'INR',
+    formattedPrice:'₹49.00', price:'49.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:false, metaEnabled:false, canonicalPath:'/orders/',
     descriptionHtml:'<p>Request · Submit Request from WECARE.DIGITAL.</p>',
     variants:[{ id:'RSR7M2P9', label:'Standard', inStock:true }],

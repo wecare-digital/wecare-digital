@@ -891,11 +891,11 @@ const Header: React.FC = () => {
                                       >
                                         <svg
                                           className="nav-products-more-icon"
-                                          viewBox="188.18 -759.32 583.64 583.64"
+                                          viewBox={ ROW_CHEVRON_VIEW_BOX }
                                           aria-hidden="true"
                                           focusable="false"
                                         >
-                                          <path d="M480-200 240-440l42-42 198 198 198-198 42 42-240 240Zm0-253L240-693l42-42 198 198 198-198 42 42-240 240Z" />
+                                          <path d={ ROW_CHEVRON_PATH } />
                                         </svg>
                                       </button>
                                     </div>
@@ -1210,17 +1210,16 @@ const Header: React.FC = () => {
              either half - src/test/ScrollbarDeclarations.test.ts pins the file set. */
           scrollbar-width:thin;
         }
-        /* GOOGLE DOUBLE-DOWN CUE. The exact path comes from the Google Material icon supplied
-           for this change. It lives in a dedicated row BELOW the scrolling list instead of
-           floating over it, so product names can never sit underneath the affordance.
-           The button keeps a 44px interaction target while the visible icon stays only 24px.
-           There is no pill, circle, label or shadow: just the double chevron. */
+        /* The Products continuation cue uses exactly the same double chevron artwork
+           as expandable navigation rows, rotated down. Its original circular lime
+           surface and separate row stay intact, including the 44px mobile target.
+           Keep the vertical direction in RTL as well; this scrolls down, not sideways. */
         .nav-products-cue-row{height:46px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 46px;margin-top:6px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
         .nav-products-more{display:flex;align-items:center;justify-content:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
         .nav-products-more:hover{background:var(--public-button-hover);transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{fill:var(--public-nav-arrow)}
+        .nav-products-more-icon{fill:var(--public-nav-arrow);stroke:none;transform:rotate(90deg)}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:var(--public-brand-green);text-decoration:none;border-radius:8px}
