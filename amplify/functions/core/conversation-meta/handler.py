@@ -44,6 +44,17 @@ def _actor(event):
     return str(auth.get('username') or auth.get('email') or 'system')
 
 
+def _stamp(item, actor):
+    """Set updatedAt/updatedBy, and createdBy when this write creates the row.
+
+    Every row this handler writes has updatedAt; the unsaved default from `_get` does not.
+    """
+    if 'updatedAt' not in item:
+        item['createdBy'] = actor
+    item['updatedAt'] = int(time.time())
+    item['updatedBy'] = actor
+
+
 def handler(event, context):
     origin = extract_origin(event)
     rc = event.get('requestContext', {})
@@ -82,8 +93,7 @@ def handler(event, context):
             # The author is the session actor; a `by` field in the body is ignored.
             notes.append({'text': text, 'by': actor[:80], 'at': int(time.time())})
             item['notes'] = notes[-100:]
-            item['updatedAt'] = int(time.time())
-            item['updatedBy'] = actor
+            _stamp(item, actor)
             _table().put_item(Item=item)
             record_audit(action='conversation_meta.note', actor=actor,
                          resource_type='conversation', resource_id=cid,
@@ -103,8 +113,7 @@ def handler(event, context):
             if 'tags' in body and isinstance(body['tags'], list):
                 item['tags'] = [str(t)[:40] for t in body['tags']][:20]
             actor = _actor(event)
-            item['updatedAt'] = int(time.time())
-            item['updatedBy'] = actor
+            _stamp(item, actor)
             _table().put_item(Item=item)
             changes = {f: {'from': before[f], 'to': item.get(f)} for f in before
                        if before[f] != item.get(f)}

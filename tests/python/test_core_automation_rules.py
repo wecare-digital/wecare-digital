@@ -50,13 +50,13 @@ class FakeTable:
 def staff(monkeypatch):
     """Fake require_auth: records the role asked for and refuses a lower role."""
     import lambda_utils.middleware as middleware
-    state = {"role": "Operator", "asked": [], "audits": []}
+    state = {"role": "Operator", "username": "staff-user-1", "asked": [], "audits": []}
 
     def require_auth(event, required_role=None):
         state["asked"].append(required_role)
         if required_role and RANK[state["role"]] < RANK[required_role]:
             return {"statusCode": 403, "body": json.dumps({"error": "Insufficient permissions"})}
-        event["_auth"] = {"username": "staff-user-1", "email": "staff@example.test",
+        event["_auth"] = {"username": state["username"], "email": "staff@example.test",
                           "role": state["role"]}
         return None
 
@@ -205,6 +205,20 @@ def test_note_author_comes_from_the_session(staff, meta):
     audit = staff["audits"][-1]
     assert audit["action"] == "conversation_meta.note" and audit["actor"] == "staff-user-1"
     assert audit["resource_id"] == "c1" and "Called back" not in json.dumps(audit["details"])
+
+
+def test_meta_created_by_is_set_once_from_the_session(staff, meta):
+    meta.rows["old"] = {"conversationId": "old", "status": "open", "assignee": "", "tags": [],
+                        "notes": [], "updatedAt": 1}
+    for cid in ("new", "old"):
+        call(META, "PUT", {"status": "pending", "createdBy": "forged"},
+             path="/inbox/meta/" + cid, params={"conversationId": cid})
+    assert meta.rows["new"]["createdBy"] == "staff-user-1"
+    assert "createdBy" not in meta.rows["old"]
+    staff["username"] = "staff-user-2"
+    call(META, "PUT", {"status": "open"}, path="/inbox/meta/new", params={"conversationId": "new"})
+    assert meta.rows["new"]["createdBy"] == "staff-user-1"
+    assert meta.rows["new"]["updatedBy"] == "staff-user-2"
 
 
 def test_meta_update_stamps_actor_and_audits_changes(staff, meta):
