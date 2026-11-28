@@ -494,7 +494,7 @@ response = requests.post(
               <div className="api-demo">
                 <div className="code-tabs">
                   {codeExamples.map((c, i) => (
-                    <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
+                    <button key={i} type="button" aria-pressed={activeCode === i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
                   ))}
                 </div>
                 <pre className="code-block" dir="ltr" role="region" tabIndex={ 0 } aria-label={ `${codeExamples[activeCode].lang} code example` }>{codeExamples[activeCode].code}</pre>
@@ -1066,11 +1066,14 @@ response = requests.post(
              with centred content, so the box grows without moving the label, and the
              mobile breakpoints below (which raise padding to 14px and 12px) were already
              past 44px and are left untouched. */
-          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:var(--tap-min);border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
-          /* Text-only hover: idle .54 white lifting to full white. The active tab
-             already owns the filled-lime state, so a second fill competes with it. */
+          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:var(--tap-min);border:none;border-radius:var(--public-hover-radius);font-size:17px;font-weight:600;color:#b8b8b8;background:transparent;box-shadow:none;cursor:pointer;transition:color .2s,background-color .2s}
+          /* Opaque neutral text stays legible on the black editor. Unlike light
+             public actions, these tabs own their dark-surface color states. */
           .pp-tab:hover{color:#fff;background:transparent}
           .pp-tab.active{background:var(--public-brand-lime);color:var(--public-brand-green);box-shadow:none}
+          .pp-tab:focus-visible{outline:3px solid var(--public-brand-lime);outline-offset:2px}
+          @media(prefers-reduced-motion:reduce){.pp-tab{transition:none}}
+          @media(forced-colors:active){.pp-tab{border:1px solid ButtonText}.pp-tab.active{background:Highlight;color:HighlightText}.pp-tab:focus-visible{outline-color:Highlight}}
           /* The editor-pane stroke, carried over from the hero's .code-body, where the
              comment calls it the detail that stops a dark panel reading as a flat
              rectangle. It was the last thing separating these two panels visually:

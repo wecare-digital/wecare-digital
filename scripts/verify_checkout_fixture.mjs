@@ -128,8 +128,10 @@ async function runScenario(browser,width,mode) {
       return route.abort();
     });
     const page=await context.newPage();page.setDefaultTimeout(20000);
-    page.on('crash',()=>console.error(JSON.stringify({engine,width,mode,diagnostic:'page-crash',events:[...events]})));
+    let phase='initial navigation';
+    page.on('crash',()=>console.error(JSON.stringify({engine,width,mode,diagnostic:'page-crash',phase,events:[...events]})));
     async function captureSnapshot(label){
+      phase='snapshot geometry: '+label;
       const geom=await page.evaluate(()=>{
         const width=document.documentElement.clientWidth,scroll=document.documentElement.scrollWidth;
         // Record geometry only, not page content or customer data. Include shared chrome.
@@ -140,6 +142,7 @@ async function runScenario(browser,width,mode) {
         }).sort((a,b)=>Math.max(b.right-width,-b.left)-Math.max(a.right-width,-a.left)).slice(0,25):[];
         return {width,scroll,overflowTargets};
       });
+      phase='accessibility scan: '+label;
       const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
@@ -161,10 +164,13 @@ async function runScenario(browser,width,mode) {
     await captureSnapshot('auth');
     await page.evaluate(()=>sessionStorage.setItem('qa-sign-in','yes'));
     await page.locator('#auth-code').fill('000000');
+    phase='auth verification and checkout navigation';
     await page.getByRole('button',{name:'Verify',exact:true}).click();
     await page.waitForURL('**/checkout/');
     if(mode==='profile'){
+      phase='wait for required checkout profile';
       await page.getByRole('region',{name:'Checkout details'}).waitFor({state:'visible'});
+      phase='enter synthetic profile name';
       await page.getByLabel('Full name',{exact:true}).fill('Synthetic Customer');
       await captureSnapshot('name-only-profile');
       await page.getByRole('button',{name:'Save & continue',exact:true}).click();
@@ -211,6 +217,24 @@ async function runScenario(browser,width,mode) {
     const submitRequest = menu.getByRole('link',{name:/Submit Request/});
     assert.ok(await submitRequest.isVisible());
     assert.equal(await submitRequest.evaluate(el=>getComputedStyle(el).borderRadius),'6px','Submit Request row radius');
+    // Check actual hit areas in the portalled panel, including the 280px fold.
+    // The microphone is conditional on browser speech-recognition support.
+    const controls = await menu.evaluate(panel => {
+      const input=panel.querySelector('input[type="search"]');
+      const buttons=[...panel.querySelectorAll('button.public-search-clear,button.voice-search-mic')].filter(b=>!b.disabled&&b.getClientRects().length);
+      const elements=[input,...buttons].filter(Boolean);
+      const panelRect=panel.getBoundingClientRect();
+      const rects=elements.map(el=>({el,r:el.getBoundingClientRect()}));
+      return buttons.map(el=>{
+        const {r}=rects.find(v=>v.el===el);
+        const target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        const overlap=rects.some(other=>other.el!==el&&r.left<other.r.right-.5&&r.right>other.r.left+.5&&r.top<other.r.bottom-.5&&r.bottom>other.r.top+.5);
+        return {label:el.getAttribute('aria-label'),width:r.width,height:r.height,inside:r.left>=panelRect.left-.5&&r.right<=panelRect.right+.5&&r.top>=panelRect.top-.5&&r.bottom<=panelRect.bottom+.5,hit:el.contains(target),overlap};
+      });
+    });
+    for(const control of controls){
+      assert.ok(control.width>=44&&control.height>=44&&control.inside&&control.hit&&!control.overlap,JSON.stringify(control));
+    }
     await captureSnapshot('mock-orders-request-menu');
     await searchActions.press('Escape');
     await searchActions.press('Escape');

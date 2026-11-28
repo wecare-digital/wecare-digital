@@ -410,6 +410,15 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           .orm-title{font-size:16px}
           .orm-item,.orm-family-title{min-block-size:var(--public-nav-row-mobile)}
         }
+        /* The 280px acceptance fixture caught a clipped voice-search target.
+           Reserve a separate row for both compact controls rather than squeeze
+           them beside the editable input. This also fits the 160px stress case. */
+        @media(max-width:359px){
+          .orm-search-field{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+          .orm-search-field > .orm-search{flex:0 0 100%;inline-size:100%;min-inline-size:0}
+          .orm-search-field > :global(button.public-search-clear),
+          .orm-search-field > :global(button.voice-search-mic){position:static;inset:auto;transform:none;flex:0 0 46px;inline-size:46px;min-inline-size:46px;block-size:46px;min-block-size:46px}
+        }
         @media(max-width:279px){
           .orm-item,.orm-family-title{gap:6px;padding-inline:6px}
           .orm-child{padding-inline-start:14px}
