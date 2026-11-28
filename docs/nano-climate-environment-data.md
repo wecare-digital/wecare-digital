@@ -115,15 +115,21 @@ circumvent the 1 GiB cap.
    C_GEO, C_TIME, C_TEMP, C_RAIN, C_HUM. The dry run fails before billing on a mismatch.
 3. server.mjs reads only that table for 1y and 5y with a 128 MiB ceiling (or a stricter configured cap). It serves a
    summary only when WEATHER_INSIGHTS_AGGREGATE_ENABLED=true and the table reaches
-   back to the range start with about one window per 16 days (aggregateComplete in
-   aggregate.mjs). Otherwise it returns query_cost_cap_exceeded (422, missing table
+   back to the range start with every half-month window present, no tolerance except
+   the newest 16 days (expectedWindows and aggregateComplete in aggregate.mjs).
+   Empty windows count through sentinel rows. Responses carry coverageStart and
+   coverageEnd (also coverage_start, coverage_end) from the observed rows and
+   coveragePartial=true when observed data begins more than 31 days after the range
+   start, which the widget shows in its existing coverage line. Otherwise it returns query_cost_cap_exceeded (422, missing table
    or disabled) or historical_aggregate_incomplete (503), never a raw scan or a
    partial summary labelled 1y/5y.
 4. Differences to confirm before enabling the flag: the aggregate uses the nearest
    single grid point within 10 km, while the raw 30d path takes the nearest row per
-   hour. After loading, compare the 30d summary with the aggregate for New Delhi
-   (sample hours, mean temperature, precipitation) and set the flag only if they
-   agree.
+   hour. --verify enforces this: it exits non-zero if any required window is missing
+   or if the newest non-empty window's totals (grid points, hours, temperature sum,
+   precipitation sum) differ from a fresh capped raw scan. Set the flag only after
+   --verify passes. The SQL and script were checked here only by SQL parsing (sqlglot,
+   BigQuery dialect) and a mocked bq run; they have not run against real BigQuery.
 
 Cloud Shell, in this order:
 

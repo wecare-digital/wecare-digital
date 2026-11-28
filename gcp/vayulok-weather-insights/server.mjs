@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { cleanSummary, decodeRows, parseNumber } from './weather-data.mjs';
-import { aggregateComplete, aggregateSql } from './aggregate.mjs';
+import { aggregateComplete, aggregateSql, coveragePartial } from './aggregate.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
@@ -499,7 +499,16 @@ async function handleInsights(req, res, url) {
         error.code = 'no_historical_weather_for_location';
         throw error;
       }
-      const body = { ok: true, ...summary, generatedAt: new Date().toISOString() };
+      const body = {
+        ok: true,
+        ...summary,
+        coverage_start: summary.coverageStart,
+        coverage_end: summary.coverageEnd,
+        // Observed data starting well after the requested range start (for example a raw
+        // table shorter than five years) is reported, never presented as a full range.
+        coveragePartial: range === '30d' ? false : coveragePartial(summary.coverageStart, startDate(range)),
+        generatedAt: new Date().toISOString(),
+      };
       cache.set(cacheKey, { ts: Date.now(), body });
       // Cloud Run's in-memory cache is optional and bounded, not durable.
       if (cache.size > 256) cache.delete(cache.keys().next().value);

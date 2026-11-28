@@ -121,3 +121,47 @@ def test_spartan_latest_unflagged_filter_observation():
 def test_invalid_building_flag_does_not_call_upstream():
     with pytest.raises(ValueError):
         h._location_context(28.6, 77.2, "IN", {"buildingCandidate": "true"})
+
+
+def _spartan_csv(code, value, parameter="28101"):
+    return (
+        "Site_Code,Start_Year_local,Start_Month_local,Start_Day_local,End_Year_local,End_Month_local,End_Day_local,Hours_sampled,Parameter_Code,Value,Units,Flag\n"
+        f"{code},2024,3,5,2024,3,6,12,{parameter},{value},Micrograms per cubic meter (ug/m3),\n"
+    )
+
+
+@pytest.mark.parametrize("lat,lng,site,value", [
+    (28.6139, 77.2090, "Delhi", 41.5),
+    (26.9124, 75.7873, "Jaipur", 22.2),
+    (26.4499, 80.3319, "Kanpur", 63.3),
+])
+def test_spartan_and_pvgis_follow_the_selected_place_not_a_previous_one(monkeypatch, lat, lng, site, value):
+    """Regression for the reported stale-card case: Delhi data after moving to Jaipur or Kanpur."""
+    h._extra_cache.clear()
+    monkeypatch.setattr(h, "EXTRA_SOURCES", frozenset({"pvgis", "spartan"}))
+    monkeypatch.setattr(h, "EXTRA_BUDGET_TABLE", h.RATE_TABLE)
+    monkeypatch.setattr(h, "_reserve_extra", lambda source: None)
+    files = {s[4]: _spartan_csv(s[0], v, "28101" if s[5] == "filter" else "28108")
+             for s, v in zip(h.SPARTAN_SITES, (41.5, 22.2, 63.3))}
+    monkeypatch.setattr(h, "_extra_read", lambda url, headers=None, limit=0: files[url.replace(h.SPARTAN_BASE, "")].encode())
+    calls = []
+
+    def fake_json(url):
+        calls.append(url)
+        return {"outputs": {"totals": {"fixed": {"E_y": 4000 + len(calls), "H(i)_y": 1900}}, "monthly": {"fixed": []}}}
+
+    monkeypatch.setattr(h, "_extra_json", fake_json)
+    # Select Delhi first so any process-level cache from it would leak into the next place.
+    h._location_context(28.6139, 77.2090, "IN", {"buildingCandidate": False})
+    result = h._location_context(lat, lng, "IN", {"buildingCandidate": False})
+    assert result["latitude"] == lat and result["longitude"] == lng
+    spartan = result["sources"]["spartan"]
+    pvgis = result["sources"]["pvgis"]
+    if site == "Kanpur":
+        # Kanpur uses a daily estimate product with another parameter code, so the Delhi
+        # filter value must never appear in its place.
+        assert spartan.get("site") in (None, "Kanpur")
+    else:
+        assert spartan["site"] == site and spartan["pm25UgM3"] == value
+    assert pvgis["gridLat"] == round(lat, 2) and pvgis["gridLng"] == round(lng, 2)
+    assert any(f"lat={round(lat, 2)}" in c for c in calls)

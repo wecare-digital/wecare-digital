@@ -19,6 +19,10 @@
 # - Rows are de-duplicated to one per grid point per hour, matching the raw 30d path.
 # - Only complete windows that ended before today (UTC) are loaded, one INSERT per window,
 #   guarded by NOT EXISTS, so re-runs never duplicate rows.
+# - --verify exits non-zero unless (1) every half-month window except the newest 16 days is
+#   present and (2) the newest non-empty window's totals (grid points, hours, temperature
+#   sum, precipitation sum) equal a fresh raw scan of that window (capped at 1 GiB billed,
+#   skipped by VERIFY_COMPARE=0). The raw scan is the same de-duplicated SELECT as the load.
 # - The service (gcp/vayulok-weather-insights/server.mjs) only reads this aggregate for
 #   1y and 5y ranges. 30d continues to read the raw table (0.987 GiB dry run).
 set -euo pipefail
@@ -44,16 +48,6 @@ MODE="dry-run"
 [ "$MAX_CHUNKS" -ge 1 ] && [ "$MAX_CHUNKS" -le 12 ] || { echo "MAX_CHUNKS must be 1..12"; exit 2; }
 
 bq_q() { bq --project_id="$PROJECT" --location="$LOCATION" query --use_legacy_sql=false --quiet "$@"; }
-
-if [ "$MODE" = "verify" ]; then
-  bq_q --format=prettyjson "
-    SELECT COUNT(*) AS rows_loaded, COUNT(DISTINCT window_start) AS windows,
-           COUNTIF(sample_hours = 0) AS empty_windows,
-           MIN(window_start) AS first_window, MAX(window_start) AS last_window,
-           COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))) AS grid_points
-    FROM \`${AGG}\`"
-  exit 0
-fi
 
 # Aggregate table: tiny, clustered by location. Created only with --apply.
 CREATE_SQL="CREATE TABLE IF NOT EXISTS \`${AGG}\` (
@@ -98,6 +92,49 @@ WHERE ${C_TIME} >= TIMESTAMP '$1' AND ${C_TIME} < TIMESTAMP '$2' AND ${C_TEMP} I
 QUALIFY ROW_NUMBER() OVER (PARTITION BY ${C_GEO}, ${C_TIME} ORDER BY ${C_TIME}) = 1
 SQL
 }
+
+if [ "$MODE" = "verify" ]; then
+  bq show "${AGG}" >/dev/null 2>&1 || { echo "FAIL: ${AGG} does not exist"; exit 1; }
+  bq_q --format=prettyjson "
+    SELECT COUNT(*) AS rows_loaded, COUNT(DISTINCT window_start) AS windows,
+           COUNTIF(sample_hours = 0) AS empty_windows,
+           MIN(window_start) AS first_window, MAX(window_start) AS last_window,
+           COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))) AS grid_points
+    FROM \`${AGG}\`"
+  # (1) completeness: mirrors aggregateComplete() in gcp/vayulok-weather-insights/aggregate.mjs
+  MISSING=$(python3 - "$DONE" "$WINDOWS" <<'PY'
+import sys, datetime as d
+done = set(sys.argv[1].split()); cutoff = d.datetime.now(d.timezone.utc).date() - d.timedelta(days=16)
+miss = [l.split()[0] for l in sys.argv[2].splitlines() if l.strip() and l.split()[0] not in done and d.date.fromisoformat(l.split()[1]) <= cutoff]
+print("\n".join(miss))
+PY
+)
+  if [ -n "$MISSING" ]; then echo "FAIL: missing windows:"; echo "$MISSING"; exit 1; fi
+  echo "OK: all required windows are present"
+  # (2) raw versus aggregate for the newest non-empty window
+  if [ "${VERIFY_COMPARE:-1}" = "1" ]; then
+    W=$(bq_q --format=csv "SELECT CAST(MAX(window_start) AS STRING), CAST(MAX(window_end) AS STRING) FROM \`${AGG}\` WHERE sample_hours > 0" | tail -n +2)
+    VS="${W%%,*}"; VE="${W##*,}"
+    [ -n "$VS" ] && [ "$VS" != "$W" ] || { echo "FAIL: no non-empty window to compare"; exit 1; }
+    RAWSUM=$(bq_q --maximum_bytes_billed="$CAP_BYTES" --format=csv "
+      WITH h AS ($(raw_select "$VS" "$VE"))
+      SELECT COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))), COUNT(*),
+             ROUND(SUM(temp), 3), ROUND(IFNULL(SUM(rain), 0), 3) FROM h" | tail -n +2)
+    AGGSUM=$(bq_q --format=csv "
+      SELECT COUNT(DISTINCT CONCAT(CAST(lat AS STRING), ',', CAST(lng AS STRING))), SUM(sample_hours),
+             ROUND(SUM(temp_sum), 3), ROUND(IFNULL(SUM(precip_sum), 0), 3)
+      FROM \`${AGG}\` WHERE window_start = DATE '$VS' AND sample_hours > 0" | tail -n +2)
+    echo "window $VS..$VE raw=$RAWSUM aggregate=$AGGSUM (grid_points,hours,temp_sum,precip_sum)"
+    python3 - "$RAWSUM" "$AGGSUM" <<'PY' || { echo "FAIL: aggregate differs from raw"; exit 1; }
+import sys
+r = [float(x) for x in sys.argv[1].split(",")]; a = [float(x) for x in sys.argv[2].split(",")]
+ok = len(r) == len(a) == 4 and all(abs(x - y) <= 1e-6 * max(1.0, abs(x)) + 0.002 for x, y in zip(r, a))
+sys.exit(0 if ok else 1)
+PY
+    echo "OK: aggregate matches raw for window $VS"
+  fi
+  exit 0
+fi
 
 insert_sql() { # $1=start $2=end
 cat <<SQL

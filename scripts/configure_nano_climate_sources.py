@@ -48,7 +48,12 @@ def main():
                       "Null": {"dynamodb:LeadingKeys": "false"}},
     }]
     if "cpcb" in wanted:
-        metadata = boto3.client("secretsmanager", region_name=REGION).describe_secret(SecretId=CPCB)
+        secrets = boto3.client("secretsmanager", region_name=REGION)
+        try:
+            metadata = secrets.describe_secret(SecretId=CPCB)
+        except secrets.exceptions.ResourceNotFoundException:
+            raise SystemExit(f"Secret {CPCB} does not exist. The owner must create it with the data.gov.in API key "
+                             "before CPCB can be enabled. Nothing was changed.")
         if metadata.get("DeletedDate"):
             raise SystemExit("CPCB secret pending deletion")
         statements.append({"Effect": "Allow", "Action": "secretsmanager:GetSecretValue", "Resource": metadata["ARN"]})

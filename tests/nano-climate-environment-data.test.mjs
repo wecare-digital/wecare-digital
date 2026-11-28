@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { loadTsxModule } from './helpers/loadTsx.mjs';
 
 const { exports: { formatEnvironmentSections, isBuildingCandidate } } = loadTsxModule({
@@ -71,24 +75,95 @@ test('aggregate query reads only the aggregate table and reports coverage', asyn
   const { aggregateSql } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
   const sql = aggregateSql('p.d.weather_history_in_windows');
   assert.doesNotMatch(sql, /weather_history_in`/);
-  assert.match(sql, /windows_loaded/);
+  assert.match(sql, /window_starts/);
   assert.match(sql, /window_end > @start_date/);
   for (const name of ['@lat', '@lng', '@start_date']) assert.ok(sql.includes(name), name);
 });
 
-test('aggregate is served only when it covers the requested range', async () => {
-  const { aggregateComplete } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+test('expectedWindows lists every half-month window with a 16 day lag', async () => {
+  const { expectedWindows } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+  assert.deepEqual(expectedWindows('2026-08-01', '2026-11-27'), [
+    '2026-08-01', '2026-08-16', '2026-09-01', '2026-09-16', '2026-10-01', '2026-10-16',
+  ]);
+  // a start inside a window excludes that partial window
+  assert.equal(expectedWindows('2026-08-10', '2026-11-27')[0], '2026-08-16');
+  // a December window ends on 1 January
+  assert.ok(expectedWindows('2025-12-01', '2026-03-01').includes('2025-12-16'));
+  assert.equal(expectedWindows('2021-11-27', '2026-11-27').length, 118);
+});
+
+test('aggregate is served only when every expected window is loaded', async () => {
+  const { aggregateComplete, expectedWindows } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
   const today = '2026-11-27';
-  const full = { first_window: { value: '2025-11-16' }, windows_loaded: 24 };
-  assert.equal(aggregateComplete(full, '2025-11-27', today), true);
-  // newest-first partial load: about four months of a 5y request
-  assert.equal(aggregateComplete({ first_window: '2026-07-16', windows_loaded: 9 }, '2021-11-27', today), false);
-  // reaches the start but has gaps
-  assert.equal(aggregateComplete({ first_window: '2021-11-16', windows_loaded: 40 }, '2021-11-27', today), false);
-  assert.equal(aggregateComplete({ first_window: '2021-11-16', windows_loaded: 118 }, '2021-11-27', today), true);
+  const start = '2021-11-27';
+  const all = expectedWindows(start, today);
+  assert.equal(aggregateComplete({ window_starts: all }, start, today), true);
+  // BigQuery DATE values may arrive as plain strings or objects
+  assert.equal(aggregateComplete({ window_starts: all.map((value) => ({ value })) }, start, today), true);
+  // a single missing window in the middle is rejected (no tolerance)
+  const gap = all.filter((_, i) => i !== 40);
+  assert.equal(aggregateComplete({ window_starts: gap }, start, today), false);
+  // newest-first partial load
+  assert.equal(aggregateComplete({ window_starts: all.slice(-9) }, start, today), false);
+  // extra older windows do not mask a missing one
+  assert.equal(aggregateComplete({ window_starts: ['2020-01-01', ...gap] }, start, today), false);
   // empty or malformed result fails closed
-  assert.equal(aggregateComplete({ first_window: null, windows_loaded: 0 }, '2025-11-27', today), false);
-  assert.equal(aggregateComplete(undefined, '2025-11-27', today), false);
+  assert.equal(aggregateComplete({ window_starts: [] }, start, today), false);
+  assert.equal(aggregateComplete({ window_starts: null }, start, today), false);
+  assert.equal(aggregateComplete(undefined, start, today), false);
+});
+
+test('coveragePartial flags observed data that starts late', async () => {
+  const { coveragePartial } = await import('../gcp/vayulok-weather-insights/aggregate.mjs');
+  assert.equal(coveragePartial('2021-12-05T00:00:00Z', '2021-11-27'), false);
+  assert.equal(coveragePartial('2024-03-01T00:00:00Z', '2021-11-27'), true);
+  assert.equal(coveragePartial(null, '2021-11-27'), true);
+});
+
+test('server exposes coverage fields and the widget renders the partial flag', () => {
+  const server = readFileSync(new URL('../gcp/vayulok-weather-insights/server.mjs', import.meta.url), 'utf8');
+  assert.match(server, /coverage_start: summary\.coverageStart/);
+  assert.match(server, /coveragePartial: range === '30d' \? false : coveragePartial\(/);
+  const ui = readFileSync(new URL('../src/components/VayuLokWeatherInsights.tsx', import.meta.url), 'utf8');
+  assert.match(ui, /data\.coveragePartial/);
+});
+
+test('aggregate builder --verify enforces completeness and raw equality (mocked bq)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'fakebq-'));
+  const script = fileURLToPath(new URL('../scripts/build_weather_history_aggregate.sh', import.meta.url));
+  writeFileSync(join(dir, 'bq'), `#!/usr/bin/env bash
+args="$*"
+case "$args" in *"show "*) exit 0;; esac
+case "$args" in
+  *"SELECT CAST(window_start AS STRING) FROM"*) echo window_start; printf '%s\\n' $FAKE_DONE;;
+  *"MAX(window_start) AS STRING"*) echo "a,b"; echo "2026-11-01,2026-11-16";;
+  *"FROM h"*) echo c; echo "10,100,500.5,20.25";;
+  *"COUNT(DISTINCT CONCAT"*"window_start = DATE"*) echo c; echo "$FAKE_AGG";;
+  *) echo "{}";;
+esac
+`, { mode: 0o755 });
+  const today = new Date();
+  const done = [];
+  for (let y = today.getUTCFullYear() - 5, m = 1; y < today.getUTCFullYear() + 1; m++) {
+    if (m === 13) { y++; m = 1; }
+    for (const d of [1, 16]) done.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  const run = (env) => spawnSync('bash', [script, '--verify'], {
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, ...env }, encoding: 'utf8',
+  });
+  try {
+    const ok = run({ FAKE_DONE: done.join(' '), FAKE_AGG: '10,100,500.5,20.25' });
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    assert.match(ok.stdout, /aggregate matches raw/);
+    const bad = run({ FAKE_DONE: done.join(' '), FAKE_AGG: '10,100,999,20.25' });
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stdout, /aggregate differs from raw/);
+    const missing = run({ FAKE_DONE: done.filter((_, i) => i !== 30).join(' '), FAKE_AGG: '10,100,500.5,20.25' });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stdout, /missing windows/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('aggregate builder marks empty windows and de-duplicates hourly rows', () => {

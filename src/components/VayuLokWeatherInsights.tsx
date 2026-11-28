@@ -13,6 +13,7 @@ interface WeatherInsightsSummary {
   range: Range;
   coverageStart?: string | null;
   coverageEnd?: string | null;
+  coveragePartial?: boolean;
   gridDistanceKm?: number | null;
   sampleHours: number;
   meanTemperatureC?: number | null;
@@ -300,6 +301,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           { data.coverageStart && data.coverageEnd && (
             <p className="vl-wi-coverage" data-wc-no-translate="true">
               Model-data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
+              { data.coveragePartial ? ` · shorter than the ${ data.range === '5y' ? '5-year' : '1-year' } range requested` : '' }
               { Number.isFinite( data.gridDistanceKm ) ? ` · nearest grid ~${Number( data.gridDistanceKm ).toFixed( 1 )} km` : '' }
             </p>
           ) }
