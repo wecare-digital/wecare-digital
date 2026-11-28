@@ -58,7 +58,7 @@ try {
         if (path === '/checkout/status/') {
           const card = await page.locator('.co-card').evaluate(el => ({shadow:getComputedStyle(el).boxShadow,radius:getComputedStyle(el).borderRadius}));
           assert.equal(card.shadow,'none');
-          assert.equal(card.radius,'8px');
+          assert.equal(card.radius,'14px');
         }
         console.log('PASS',width,path);
       } catch (error) {

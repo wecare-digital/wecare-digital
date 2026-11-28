@@ -2116,6 +2116,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                          */
                         <Select
                           className="cart-option"
+                          menuClassName="public-checkout-select"
                           label="Choose option"
                           disabled={ busy || modalOpen || railTerminal }
                           ariaLabel={ `Choose option for ${item.name}` }

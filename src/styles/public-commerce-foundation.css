@@ -297,6 +297,11 @@
   background: var(--public-lime-tint);
   overflow-wrap: anywhere;
 }
+/* Keep the owner's lime OUTER border; shared commerce cards use a neutral
+ * border, but Orders is deliberately outlined. Never tint its header/rows. */
+:root:has([data-public-auth-button-theme="active"]) .ord-list {
+  border-color: var(--public-brand-lime);
+}
 /* Never replace the order table with cards or change its reading order. */
 :root:has([data-public-auth-button-theme="active"]) .ord-tablewrap {
   min-inline-size: 0;
@@ -305,7 +310,7 @@
   overscroll-behavior-inline: contain;
 }
 :root:has([data-public-auth-button-theme="active"]) .ord-th {
-  background: var(--public-lime-tint);
+  background: var(--public-bg);
   border-block-end: 1px solid var(--public-hairline);
 }
 :root:has([data-public-auth-button-theme="active"]) .ord-amount {

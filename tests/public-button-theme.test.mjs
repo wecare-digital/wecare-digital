@@ -35,38 +35,40 @@ test('Auth button theme is scoped to non-Home public pages, including verified V
   assert.match(read('src/components/PublicShare.tsx'), /\.ps-action\{[^}]*border-radius:50%/);
 });
 
-test('Auth button tokens cover full-size actions, compact controls and selected state', () => {
-  const baseline = read('src/styles/public-interactions.css');
-  for (const token of ['var(--public-hover-radius)', 'var(--public-lime-tint)', 'var(--public-brand-green)', 'var(--public-button-hover)', 'min-height: 52px', 'font: 700 var(--public-responsive-cta-size)/1.35 var(--font-sans)', 'text-decoration: underline']) {
-    assert.ok(css.includes(token), token);
-    assert.ok(baseline.includes(token), token);
+test('explicit labelled actions retain the Auth visual contract',()=>{
+  const baseline=read('src/styles/public-interactions.css');
+  for(const token of ['var(--public-hover-radius)','var(--public-lime-tint)','var(--public-brand-green)','var(--public-button-hover)','min-height: 52px','font: 700 var(--public-responsive-cta-size)/1.35 var(--font-sans)','text-decoration: underline']){
+    assert.ok(css.includes(token),token);
+    assert.ok(baseline.includes(token),token);
   }
-  for (const [path, selector] of [
-    ['src/components/public/ClosingBand.tsx', 'cb-cta'],
-    ['src/components/ProductPage.tsx', 'pdp-cta'],
-    ['src/components/ContactLocation.tsx', 'cl-cta'],
-    ['src/components/ShopListingView.tsx', 'shop-card-action'],
-    ['src/pages/post/[slug].tsx', 'post-related-all'],
-    ['src/pages/relay-os/index.tsx', 'api-wa-link'],
-    ['src/components/ElsewhereTravelAssistant.tsx', 'eta-action'],
-    ['src/components/VayuLokLive.tsx', 'vl-live-route-check'],
-    ['src/components/PublicShare.tsx', 'ps-action'],
-    ['src/components/Pager.tsx', 'pager-arrow'],
-    ['src/components/SupportWidget.tsx', 'wc-wa'],
-    ['src/components/orders/OrdersPage.tsx', 'ord-quiet'],
-    ['src/components/cart/CartPage.tsx', 'cart-quiet-refresh'],
-    ['src/components/orders/SubmitRequestForm.tsx', 'sr-action'],
-  ]) {
-    assert.ok(read(path).includes(selector), path);
-    assert.ok(css.includes('.' + selector), selector);
+  for(const [path,selector] of [
+    ['src/components/public/ClosingBand.tsx','cb-cta'],
+    ['src/components/ProductPage.tsx','pdp-cta'],
+    ['src/components/ContactLocation.tsx','cl-cta'],
+    ['src/components/ShopListingView.tsx','shop-card-action'],
+    ['src/pages/post/[slug].tsx','post-related-all'],
+    ['src/pages/relay-os/index.tsx','api-wa-link'],
+    ['src/components/orders/OrdersPage.tsx','ord-quiet'],
+    ['src/components/cart/CartPage.tsx','cart-quiet-refresh'],
+    ['src/components/orders/SubmitRequestForm.tsx','sr-action'],
+  ]){
+    assert.ok(read(path).includes(selector),path);
+    assert.ok(css.includes('.'+selector),selector);
   }
-  for (const token of ['button:not(:where(', '[role="combobox"]', '[role="switch"]', '.gm-style *', '.voice-search-mic', '[aria-pressed="true"]', '[aria-selected="true"]', '[aria-disabled="true"]', 'prefers-reduced-motion: reduce', 'forced-colors: active', ':focus-visible']) assert.ok(css.includes(token), token);
-  assert.match(read('src/components/cart/CartPage.tsx'), /\.cart-quiet-refresh\{[^}]*background:var\(--public-bg\);color:var\(--public-brand-green\)/);
+  for(const token of ['[aria-disabled="true"]','prefers-reduced-motion: reduce','forced-colors: active',':focus-visible'])assert.ok(css.includes(token),token);
+  assert.match(read('src/components/cart/CartPage.tsx'),/\.cart-quiet-refresh\{[^}]*background:var\(--public-bg\);color:var\(--public-brand-green\)/);
 });
-test('Relay OS code tabs keep their own dark-strip colours (axe color-contrast)', () => {
-  // The theme's green text on a translucent lime tint is ~1.5:1 on the black .code-tabs strip.
-  const lists = css.match(/\.cart-quiet-refresh, \.sr-action[^)]*\)\)/g) ?? [];
-  assert.ok(lists.length >= 10);
-  for (const list of lists) assert.ok(list.includes('.pp-tab'), list);
+test('no wildcard can recolour component-owned controls or override cards',()=>{
+  assert.doesNotMatch(css,/button:not\(|--public-card-radius\s*:|--public-hover-radius:\s*6px/);
+  assert.doesNotMatch(css,/\.wc-wa\b|\.wc-chip\b|\.ps-action\b|\.pager-arrow\b|\.pp-tab\b|\.vl-ui-icon-action\b|\.eta-send\b/);
+  const header=css.match(/:is\(\.hdr-cart, \.nav-trigger\)\s*\{([^}]+)\}/);
+  assert.ok(header);
+  assert.match(header[1],/--public-hover-radius: var\(--public-option-radius\)/);
+  assert.doesNotMatch(header[1],/background|border-radius|padding|width|height/);
+  assert.match(read('src/components/HeaderCart.tsx'),/background:none;border:0;border-radius:10px/);
+  const support=read('src/components/SupportWidget.tsx');
+  assert.match(support,/\.wc-chip\{[^}]*border-radius:9999px;background:transparent/);
+  assert.match(support,/\.wc-wa\{[^}]*border-radius:50%/);
+  assert.match(read('src/components/Pager.tsx'),/border-radius:50%;background:#fff/);
   assert.ok(read('src/pages/relay-os/index.tsx').includes('className={`pp-tab '));
 });

@@ -1,111 +1,36 @@
-/* Auth action theme for customer-facing public routes, NEVER Home.
+/* Public action and search presentation, NEVER Home.
  *
- * The marker is emitted in the existing public action tail by _app, and by
- * CustomerVaultChrome only after the existing owner-verified Vault handoff.
- * No wrapper, client effect, inline mutation, or Home component changes.
- * Every selector is route-gated; client navigation removes the theme on Home.
- *
- * Full text actions use the Auth typography, surface and 52px minimum.
- * Compact buttons share the same palette and 6px shape without changing their
- * size, icon, hit target, or arrangement. Form selectors, menu rows, live data
- * cards, speech state, dark code tabs and provider-owned controls retain their own semantics.
- * Existing Auth/checkout actions (including opaque Refresh prices), appointment
- * actions and Submit Request are already themed by their existing styles.
+ * Explicit component contracts, not a generic button reset. A radius is
+ * not permission to replace a component's resting/hover/selected colours,
+ * tap targets, borders, shadows, disabled state, typography or pill shape.
+ * The root marker also covers explicitly opted-in body-portalled pickers.
+ * Keep the original public hover/card tokens, including their use by
+ * badges, data cards, pills, switches, and non-action decoration.
  */
 :root:has([data-public-auth-button-theme="active"]) {
-  /* Root scope includes body-portalled menus, but never the Home route. */
-  --public-hover-radius: 6px;
-  --public-nav-radius: var(--public-hover-radius);
-  --public-card-radius: 8px;
+  --public-action-radius: 6px;
+  --public-search-radius: 6px;
+  --public-option-radius: 6px;
   --public-popover-radius: 8px;
 }
+
+/* Labelled primary actions already own this visual contract. Change only
+ * the radius on existing Auth-style buttons; leave quiet/disabled states
+ * and all component-specific behaviours with their owners. */
 :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
+  .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
+  .checkout-action, .public-auth-action, .sf-file-action-button, .sf-back-link,
+  .ord-quiet, .cart-quiet-refresh, .sr-action, .sr-journey-action, .sr-details,
+  .orm-more, .ord-account-action, .ord-copy, .ord-inv, .cart-qty button
 ) {
-  border-radius: var(--public-hover-radius);
-  background: var(--public-lime-tint);
-  border-color: transparent;
-  color: var(--public-brand-green);
-  box-shadow: none;
+  --public-hover-radius: var(--public-action-radius);
+  border-radius: var(--public-action-radius);
 }
-:root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):is([aria-pressed="true"], [aria-selected="true"], [aria-current="page"], [aria-expanded="true"], .active, .is-active, .is-on) {
-  background: var(--public-brand-lime);
-  color: var(--public-brand-green);
-}
-:root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):is(:disabled, [aria-disabled="true"]) {
-  opacity: .6;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-:root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):focus-visible {
-  outline: 3px solid var(--public-brand-green);
-  outline-offset: 3px;
-}
-@media (hover: hover) and (pointer: fine) {
-  :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):hover:not(:disabled):not([aria-disabled="true"]) {
-    background: var(--public-button-hover);
-  }
-}
-/* Keep selected controls identifiable even when hovered. */
-:root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):is([aria-pressed="true"], [aria-selected="true"], [aria-current="page"], [aria-expanded="true"], .active, .is-active, .is-on):hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--public-brand-lime);
-}
+
+/* Explicit full-text CTAs that opted into the Auth action appearance. */
 :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ) {
   display: inline-flex;
   align-items: center;
@@ -116,6 +41,7 @@
   max-width: 100%;
   padding: 10px 18px;
   border: 0;
+  --public-hover-radius: var(--public-action-radius);
   border-radius: var(--public-hover-radius);
   background: var(--public-lime-tint);
   color: var(--public-brand-green);
@@ -131,28 +57,27 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-:root:has([data-public-auth-button-theme="active"]) :is(
+@media (hover: hover) and (pointer: fine) {
+  :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ):hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--public-button-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--public-lift-shadow);
-  text-decoration-color: transparent;
+    background: var(--public-button-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--public-lift-shadow);
+    text-decoration-color: transparent;
+  }
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ):focus-visible {
   outline: 3px solid var(--public-brand-green);
   outline-offset: 3px;
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ):is(:disabled, [aria-disabled="true"]) {
   opacity: .6;
   cursor: not-allowed;
@@ -162,8 +87,7 @@
 @media (max-width: 767px) {
   :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ) {
     font-size: var(--public-mobile-cta-font-size);
     min-width: 0;
@@ -171,36 +95,12 @@
 }
 @media (prefers-reduced-motion: reduce) {
   :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-),
+  .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
+) { transition: none; }
   :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
-) {
-    transition: none;
-  }
-  :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):hover:not(:disabled):not([aria-disabled="true"]),
-  :root:has([data-public-auth-button-theme="active"]) :is(
-  .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
 ):hover:not(:disabled):not([aria-disabled="true"]) {
     transform: none;
     box-shadow: none;
@@ -208,71 +108,62 @@
 }
 @media (forced-colors: active) {
   :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-),
+  .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
+) { border: 1px solid ButtonText; }
   :root:has([data-public-auth-button-theme="active"]) :is(
   .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
-) {
-    border: 1px solid ButtonText;
-  }
-  :root:has([data-public-auth-button-theme="active"]) :is(
-  button:not(:where([role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"],
-    .nav-item, .nav-section-toggle, .country-trigger, .wc-row, .country-search .public-search-clear, .public-search-clear, .orm-more, .sr-journey-action, .ps-menu-item, .vl-ui-data-card,
-    .vl-live-wx-daily-row, .vl-live-wx-hist-item, .voice-search-mic, .pp-tab,
-    .gm-style *, .grecaptcha-badge *,
-    .auth-action, .cart-auth-action, .co-auth-action, .checkout-profile-action,
-    .checkout-action, .public-auth-action, .sf-file-action-button, .ord-quiet, .cart-quiet-refresh, .sr-action, .pp-tab)),
-  .ps-action, .wc-wa, .hdr-cart, a.pager-arrow, .category-switch a, .category-switch .cat-here,
-  a.post-nav-step
-):focus-visible,
-  :root:has([data-public-auth-button-theme="active"]) :is(
-  .cb-cta, .pdp-cta, .cl-cta, .shop-card-action, .post-related-all, .api-wa-link,
-  .eta-action, .vl-live-map-retry, .vl-live-route-check, .cart-quantity-repair,
-  .blog-search-status button, .ps-send-error button, .push-optin button
-):focus-visible {
-    outline: 3px solid Highlight;
-  }
+  .cart-quantity-repair, .blog-search-status button, .ps-send-error button
+):focus-visible { outline: 3px solid Highlight; }
 }
 
-/* Non-Home dropdowns with former hard-coded radii, including portals. */
+/* Search fields and their actual accessories. The local token also applies
+ * to hover/focus rules in styled-jsx without changing the idle surface. */
+:root:has([data-public-auth-button-theme="active"]) :is(
+  [data-public-search-field], .wc-search, .vl-live-search-field, .vl-live-utility-search
+) {
+  --public-hover-radius: var(--public-search-radius);
+}
+:root:has([data-public-auth-button-theme="active"]) :is(.public-search-clear, .voice-search-mic) {
+  --public-hover-radius: var(--public-search-radius);
+  border-radius: var(--public-search-radius);
+}
+
+/* Cart/menu retain the component-owned 10px resting chips and colours;
+ * only their shared transient hover treatment uses the smaller radius. */
+:root:has([data-public-auth-button-theme="active"]) :is(.hdr-cart, .nav-trigger) {
+  --public-hover-radius: var(--public-option-radius);
+}
+
+/* Only actual public dropdown panels, not arbitrary ui-popover portals. */
 :root:has([data-public-auth-button-theme="active"]) :is(
   .nav-menu, .nav-dropdown[data-nav-tight="true"] .nav-menu, .wc-panel,
-  .ps-menu, .orm-menu, .ui-popover, .vl-live-search-results,
-  .vl-live-utility-results, .vl-live-utility-empty
+  .ps-menu, .orm-menu, .ui-popover.public-checkout-select,
+  .vl-live-search-results, .vl-live-utility-results, .vl-live-utility-empty
 ) {
   border-radius: var(--public-popover-radius);
 }
 :root:has([data-public-auth-button-theme="active"]) :is(
-  .nav-trigger, .nav-group-link, .ps-menu-item, .ui-select-option,
+  .nav-item, .nav-section-toggle, .nav-group-link, .orm-item, .orm-family-title,
+  .wc-row, .ps-menu-item, .lgd-toc-link, .lgd-toc-summary, .lgd-toc-group-summary,
+  .public-checkout-select .ui-select-option,
   .vl-live-search-results li, .vl-live-utility-results li
 ) {
-  border-radius: var(--public-hover-radius);
+  --public-hover-radius: var(--public-option-radius);
+  --public-nav-radius: var(--public-option-radius);
+  border-radius: var(--public-option-radius);
 }
-:root:has([data-public-auth-button-theme="active"]) :is(.co-card, .sf-card, .ord-list, .sr-form, .sf-payment-option) {
-  border-radius: var(--public-card-radius);
-}
-:root:has([data-public-auth-button-theme="active"]) .ui-select-option[aria-selected="true"]:not([aria-disabled="true"]),
-:root:has([data-public-auth-button-theme="active"]) .vl-live-search-results li[aria-selected="true"] {
+/* Real options retain their distinction between selected and hover; don't
+ * paint arbitrary aria-selected/aria-pressed buttons or dark editor tabs. */
+:root:has([data-public-auth-button-theme="active"]) .public-checkout-select .ui-select-option[aria-selected="true"]:not([aria-disabled="true"]) {
   background: var(--public-lime-tint);
   box-shadow: inset 2px 0 0 var(--public-brand-green);
 }
-:root:has([data-public-auth-button-theme="active"]) .ui-select-option[data-active="true"]:not([aria-selected="true"]):not([aria-disabled="true"]) {
+:root:has([data-public-auth-button-theme="active"]) .public-checkout-select .ui-select-option[data-active="true"]:not([aria-selected="true"]):not([aria-disabled="true"]) {
   background: var(--public-hover-surface);
 }
 @media (hover: hover) and (pointer: fine) {
-  :root:has([data-public-auth-button-theme="active"]) .ui-select-option:not([aria-selected="true"]):not([aria-disabled="true"]):hover {
+  :root:has([data-public-auth-button-theme="active"]) .public-checkout-select .ui-select-option:not([aria-selected="true"]):not([aria-disabled="true"]):hover {
     background: var(--public-hover-surface);
   }
-}
-:root:has([data-public-auth-button-theme="active"]) :is(.public-search-clear, .voice-search-mic) {
-  border-radius: var(--public-hover-radius);
 }

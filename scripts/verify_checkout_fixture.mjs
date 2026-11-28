@@ -205,6 +205,21 @@ async function runScenario(browser,width,mode) {
     await page.evaluate(()=>window.__qaCapture());
     await page.waitForURL('**/orders/**',{timeout:30000});
     await page.getByText(order,{exact:true}).waitFor({state:'visible'});
+    // Resting table colours are neutral even on a paid-order fixture.
+    await page.mouse.move(0,0);
+    const headings = await page.locator('.ord-th').evaluateAll(nodes=>nodes.map(el=>getComputedStyle(el).backgroundColor));
+    assert.ok(headings.length>=4 && headings.every(bg=>bg==='rgb(255, 255, 255)'), 'Orders column headings must be white');
+    const resting = await page.locator('.ord-copy,.ord-inv,.ord-account-action,.orm-more').evaluateAll(nodes=>nodes.map(el=>getComputedStyle(el).backgroundColor));
+    assert.ok(resting.length>=3 && resting.every(bg=>bg==='rgba(0, 0, 0, 0)'), 'Orders icon controls must be neutral at rest');
+    const tableFrame=await page.locator('.ord-list').evaluate(el=>{
+      const s=getComputedStyle(el);
+      return {radius:s.borderRadius,background:s.backgroundColor,borders:[s.borderTopColor,s.borderRightColor,s.borderBottomColor,s.borderLeftColor],widths:[s.borderTopWidth,s.borderRightWidth,s.borderBottomWidth,s.borderLeftWidth]};
+    });
+    assert.equal(tableFrame.radius,'14px');
+    assert.equal(tableFrame.background,'rgb(255, 255, 255)');
+    assert.ok(tableFrame.borders.every(color=>color==='rgb(209, 244, 112)'),'Orders only uses lime on the outer border');
+    assert.ok(tableFrame.widths.every(width=>width==='1px'),'Orders outer border is a thin outline');
+    assert.ok(await page.locator('.ord-tr').evaluate(el=>getComputedStyle(el).backgroundColor==='rgba(0, 0, 0, 0)'));
     await captureSnapshot('mock-paid-orders');
     const more = page.getByRole('button', {name: 'More actions for ' + order, exact: true});
     await more.click();

@@ -9,6 +9,7 @@ on:
       - 'scripts/audit_public_acceptance.mjs'
       - 'scripts/public_hero_audit.mjs'
       - 'scripts/verify_checkout_fixture.mjs'
+      - 'scripts/verify_public_button_theme.mjs'
       - 'scripts/verify_static_seo.mjs'
       - 'scripts/public_qa_origin.mjs'
       - 'scripts/serve_public_qa.mjs'
@@ -89,6 +90,9 @@ jobs:
         run: |
           node --check scripts/audit_public_acceptance.mjs
           node scripts/audit_public_acceptance.mjs
+      - name: Verify component-owned styles
+        if: ${{ !cancelled() && matrix.engine == 'chromium' && matrix.profile == 'desktop' }}
+        run: node scripts/verify_public_button_theme.mjs
       - name: Retain reports
         if: always()
         uses: actions/upload-artifact@v7
