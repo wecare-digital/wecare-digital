@@ -64,7 +64,7 @@ async function scenario(width,mode) {
   return withIsolatedBrowser(browser=>runScenario(browser,width,mode));
 }
 async function runScenario(browser,width,mode) {
-  const context=await browser.newContext({viewport:{width,height:width>=768?900:844},hasTouch:width<768,reducedMotion:'reduce',serviceWorkers:'block',acceptDownloads:true,ignoreHTTPSErrors:snapshot});
+  const context=await browser.newContext({viewport:{width,height:width>=768?900:844},hasTouch:process.env.QA_HAS_TOUCH==='0'?false:width<768,reducedMotion:process.env.QA_MOTION==='0'?'no-preference':'reduce',serviceWorkers:'block',acceptDownloads:true,ignoreHTTPSErrors:snapshot});
   const events=[];let prepare=0,verify=0,native=0,profileSaved=mode!=='profile',profileBootstrap=false,paid=false;
   try {
     if (typeof context.routeWebSocket === 'function') await context.routeWebSocket('**/*',socket=>socket.close());
@@ -143,6 +143,7 @@ async function runScenario(browser,width,mode) {
         return {width,scroll,overflowTargets};
       });
       phase='accessibility scan: '+label;
+      if(process.env.QA_SKIP_AXE==='1'){console.log(JSON.stringify({engine,width,mode,label,axeSkipped:true}));return;}
       const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
@@ -315,11 +316,12 @@ async function runAppointmentGate(browser){
   } finally {await context.close();}
 }
 try {
-  if(snapshot){
+  if(snapshot&&!process.env.QA_BISECT_WIDTHS){
     try{await verifyAppointmentGate();}catch(e){failures.push(engine+' appointment fixture: '+String(e.message).slice(0,500));}
   }
-  for(const width of [390,768,1440,280,160]) {
-    for(const mode of width===390?['profile','mismatch','ready']:['ready']) {
+  const bisect=process.env.QA_BISECT_WIDTHS;
+  for(const width of bisect?bisect.split(',').map(Number):[390,768,1440,280,160]) {
+    for(const mode of bisect?['profile']:width===390?['profile','mismatch','ready']:['ready']) {
       try {await scenario(width,mode);} catch(e){failures.push(engine+' '+width+' '+mode+': '+String(e.message).slice(0,500));}
     }
   }

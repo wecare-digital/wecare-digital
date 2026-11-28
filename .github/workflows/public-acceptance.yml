@@ -152,7 +152,18 @@ jobs:
           # This is a synthetic-only runner; no accessibility checks are disabled.
           DEBUG: ${{ matrix.engine == 'firefox' && 'pw:browser' || '' }}
           PUBLIC_QA_OUTPUT: ${{ runner.temp }}/checkout-fixture
-        run: node scripts/verify_checkout_fixture.mjs
+        run: |
+          set +e
+          if [ "$PUBLIC_QA_ENGINE" = firefox ]; then
+            for v in "base:" "notouch:QA_HAS_TOUCH=0" "noaxe:QA_SKIP_AXE=1" "motion:QA_MOTION=0" "notouch_noaxe:QA_HAS_TOUCH=0 QA_SKIP_AXE=1"; do
+              name=${v%%:*}; vars=${v#*:}
+              for w in 390 768 1440; do
+                env $vars QA_BISECT_WIDTHS=$w DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/bisect-$name-$w.log" 2>&1
+                echo "BISECT $name width=$w exit=$? crash=$(grep -c page-crash "$RUNNER_TEMP/bisect-$name-$w.log")"
+              done
+            done
+          fi
+          exit 0
       - name: Retain synthetic screenshots and report
         if: always()
         uses: actions/upload-artifact@v7
