@@ -151,6 +151,11 @@ async function runScenario(browser,width,mode) {
       const only=process.env.QA_AXE_RULES;
       if(only&&label!=='name-only-profile'){console.log(JSON.stringify({label,axeSkipped:true}));return;}
       let ab=new AxeBuilder({page}).setLegacyMode(engine==='firefox');
+      if(process.env.QA_PROBE){
+        const list=await page.evaluate(()=>{const els=[...document.querySelectorAll('*')].filter(e=>e.getAttributeNames().some(n=>n.startsWith('aria-')||n==='role'));els.forEach((e,i)=>e.setAttribute('data-qa-probe',String(i)));return els.map((e,i)=>i+' '+e.outerHTML.slice(0,220).replace(/\s+/g,' '));});
+        if(process.env.QA_PROBE==='list'){for(const l of list)console.log('PROBE '+l);console.log('PROBECOUNT '+list.length);return;}
+        ab=ab.include('[data-qa-probe="'+process.env.QA_PROBE+'"]');
+      }
       ab=only?ab.withRules(only.split(',')):ab.withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
       const axe=await ab.analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};

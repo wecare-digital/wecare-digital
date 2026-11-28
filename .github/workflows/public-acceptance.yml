@@ -155,11 +155,12 @@ jobs:
         run: |
           set +e
           [ "$PUBLIC_QA_ENGINE" = firefox ] || exit 0
-          for rule in aria-allowed-attr aria-conditional-attr aria-prohibited-attr label-content-name-mismatch nested-interactive target-size color-contrast button-name label region; do
-            for n in 1 2 3; do
-              QA_AXE_RULES=$rule DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/r-$rule-$n.log" 2>&1
-              echo "RULE $rule try=$n exit=$? crash=$(grep -c page-crash "$RUNNER_TEMP/r-$rule-$n.log") phase=$(grep -o '"phase":"[^"]*"' "$RUNNER_TEMP/r-$rule-$n.log" | head -1)"
-            done
+          QA_AXE_RULES=aria-allowed-attr QA_PROBE=list DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/list.log" 2>&1
+          grep -E "^PROBE" "$RUNNER_TEMP/list.log"
+          n=$(grep -o "PROBECOUNT [0-9]*" "$RUNNER_TEMP/list.log" | awk '{print $2}')
+          for i in $(seq 0 $((n-1))); do
+            QA_AXE_RULES=aria-allowed-attr,target-size,nested-interactive QA_PROBE=$i DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/p-$i.log" 2>&1
+            echo "PRB $i crash=$(grep -c page-crash "$RUNNER_TEMP/p-$i.log")"
           done
           exit 0
       - name: Retain synthetic screenshots and report
