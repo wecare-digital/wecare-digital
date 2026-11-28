@@ -10,12 +10,15 @@ Endpoints (HTTP API):
   PUT    /inbox/meta/{conversationId}        - update status / assignee / tags
   POST   /inbox/meta/{conversationId}/note   - append an internal note
   GET    /inbox/meta                         - list all meta (for board/filters)
+
+Reads need Viewer. Writes need Operator, are stamped with the session actor and audit-logged.
 """
 import os
 import json
 import time
 import boto3
 
+from lambda_utils.audit import record_audit
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils.logging import get_logger
 
@@ -35,6 +38,12 @@ def _get(cid):
     return item or {'conversationId': cid, 'status': 'open', 'assignee': '', 'tags': [], 'notes': []}
 
 
+def _actor(event):
+    """Who is acting, from the verified session. Never from the request body."""
+    auth = event.get('_auth') or {}
+    return str(auth.get('username') or auth.get('email') or 'system')
+
+
 def handler(event, context):
     origin = extract_origin(event)
     rc = event.get('requestContext', {})
@@ -43,7 +52,7 @@ def handler(event, context):
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Viewer' if method == 'GET' else 'Operator')
     if _auth is not None:
         return _auth
 
@@ -62,28 +71,46 @@ def handler(event, context):
 
         if method == 'POST' and cid and is_note:
             body = json.loads(event.get('body', '{}'))
+            if not isinstance(body, dict):
+                return cors_response(400, {'error': 'JSON object required'}, origin)
             text = str(body.get('text', '')).strip()[:2000]
             if not text:
                 return cors_response(400, {'error': 'note text required'}, origin)
+            actor = _actor(event)
             item = _get(cid)
             notes = item.get('notes', []) or []
-            notes.append({'text': text, 'by': str(body.get('by', 'agent'))[:80], 'at': int(time.time())})
+            # The author is the session actor; a `by` field in the body is ignored.
+            notes.append({'text': text, 'by': actor[:80], 'at': int(time.time())})
             item['notes'] = notes[-100:]
             item['updatedAt'] = int(time.time())
+            item['updatedBy'] = actor
             _table().put_item(Item=item)
+            record_audit(action='conversation_meta.note', actor=actor,
+                         resource_type='conversation', resource_id=cid,
+                         details={'noteLength': len(text)})
             return cors_response(200, {'meta': item}, origin)
 
         if method == 'PUT' and cid:
             body = json.loads(event.get('body', '{}'))
+            if not isinstance(body, dict):
+                return cors_response(400, {'error': 'JSON object required'}, origin)
             item = _get(cid)
+            before = {f: item.get(f) for f in ('status', 'assignee', 'tags')}
             if 'status' in body and body['status'] in VALID_STATUS:
                 item['status'] = body['status']
             if 'assignee' in body:
                 item['assignee'] = str(body['assignee'])[:120]
             if 'tags' in body and isinstance(body['tags'], list):
                 item['tags'] = [str(t)[:40] for t in body['tags']][:20]
+            actor = _actor(event)
             item['updatedAt'] = int(time.time())
+            item['updatedBy'] = actor
             _table().put_item(Item=item)
+            changes = {f: {'from': before[f], 'to': item.get(f)} for f in before
+                       if before[f] != item.get(f)}
+            record_audit(action='conversation_meta.update', actor=actor,
+                         resource_type='conversation', resource_id=cid,
+                         details={'changes': changes})
             return cors_response(200, {'meta': item}, origin)
 
         return cors_response(405, {'error': 'method not allowed'}, origin)
