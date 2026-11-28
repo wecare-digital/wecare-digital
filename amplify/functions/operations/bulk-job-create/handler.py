@@ -17,6 +17,9 @@ from decimal import Decimal
 # Configure logging
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils import contact_key, contact_store, direct_send, template_status
+from lambda_utils.identity import consent
+from lambda_utils.meta_client import MetaGraphClient
 
 logger = get_logger(__name__)
 
@@ -29,6 +32,22 @@ BULK_JOBS_TABLE = os.environ.get('BULK_JOBS_TABLE', 'stack-wecare-digital-BulkJo
 BULK_RECIPIENTS_TABLE = os.environ.get('BULK_RECIPIENTS_TABLE', 'stack-wecare-digital-BulkRecipientsTable')
 BULK_QUEUE_URL = os.environ.get('BULK_QUEUE_URL', '')
 CHUNK_SIZE = 100  # Recipients per SQS message
+# Same default sender as bulk-worker.
+DEFAULT_PHONE_NUMBER_ID = os.environ.get('DEFAULT_PHONE_NUMBER_ID', 'phone-number-id-waba1-direct-1016149501586345')
+# bulk-worker sends every template with language code 'en'.
+TEMPLATE_LANGUAGE = 'en'
+# Consent purpose per Meta template category, as outbound-whatsapp maps it.
+_CATEGORY_PURPOSE = {
+    'MARKETING': consent.MARKETING,
+    'UTILITY': consent.TRANSACTIONAL,
+    'AUTHENTICATION': consent.SERVICE,
+}
+
+_meta_client = None
+
+
+class TemplateUnverifiable(RuntimeError):
+    """Meta could not be read, so the template's approval is unknown."""
 
 
 # Module-level origin for CORS (set per-invocation in handler)
@@ -42,7 +61,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    _auth = require_auth(event, required_role='Admin')
     if _auth is not None:
         return _auth
 
@@ -74,7 +93,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # POST /bulk/jobs - Create job
         if http_method == 'POST':
             body = json.loads(event.get('body', '{}'))
-            return _create_job(body, request_id)
+            return _create_job(body, request_id, _actor(event))
         
         return _response(405, {'error': 'Method not allowed'})
         
@@ -154,25 +173,41 @@ def _get_job(job_id: str, request_id: str) -> Dict[str, Any]:
         return _response(500, {'error': str(e)})
 
 
-def _create_job(body: Dict, request_id: str) -> Dict[str, Any]:
-    """Create a new bulk job."""
-    channel = body.get('channel', 'WHATSAPP').upper()
+def _create_job(body: Dict, request_id: str, created_by: str) -> Dict[str, Any]:
+    """Create a new bulk job. `created_by` comes from the verified token, never the body."""
+    channel = str(body.get('channel', 'WHATSAPP')).upper()
     recipients = body.get('recipients', [])
     content = body.get('content', '')
-    template_name = body.get('templateName')
+    template_name = str(body.get('templateName') or '').strip()
     template_params = body.get('templateParams', [])
-    created_by = body.get('createdBy', 'admin')
     scheduled_at = body.get('scheduledAt')
-    phone_number_id = body.get('phoneNumberId')
+    phone_number_id = body.get('phoneNumberId') or DEFAULT_PHONE_NUMBER_ID
     
-    if not recipients:
+    if not recipients or not isinstance(recipients, list):
         return _response(400, {'error': 'recipients array is required'})
     
-    if channel not in ['WHATSAPP', 'SMS', 'EMAIL']:
-        return _response(400, {'error': 'Invalid channel. Must be WHATSAPP, SMS, or EMAIL'})
+    # Approved WhatsApp templates only. SMS and EMAIL bulk jobs carry free text.
+    if channel != 'WHATSAPP':
+        return _response(400, {'error': 'Bulk jobs send approved WhatsApp templates only'})
+
+    if content or not template_name:
+        return _response(400, {'error': 'templateName is required; free-text content is not accepted'})
     
-    if not content and not template_name:
-        return _response(400, {'error': 'content or templateName is required'})
+    waba_id = _sender_waba(phone_number_id)
+    if not waba_id:
+        return _response(400, {'error': 'phoneNumberId is not a known WhatsApp sender'})
+    try:
+        template = _approved_template(template_name, waba_id)
+    except TemplateUnverifiable:
+        return _response(503, {'error': 'Template approval could not be verified. Nothing was created.'})
+    if not template:
+        return _response(400, {'error': f"Template '{template_name}' ({TEMPLATE_LANGUAGE}) is not "
+                                        'APPROVED for this sender'})
+
+    purpose = _CATEGORY_PURPOSE.get(template['category'], consent.MARKETING)
+    recipients, dropped = _eligible_recipients(recipients, channel, purpose)
+    if not recipients:
+        return _response(400, {'error': 'No eligible recipients', **dropped})
     
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -189,6 +224,8 @@ def _create_job(body: Dict, request_id: str) -> Dict[str, Any]:
         'status': 'pending',
         'content': content,
         'templateName': template_name,
+        'templateCategory': template['category'],
+        'templateLanguage': TEMPLATE_LANGUAGE,
         'templateParams': template_params,
         'phoneNumberId': phone_number_id,
         'createdBy': created_by,
@@ -217,7 +254,9 @@ def _create_job(body: Dict, request_id: str) -> Dict[str, Any]:
         'jobId': job_id,
         'channel': channel,
         'totalRecipients': len(recipients),
+        **dropped,
         'scheduled': bool(scheduled_at),
+        'createdBy': created_by,
         'requestId': request_id
     }))
     
@@ -225,8 +264,70 @@ def _create_job(body: Dict, request_id: str) -> Dict[str, Any]:
         'jobId': job_id,
         'status': job['status'],
         'totalRecipients': len(recipients),
+        **dropped,
         'message': 'Job created successfully'
     })
+
+
+def _actor(event: Dict[str, Any]) -> str:
+    """The caller's username (else Cognito sub) from the verified token; 'internal' without one."""
+    auth = event.get('_auth') or {}
+    return str(auth.get('username') or (auth.get('attributes') or {}).get('sub') or 'internal')
+
+
+def _sender_waba(phone_number_id: str) -> str:
+    """The WABA that owns our sender id, or '' when it cannot be resolved. Never guesses."""
+    value = str(phone_number_id or '').strip()
+    meta_phone_id = value.rsplit('-direct-', 1)[-1] if '-direct-' in value else value
+    return direct_send.waba_for_meta_phone(meta_phone_id) if meta_phone_id.isdigit() else ''
+
+
+def _approved_template(template_name: str, waba_id: str) -> Dict[str, str]:
+    """{'category'} of the WABA's APPROVED template in TEMPLATE_LANGUAGE, or {} when there is none.
+
+    Raises TemplateUnverifiable when Meta cannot be read: approval is never assumed.
+    """
+    global _meta_client
+    if _meta_client is None:
+        _meta_client = MetaGraphClient()
+    result = _meta_client.get(
+        f'{waba_id}/message_templates',
+        params={'name': template_name, 'fields': 'name,status,category,language', 'limit': 100},
+        token_context={'waba_id': waba_id})
+    rows = result.get('data') if isinstance(result, dict) else None
+    if MetaGraphClient.is_error(result) or not isinstance(rows, list):
+        logger.warning(json.dumps({'event': 'bulk_template_read_failed', 'wabaId': waba_id}))
+        raise TemplateUnverifiable(template_name)
+    for row in rows:
+        if (isinstance(row, dict) and row.get('name') == template_name
+                and row.get('language') == TEMPLATE_LANGUAGE
+                and template_status.is_sendable(row.get('status'))):
+            return {'category': str(row.get('category') or '').upper()}
+    return {}
+
+
+def _eligible_recipients(recipients: List[Any], channel: str, purpose: str):
+    """Recipients that resolve to a live contact and are not opted out on `channel`.
+
+    A recipient is opted out when the consent ledger's latest record for the channel, or
+    for the template's purpose, is OPTED_OUT. Returns (kept, dropped counts).
+    """
+    table = dynamodb.Table(contact_store.table_name())
+    now = int(time.time())
+    kept: List[Dict] = []
+    opted_out = unknown = 0
+    for recipient in recipients:
+        contact_id = str(recipient.get('contactId') or '').strip() if isinstance(recipient, dict) else ''
+        contact = contact_store.lookup(table, contact_id=contact_id) if contact_id else None
+        if not contact:
+            unknown += 1
+            continue
+        if consent.OPTED_OUT in (consent.current_state(contact, channel, now=now),
+                                 consent.current_state(contact, channel, now=now, purpose=purpose)):
+            opted_out += 1
+            continue
+        kept.append({**recipient, 'contactId': contact_key.resolve(contact)})
+    return kept, {'droppedOptedOut': opted_out, 'droppedUnknownContacts': unknown}
 
 
 def _store_recipients(job_id: str, recipients: List[Dict]) -> None:
