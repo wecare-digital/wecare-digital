@@ -149,7 +149,7 @@ def test_real_presigned_put_signs_content_length(monkeypatch):
     monkeypatch.setenv("AWS_CONFIG_FILE", os.devnull)
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", os.devnull)
     signer = boto3.session.Session(
-        aws_access_key_id="AKIAFAKEFAKEFAKEFAKE", aws_secret_access_key="fake" * 10,
+        aws_access_key_id="testing-access-key", aws_secret_access_key="testing-secret-key",
         region_name="us-east-1").client("s3", config=Config(signature_version="s3v4"))
     s3, files = S3(signer=signer), Files()
     env, _ = vault(s3, files)
