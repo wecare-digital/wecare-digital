@@ -428,7 +428,6 @@ def setup() -> None:
     # The CRM projection is best-effort and outside F001; record it instead of running it.
     M['crm_calls'] = []
     M['flow_completion'].capture_crm_lead = lambda result, **kw: M['crm_calls'].append(kw) or {'outcome': 'recorded'}
-    load_inbound()
 
 
 def table(name: str) -> FakeTable:
@@ -1380,7 +1379,7 @@ def _() -> None:
         def put(role: str, key: str) -> int:
             body = {'key': key, 'config': {'subscribe': {'enabled': True}}}
             return ai.handler(_staff_event('PUT', '/ai/config', role, body), None)['statusCode']
-        for key in ('flow_triggers_config', 'subscribe_messages_config', 'welcome_message'):
+        for key in ('flow_triggers_config', 'subscribe_messages_config', 'customerservice_menu_config'):
             expect(put('Viewer', key) == 403 and key not in config_rows, f'Viewer changed {key}')
             expect(put('Operator', key) == 200 and key in config_rows, f'Operator could not change {key}')
         expect(put('Admin', 'catalog_flow_map') == 400 and 'catalog_flow_map' not in config_rows,
@@ -1428,228 +1427,20 @@ def _() -> None:
         biz.require_auth, middleware.require_auth, biz._graph_api = saved
 
 
-# ── F. Inbound keyword dispatch (extracted from the real handler source) ────────────
+# ── F. Inbound handler sends no automatic reply ────────────────────────────────────────
 
-class FakeLambda:
-    def __init__(self) -> None:
-        self.invocations: List[Dict[str, Any]] = []
-
-    def invoke(self, FunctionName: str, InvocationType: str, Payload: str, **_: Any) -> Dict[str, Any]:
-        body = json.loads(json.loads(Payload)['body'])
-        token = ''
-        fs = M['flow_sessions']
-        session_present = bool(token) and fs.session_key(fs.phone_from_token(token), token) in sessions().items
-        self.invocations.append({'body': body, 'session_present': session_present})
-        return {'StatusCode': 202}
-
-
-def load_inbound() -> None:
-    tree = ast.parse(INBOUND.read_text(encoding='utf-8'))
-    wanted_assign = {'DEFAULT_FLOW_TRIGGERS', 'F001_CONTRACT', 'F001_SESSION_UNAVAILABLE_REPLY',
-                     'CUSTOMER_IDEA_KEYWORDS', 'FLOW_LINKS', 'FLOW_LINK_DEFAULT', 'FLOW_LINK_BODIES',
-                     'UNREADABLE_MESSAGE_LABELS', 'UNREADABLE_HINT_TEXT',
-                     'UNREADABLE_HINT_INTERVAL_SECONDS'}
-    wanted_func = {'_get_flow_triggers_config', '_launch_subscribe_flow',
-                   '_send_flow_link', '_send_unreadable_hint'}
-    nodes: List[ast.stmt] = [n for n in tree.body if (
-        isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in wanted_assign for t in n.targets)
-    ) or (isinstance(n, ast.FunctionDef) and n.name in wanted_func)]
-    process = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_process_message')
-    loop = next(n for n in ast.walk(process) if isinstance(n, ast.For)
-                and isinstance(n.iter, ast.Call) and isinstance(n.iter.func, ast.Attribute)
-                and isinstance(n.iter.func.value, ast.Name) and n.iter.func.value.id == 'flow_triggers')
-    my_id_assign = next(n for n in ast.walk(process) if isinstance(n, ast.Assign)
-                        and any(isinstance(t, ast.Name) and t.id == 'MY_ID_KEYWORDS' for t in n.targets))
-    my_id_if = next(n for n in ast.walk(process) if isinstance(n, ast.If) and isinstance(n.test, ast.Compare)
-                    and isinstance(n.test.comparators[0], ast.Name) and n.test.comparators[0].id == 'MY_ID_KEYWORDS')
-
-    def wrapper(name: str, params: List[str], body: List[ast.stmt]) -> ast.FunctionDef:
-        fields: Dict[str, Any] = {'name': name, 'args': ast.arguments(
-            posonlyargs=[], args=[ast.arg(arg=p) for p in params], kwonlyargs=[], kw_defaults=[], defaults=[]),
-            'body': body + [ast.Return(ast.Constant('fell_through'))], 'decorator_list': [], 'returns': None}
-        if 'type_params' in ast.FunctionDef._fields:
-            fields['type_params'] = []
-        return ast.FunctionDef(**fields)
-    common_params = ['content_lower', 'contact_id', 'aws_phone_number_id', 'sender_phone', 'request_id']
-    nodes.append(wrapper('dispatch_keyword', common_params + ['flow_triggers'], [loop]))
-    nodes.append(wrapper('my_id_command', common_params, [my_id_assign, my_id_if]))
-    module = ast.fix_missing_locations(ast.Module(body=nodes, type_ignores=[]))
-    privacy = M['privacy']
-    M['cta'], M['replies'], M['lambda'] = [], [], FakeLambda()
-    import importlib.util
-    content_spec = importlib.util.spec_from_file_location('inbound_content', INBOUND.parent / 'modules' / 'content.py')
-    M['inbound_content'] = importlib.util.module_from_spec(content_spec)
-    content_spec.loader.exec_module(M['inbound_content'])
-    ns: Dict[str, Any] = {
-        'ClientError': FakeClientError,
-        'UNSUPPORTED_UNKNOWN': M['inbound_content'].UNSUPPORTED_UNKNOWN,
-        'UNSUPPORTED_DISAPPEARING': M['inbound_content'].UNSUPPORTED_DISAPPEARING,
-        'json': json, 'uuid': uuid, 'time': time, 'Decimal': Decimal, 'Dict': Dict, 'Any': Any,
-        'Optional': Optional, 'logger': logging.getLogger('inbound-under-test'), 'dynamodb': FAKE_DB,
-        'CONTACTS_TABLE': M['common'].CONTACTS_TABLE, 'SYSTEM_CONFIG_TABLE': M['subscribe_messages'].system_config_table_name(),
-        'FLOW_SUBMISSIONS_TABLE': M['common'].FLOW_SUBMISSIONS_TABLE, 'PHONE_NUMBER_ID_1': 'phone1',
-        'PHONE_NUMBER_ID_2': 'phone2', 'OUTBOUND_WHATSAPP_FUNCTION': 'outbound', 'lambda_client': M['lambda'],
-        'mask_contact_id': privacy.mask_contact_id, 'mask_phone': privacy.mask_phone,
-        'mask_flow_token': privacy.mask_flow_token, 'contact_store': M['contact_store'],
-        'flow_launch': M['flow_launch'], 'flow_sessions': M['flow_sessions'], 'flow_funnel': M['flow_funnel'],
-        'subscribe_messages': M['subscribe_messages'], 'customer_uuid': M['customer_uuid'],
-        'canonical_flow_id': M['canonical_flows'].canonical_flow_id,
-        'canonical_contract': M['canonical_flows'].canonical_contract,
-        '_send_service_link': lambda *a, **k: M['cta'].append({'args': a, 'kwargs': k}),
-        '_send_auto_reply': lambda contact_id, content, *a: M['replies'].append(content),
-    }
-    exec(compile(module, str(INBOUND), 'exec'), ns)  # noqa: S102 - our own handler source
-    M['inbound'] = ns
-
-
-def dispatch(content: str, phone: str = PHONE_A, waba: str = 'phone1') -> str:
-    ns = M['inbound']
-    return ns['dispatch_keyword'](content, f'wa{phone}', waba, phone, 'req-in', ns['_get_flow_triggers_config']())
-
-
-def set_triggers(config: Dict[str, Any]) -> None:
-    system_config().items['flow_triggers_config'] = {'id': 'flow_triggers_config', 'configValue': json.dumps(config)}
-
-
-def reset_inbound() -> None:
-    FAKE_DB.reset()
-    M['cta'].clear()
-    M['replies'].clear()
-    M['lambda'].invocations.clear()
-
-
-@check('F1 inbound default: F001 keywords from the contract, switch OFF, no message, no WABA 2 Flow')
+@check('F1 the inbound handler sends no automatic reply, keyword answer, link or hint')
 def _() -> None:
-    default = M['inbound']['DEFAULT_FLOW_TRIGGERS']['subscribe']
-    contract = M['canonical_flows'].CANONICAL_CONTRACTS['subscribe']
-    expect(tuple(default['keywords']) == tuple(contract['defaultKeywords']), 'keywords')
-    expect(default['enabled'] is False and default['entryMode'] == 'keyword_interactive', 'OFF, keyword mode')
-    expect(default['flowId'] == F001_ID() and 'message' not in default and 'flowId2' not in default, 'shape')
-
-
-@check('F2 keyword door stays shut until every control agrees, and says why')
-def _() -> None:
-    reset_inbound()
-    expect(dispatch('subscribe') == 'fell_through' and not M['lambda'].invocations, 'launched while OFF')
-    set_triggers({'subscribe': {'enabled': True}})
-    expect(dispatch('subscribe') == 'fell_through', 'launched with no registry row')
-    registry().items[F001_ID()] = published_registry_row(status='DRAFT')
-    expect(dispatch('subscribe') == 'fell_through', 'launched with DRAFT registry')
-    registry().items[F001_ID()] = published_registry_row(metaStatus='DRAFT')
-    expect(dispatch('subscribe') == 'fell_through', 'launched while Meta DRAFT')
-    totals = funnel_totals()
-    expect(totals['launch_attempted'] == 4 and totals['launch_blocked'] == 4, f'funnel {totals}')
-
-
-@check('F3 enabled Subscribe keyword routes to the website without creating a session')
-def _() -> None:
-    reset_inbound()
-    set_triggers({'subscribe': {'enabled': True}})
-    registry().items[F001_ID()] = published_registry_row()
-    expect(dispatch('sign up') is None, 'exact keyword was not handled')
-    expect(M['cta'] and not M['lambda'].invocations, 'expected a service link only')
-    expect(not sessions().items, 'service link must not create a Flow session')
-    for near_miss in ('subscribe now', 'please subscribe', 'subscribed', 'sub'):
-        expect(dispatch(near_miss) == 'fell_through', 'keyword matching changed')
-
-
-@check('F6 generic triggers: payment or contract Flows never open from a keyword')
-def _() -> None:
-    reset_inbound()
-    set_triggers({'custom_vip': {'enabled': True, 'keywords': ['vipform'], 'flowId': F001_ID()},
-                  'custom_paid': {'enabled': True, 'keywords': ['paidform'], 'flowId': '7777'},
-                  'custom_ok': {'enabled': True, 'keywords': ['okform'], 'flowId': '8888'}})
-    registry().items['7777'] = {'flowId': '7777', 'entryMode': 'payment_template', 'requiresPayment': True,
-                                'entryTemplateName': 'wd_paid'}
-    registry().items['8888'] = {'flowId': '8888', 'status': 'PUBLISHED', 'metaStatus': 'PUBLISHED'}
-    expect(dispatch('vipform') == 'fell_through' and not M['lambda'].invocations, 'F001 opened via a custom key')
-    expect(dispatch('paidform') == 'fell_through' and not M['lambda'].invocations, 'paid Flow opened by keyword')
-    expect(dispatch('okform') is None and M['cta'] and not M['lambda'].invocations, 'service keyword must use a website link')
-
-
-def _cta_link() -> Optional[str]:
-    return M['cta'][-1]['args'][3] if M['cta'] else None
-
-
-@check('F8 a keyword Flow not known live on Meta answers with its working link, never a dead Flow')
-def _() -> None:
-    reset_inbound()
-    links = M['inbound']['FLOW_LINKS']
-    expect(not any('/r/' in url for url in [*links.values(), M['inbound']['FLOW_LINK_DEFAULT']]),
-           'a fallback points at an /r/ short code (six are google.com recovery rows)')
-    # track_request has no Flow at all.
-    expect(dispatch('track') is None and _cta_link() == links['track_request'] and not M['lambda'].invocations,
-           f'no-Flow door: {_cta_link()}')
-    # rx_slot names a Flow that FlowRegistry has never seen (it no longer exists on Meta).
-    expect(dispatch('pharmacy') is None and _cta_link() == links['rx_slot'] and not M['lambda'].invocations,
-           f'unregistered Flow: {_cta_link()}')
-    # A generic (non-contract) door: its Flow opens only while FlowRegistry shows it live on Meta.
-    # (Not leave_review: F002 made that a canonical door with its own launch policy.)
-    set_triggers({'custom_live': {'enabled': True, 'keywords': ['liveform'], 'flowId': '8888'}})
-    registry().items['8888'] = {'flowId': '8888', 'status': 'PUBLISHED', 'metaStatus': 'DEPRECATED'}
-    expect(dispatch('liveform') is None and _cta_link() == M['inbound']['FLOW_LINK_DEFAULT']
-           and not M['lambda'].invocations, 'a deprecated Flow was sent')
-    registry().items['8888']['metaStatus'] = 'PUBLISHED'
-    expect(dispatch('liveform') is None and not M['lambda'].invocations
-           and _cta_link() == M['inbound']['FLOW_LINK_DEFAULT'],
-           'published registry row must still use the website link')
-    cta_before = len(M['cta'])
-    expect(dispatch('pharmacy', waba='phone2') is None and len(M['cta']) == cta_before + 1
-           and _cta_link() == links['rx_slot'], 'WABA 2 link path changed')
-
-
-@check('F9 an unreadable message gets one hint a day; never for an unknown contact or a thread we do not own')
-def _() -> None:
-    reset_inbound()
-    ns, content = M['inbound'], M['inbound_content']
-    expect(ns['UNREADABLE_MESSAGE_LABELS'] == {content.UNSUPPORTED_DISAPPEARING},
-           'labels drifted from modules.content')
-    unknown = {'type': 'unsupported', 'unsupported': {'type': 'unknown'},
-               'errors': [{'code': 131051, 'title': 'Message type unknown',
-                           'error_data': {'details': 'Message type is currently not supported.'}}]}
-    otp = {'type': 'unsupported', 'errors': [{'code': 131051, 'error_data': {
-        'details': 'OTP authentication message not supported'}}]}
-    expect(content.extract_unsupported_content(unknown) not in ns['UNREADABLE_MESSAGE_LABELS'], 'unknown provider message must not trigger a hint')
-    expect(content.extract_unsupported_content(otp) not in ns['UNREADABLE_MESSAGE_LABELS'], 'Meta OTP would be answered')
-    contact_id = f'wa{PHONE_A}'
-    contacts().items[contact_id] = {'id': contact_id, 'phone': f'+{PHONE_A}'}
-    hint, now = ns['_send_unreadable_hint'], 1_800_000_000
-    expect(hint(contact_id, 'phone2', now, 'r') and M['replies'][-1] == ns['UNREADABLE_HINT_TEXT'], 'first hint')
-    expect(not hint(contact_id, 'phone2', now + 60, 'r') and len(M['replies']) == 1, 'second hint inside a day')
-    expect(hint(contact_id, 'phone2', now + ns['UNREADABLE_HINT_INTERVAL_SECONDS'] + 1, 'r')
-           and len(M['replies']) == 2, 'no hint the next day')
-    expect(not hint('wa15550199999', 'phone2', now, 'r') and 'wa15550199999' not in contacts().items,
-           'hint sent to (or row created for) an unknown contact')
-
-
-@check('F10 an unsupported message is not marked read or reacted to, and the hint is wired in')
-def _() -> None:
-    tree = ast.parse(INBOUND.read_text(encoding='utf-8'))
-    process = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_process_message')
-    ack = next(n for n in ast.walk(process) if isinstance(n, ast.If) and ast.unparse(n.test) == "msg_type != 'reaction'")
-    branch = next(n for n in ack.body if isinstance(n, ast.If))
-    expect(ast.unparse(branch.test) == "msg_type == 'unsupported'", 'unsupported is not the first ack branch')
-    skipped = ast.unparse(ast.Module(body=branch.body, type_ignores=[]))
-    expect('_send_direct_api_read_receipt' not in skipped and '_send_direct_api_reaction' not in skipped
-           and '_send_read_receipt' not in skipped, 'unsupported branch still acknowledges')
-    expect(branch.orelse and '_is_direct_api_phone' in ast.unparse(branch.orelse[0].test), 'other types lost their ack')
-    wired = [n for n in ast.walk(process) if isinstance(n, ast.If)
-             and ast.unparse(n.test) == "msg_type == 'unsupported' and content in UNREADABLE_MESSAGE_LABELS"]
-    expect(wired and '_send_unreadable_hint' in ast.unparse(wired[0]), 'hint not called for unreadable messages')
-
-
-@check('F7 "my id" answers from the contact row, never from Flow history')
-def _() -> None:
-    reset_inbound()
-    cu = M['customer_uuid'].new_customer_uuid()
-    contacts().items[f'wa{PHONE_A}'] = {'id': f'wa{PHONE_A}', 'contactId': f'wa{PHONE_A}', 'phone': f'+{PHONE_A}',
-                                        'customerUuid': cu}
-    ns = M['inbound']
-    expect(ns['my_id_command']('my id', f'wa{PHONE_A}', 'phone1', PHONE_A, 'r') is None, 'command not handled')
-    expect(M['customer_uuid'].display_code({'customerUuid': cu}) in M['replies'][-1], f'reply {M["replies"][-1]!r}')
-    ns['my_id_command']('my id', f'wa{PHONE_B}', 'phone1', PHONE_B, 'r')
-    expect('does not have a WECARE.DIGITAL Customer ID yet' in M['replies'][-1], 'no-ID reply')
-    expect(not any(op == 'scan' for op, _ in submissions().calls), 'Flow history scanned')
+    source = INBOUND.read_text(encoding='utf-8')
+    tree = ast.parse(source)
+    defined = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    for name in ('_send_auto_reply', '_send_service_link', '_send_flow_link', '_launch_subscribe_flow',
+                 '_send_unreadable_hint', '_send_help_about', '_get_flow_triggers_config', '_handle_cart_order'):
+        expect(name not in defined, f'{name} must stay deleted: inbound messages are stored, never answered')
+    expect('evaluate_rules' not in source, 'automation rules must not answer inbound messages')
+    invoked = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and ast.unparse(n.func).endswith('lambda_client.invoke')]
+    expect(all('OUTBOUND' not in ast.unparse(c) and 'wecare-whatsapp-business-api' not in ast.unparse(c)
+               for c in invoked), 'inbound handler invokes a sender')
 
 
 # ── G. Workspace surfaces (source-level, no browser) ──────────────────────────────────

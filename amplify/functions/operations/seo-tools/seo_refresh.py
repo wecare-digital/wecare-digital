@@ -1,9 +1,7 @@
 """Scheduled derived-SEO refresh sweep (a content-change detector).
 
-NAME. This module is `seo_refresh` rather than `seo_freshness` deliberately: a separate,
-pre-existing `seo_freshness.py` in this package is the Bedrock-cost dedup for the AI SEO-audit
-path (its `source_hash`/`decide`/`skip_log`). This one is the scheduled sweep that regenerates
-DERIVED SEO records for blog posts whose content changed. Two different jobs, two names.
+This is the scheduled sweep that regenerates DERIVED SEO records for blog posts whose
+content changed.
 
 WHAT IT DOES. Reads the public blog corpus from the AWS-native blog source, and for
 each post asks `seo_engine.refresh` to recompute the derived SEO record IF its sourceHash
@@ -19,8 +17,7 @@ shape - a top-level `seoFreshness: True` and no `requestContext` - the same IAM-
 not-reachable-from-the-API pattern the blog worker uses. An EventBridge Scheduler target invokes
 the function with that payload.
 
-COST MODE. In FREE mode the job still runs (it is deterministic and nearly free), but it will
-not perform any AI-derived enrichment. The refresh itself is deterministic regardless.
+COST MODE. The job is deterministic and nearly free in every mode.
 """
 from __future__ import annotations
 

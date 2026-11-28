@@ -150,8 +150,8 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "DynamoDB reads and writes independently verified; ownership is outside Amplify GraphQL. "
         "Do not infer that the table is unused from absent Python name literals.",
     "AgentApprovalsTable":
-        "Provisioned 2026-09-24 by scripts/provision_agent_approvals_table.py for "
-        "the agent action approval path. Deliberately not modelled here: it is "
+        "Retained live table from the removed agent action approval path (its "
+        "provisioner and code were deleted). Not modelled here: it is historical "
         "operational state with a TTL, not part of the CRM data model.",
     "CartTable":
         "AWS-native working cart owned by amplify/catalog-resources.ts and "
@@ -183,9 +183,9 @@ UNDECLARED_ALLOWED: dict[str, str] = {
     "LinkClicksTable": "Live table is stack-wecare-digital-LinkClicksTable; the retired amplify/link-resources.ts never owned production.",
     "SiteLanguageCache": "Owned by core/site-language; a cache, not a modelled entity.",
     "PushTokensTable": "Owned by messaging/push-notifications.",
-    "AutomationRulesTable": "Owned by lambda_utils/automation.py.",
+    "AutomationRulesTable": "Owned by the automation-rules Lambda; no evaluator reads it (automatic replies are disabled).",
     "ConversationMetaTable": "Owned by core/conversation-meta.",
-    "AIProviderPolicyTable": "Owned by ai/ai-config-management.",
+    "AIProviderPolicyTable": "Owned by messaging/whatsapp-business-api (WhatsApp AI-provider pricing policy).",
     "MessagesTable": "Declared as model `Message`; the plural physical name is matched by rule.",
     "WhatsAppPhonesTable":
         "Live with 0 items and a single reader: one lookup in "

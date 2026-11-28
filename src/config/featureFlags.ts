@@ -1,7 +1,6 @@
 /**
  * Optional frontend feature flags default OFF. Commerce is always available and has no flag.
  * These switches gate a read-only UI surface, never server authorization or payment sending.
- * Backend apply controls remain in lambda_utils/agent/governance.py.
  * NEXT_PUBLIC_ values are public build-time configuration, not credentials.
  */
 

@@ -1,4 +1,4 @@
-"""Durable DynamoDB persistence for SEO audits and AI request logs."""
+"""Durable DynamoDB persistence for SEO audits and request logs."""
 import os
 import re
 import uuid

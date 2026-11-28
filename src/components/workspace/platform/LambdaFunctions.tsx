@@ -59,9 +59,7 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   { name: 'push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
 
   // AI
-  { name: 'ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: { CONFIG_TABLE: 'BotConfig table' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'ai-config-management', displayName: 'Settings API', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Generic SystemConfig settings API', apiRoute: '/ai/config', envVars: { CONFIG_TABLE: 'BotConfig table' }, triggers: [ 'API Gateway' ], status: 'active' },
 
   // Payments
   { name: 'razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '***', PAYMENTS_TABLE: 'RazorpayWebhookLog table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
@@ -81,10 +79,10 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   // only operator invokes of :live, the fleet deploy's post-publish smoke test. Its environment
   // is empty per config/lambda-env-manifest.json; the cache table name is the code default.
   { name: 'catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp catalog sync', apiRoute: '', envVars: {}, triggers: [ 'Direct invoke (operator)' ], status: 'active' },
-  { name: 'product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'AI product image generation', apiRoute: '/store/image-gen', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'Branded product image generation', apiRoute: '/store/image-gen', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
 ];
 
-const CATEGORIES = [ 'All', 'Core', 'Messaging', 'AI', 'Payments', 'Operations', 'Ecommerce' ];
+const CATEGORIES = [ 'All', 'Core', 'Messaging', 'Payments', 'Operations', 'Ecommerce' ];
 
 const isServerManagedSecret = ( value: string ) => /^\*+$/.test( value.trim() );
 
@@ -108,7 +106,6 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
     total: LAMBDA_FUNCTIONS.length,
     core: LAMBDA_FUNCTIONS.filter( f => f.category === 'Core' ).length,
     messaging: LAMBDA_FUNCTIONS.filter( f => f.category === 'Messaging' ).length,
-    ai: LAMBDA_FUNCTIONS.filter( f => f.category === 'AI' ).length,
     payments: LAMBDA_FUNCTIONS.filter( f => f.category === 'Payments' ).length,
     operations: LAMBDA_FUNCTIONS.filter( f => f.category === 'Operations' ).length,
     ecommerce: LAMBDA_FUNCTIONS.filter( f => f.category === 'Ecommerce' ).length,

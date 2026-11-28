@@ -52,21 +52,21 @@ check(/POST_CALL_SMS_ENABLED = os\.environ\.get\([\s\S]{0,100}'false'\)/.test(pl
       'Plivo post-call SMS must honor default-off deployment flag');
 check(manifest.includes('"POST_CALL_SMS_ENABLED": "false"'),
       'Deploy manifest must not silently reenable post-call SMS');
-check(calling.includes('def _sms_sender_registered()') &&
-      calling.includes("region_name='ap-south-1'") &&
-      calling.includes("item.get('Registered') is True"),
-      'Call SMS reenablement must require verified Indian registered sender');
-const settings = calling.slice(calling.indexOf("sms_on_call = body.get('smsOnCall')"));
-check(settings.indexOf('if sms_on_call and not _sms_sender_registered():') >= 0 &&
-      settings.indexOf('if sms_on_call and not _sms_sender_registered():') <
-      settings.indexOf('table.put_item(Item={') &&
-      settings.includes('SMS_SENDER_NOT_REGISTERED') &&
-      calling.includes('return False  # Default: disabled'),
-      'Calling SMS must fail closed, checking sender before config writes');
+// Automatic customer replies were removed. The calling Lambda must not auto-send
+// SMS, WhatsApp text or reactions after a call, and the config API must report
+// them as permanently off. Settings cannot re-enable them.
+check(!calling.includes('def _sms_sender_registered(') &&
+      !calling.includes('SMS_SENDER_NOT_REGISTERED') &&
+      !calling.includes("sms_on_call = body.get('smsOnCall')") &&
+      !/def _send_(post_call|call_sms|auto)/.test(calling) &&
+      calling.includes("'smsOnCall': False") &&
+      calling.includes("'postCallWa': False") &&
+      calling.includes("'autoThumb': False"),
+      'Calling SMS/follow-up auto-send must stay removed and config must report it off');
 const callingUi = read('src/components/workspace/whatsapp/calling.tsx');
-check(callingUi.includes('if ( !response.ok )') &&
-      callingUi.includes('verify live registration before enabling'),
-      'Calling UI must not report unverified SMS enablement as success');
+check(!callingUi.includes('setSmsOnCall') && !callingUi.includes('smsOnCall') &&
+      !callingUi.includes('setAutoThumb') && !callingUi.includes('SMS on call'),
+      'Calling UI must not offer automatic SMS or reaction switches');
 
 const page = read('src/pages/workspace/payments/index.tsx');
 const framework = read('src/components/workspace/pay/PaymentFramework.tsx');

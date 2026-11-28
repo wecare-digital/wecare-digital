@@ -219,36 +219,6 @@ export const IAM_POLICIES = {
     ],
   },
 
-  // Bedrock AI permissions
-  bedrock: {
-    Version: '2012-10-17',
-    Statement: [
-      {
-        Effect: 'Allow',
-        Action: [
-          'bedrock:InvokeModel',
-          'bedrock:InvokeAgent',
-          'bedrock:Retrieve',
-        ],
-        Resource: [
-          `arn:aws:bedrock:${AWS_REGION}:${AWS_ACCOUNT_ID}:knowledge-base/*`,
-          `arn:aws:bedrock:${AWS_REGION}:${AWS_ACCOUNT_ID}:agent/*`,
-          'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0',
-        ],
-      },
-      {
-        Effect: 'Allow',
-        Action: [
-          's3:GetObject',
-          's3:PutObject',
-        ],
-        // See the note on the WhatsApp statement above: the old bucket is deleted and
-        // the live role already grants `wecare-digital-get`.
-        Resource: 'arn:aws:s3:::wecare-digital-get/*',
-      },
-    ],
-  },
-
   // Health + Trusted Advisor permissions (for the billing dashboard).
   //
   // Cost Explorer (`ce:*`) was deliberately REMOVED on 2026-09-28. The CE API bills
@@ -381,7 +351,7 @@ export const IAM_POLICIES = {
           'lambda:InvokeFunction',
         ],
         Resource: [
-          'ai-query-kb', 'billing', 'bulk-worker', 'checkout', 'commerce',
+          'billing', 'bulk-worker', 'checkout', 'commerce',
           'inbound-whatsapp', 'outbound-email', 'outbound-sms',
           'outbound-whatsapp', 'razorpay-webhook', 'rcs-send', 'scheduled-messages', 'secure-files',
           'service-requests', 'sms-aws', 'voice-aws', 'voice-cdr-read', 'whatsapp-business-api',
@@ -451,10 +421,8 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-bulk-worker': [ 'common', 'sqs', 'whatsapp', 'sms', 'email' ],
   'wecare-bulk-job-control': [ 'common', 'sqs', 's3' ],
 
-  // === AI ===
-  'wecare-ai-query-kb': [ 'common', 'bedrock' ],
+  // === Settings API (generic SystemConfig; no AI) ===
   'wecare-ai-config-management': [ 'common' ],
-  'wecare-agent-action-group': [ 'common', 'bedrock', 'lambdaInvoke' ],
 
   // === Operations ===
   'wecare-dlq-replay': [ 'common', 'sqs', 'sns' ],

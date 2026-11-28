@@ -66,14 +66,11 @@ Three things follow, and they are the reason this file looks the way it does:
     `MCP_BLOG_TTL_SECONDS`. `/api/seo-tools/blog-public` returns the entire 889-post
     corpus as 924 kB in about 5 s; calling it per request would make this endpoint a
     free amplifier for the hottest function in the fleet.
-  * `ask_site`, the one tool that would reach Bedrock, is **off unless
-    `MCP_ASK_ENABLED=true`**, and while it is off it is absent from `tools/list`
-    entirely rather than present-and-failing. An agent should see a smaller honest
-    toolset, not a tool that errors.
+  * There is no model-backed tool. Every tool is a read of public content.
   * The only rate limit in front of this is the API Gateway stage throttle
     (100 rps / 200 burst, shared with every other route). That is a real limit but it is
-    a shared one, so it is recorded here rather than assumed: if `ask_site` is ever
-    enabled, it needs its own cap before it is turned on, not after.
+    a shared one, so it is recorded here rather than assumed: a tool that costs money
+    per call needs its own cap before it is turned on, not after.
 
 ORIGIN VALIDATION
 -----------------
@@ -620,7 +617,7 @@ def _enabled_tools() -> Dict[str, Dict[str, Any]]:
     choke point where the allowlist is enforced at call time as well as at list time -
     `tools/call` and `tools/list` both go through here, so they cannot disagree. And it
     is where a future environment gate belongs: if a tool that costs money per call is
-    ever added (a Bedrock-backed answer tool is the obvious candidate), it is switched on
+    ever added (a model-backed answer tool is the obvious candidate), it is switched on
     here and is ABSENT from tools/list while off, rather than present and erroring. An
     agent should see a smaller honest toolset, not a tool that fails.
     """

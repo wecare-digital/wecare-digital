@@ -2,11 +2,10 @@
  * Canonical Automation & AI workspace.
  *
  * Staff agent operations are separate from the customer-facing Meta Business Agent, which stays
- * with Communications/WhatsApp. The internal-agent settings page remains configuration only.
+ * with Communications/WhatsApp.
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
@@ -70,7 +69,6 @@ const AutomationWorkspace: React.FC<PageProps> = ( { signOut, user } ) => {
                     <strong>Legacy assistant retired</strong>
                     <span>The outdated /ai/generate assistant is disconnected. No automated customer messages or payments are issued here.</span>
                   </div>
-                  <Link href="/workspace/settings/internal-agent">Agent configuration →</Link>
                 </div>
                 <p role="status">The legacy staff AI assistant has been retired. Automation rules, schedules and knowledge tools remain available. A replacement agent requires a separate reviewed integration.</p>
               </section>

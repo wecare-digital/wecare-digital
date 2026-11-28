@@ -438,10 +438,8 @@ SPECS: List[Spec] = [
     Spec("wecare-scheduled-messages", "messaging/scheduled-messages"),
     # --- messaging / ads + analytics ---
     Spec("wecare-marketing-ads", "messaging/marketing-ads"),
-    # --- ai ---
-    Spec("wecare-ai-query-kb", "ai/ai-query-kb"),
+    # --- settings API (generic SystemConfig; no AI) ---
     Spec("wecare-ai-config-management", "ai/ai-config-management"),
-    Spec("wecare-agent-action-group", "ai/agent-action-group"),
     # --- operations ---
     Spec("wecare-billing", "operations/billing"),
     Spec("wecare-bulk-job-create", "operations/bulk-job-create"),

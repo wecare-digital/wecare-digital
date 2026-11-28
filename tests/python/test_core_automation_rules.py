@@ -157,27 +157,6 @@ def test_list_survives_a_stored_bad_priority(staff, rules):
     assert [r["id"] for r in body["rules"]] == ["a", "b", "bad"]
 
 
-def test_rule_loader_skips_one_bad_rule_and_keeps_the_rest(monkeypatch):
-    from lambda_utils import automation
-
-    items = [{"id": "bad", "priority": "not-a-number", "enabled": True, "triggerType": "any",
-              "actionType": "reply", "actionValue": "from bad"},
-             {"id": "late", "priority": Decimal(50), "enabled": True, "triggerType": "any",
-              "actionType": "reply", "actionValue": "late"},
-             {"id": "early", "priority": Decimal(10), "enabled": True, "triggerType": "keyword",
-              "triggerValue": "price", "actionType": "reply", "actionValue": "early"}]
-
-    class Table:
-        def scan(self):
-            return {"Items": items}
-
-    monkeypatch.setattr(automation, "_dynamodb", type("D", (), {"Table": lambda self, name: Table()})())
-    monkeypatch.setattr(automation, "_cache", {"rules": None, "at": 0})
-    assert [r["id"] for r in automation._load_rules()] == ["early", "late"]
-    assert automation.evaluate_rules("what is the price", "whatsapp") == "early"
-    assert automation.evaluate_rules("hello", "sms") == "late"
-
-
 @pytest.fixture
 def meta(monkeypatch):
     table = FakeTable("conversationId")

@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 72,
-  "_variables": 497,
+  "_functions": 70,
+  "_variables": 482,
   "_aliases": 0,
   "_alias_variables": 0,
   "_fingerprinted": 22,
@@ -14,15 +14,6 @@
       "SHORT_LINK_BASE": "wecare.digital/r",
       "ADMIN_MFA_REQUIRED": "true"
     },
-    "wecare-agent-action-group": {
-      "AWS_ACCOUNT_ID": "775261844268",
-      "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
-      "LOG_LEVEL": "INFO",
-      "MESSAGES_INBOUND_TABLE": "stack-wecare-digital-WhatsAppInboundTable",
-      "MESSAGES_OUTBOUND_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get"
-    },
     "wecare-ai-config-management": {
       "ADMIN_MFA_REQUIRED": "true",
       "AI_INTERACTIONS_TABLE": "stack-wecare-digital-AIInteractionsTable",
@@ -31,13 +22,6 @@
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
       "SYSTEM_CONFIG_TABLE": "stack-wecare-digital-SystemConfigTable"
-    },
-    "wecare-ai-query-kb": {
-      "AWS_ACCOUNT_ID": "775261844268",
-      "LOG_LEVEL": "INFO",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get",
-      "SEND_MODE": "LIVE"
     },
     "wecare-auth-middleware": {
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
@@ -269,14 +253,11 @@
     "wecare-faq-handler": {},
     "wecare-get-miss-redirect": {},
     "wecare-inbound-whatsapp": {
-      "CHECKOUT_FUNCTION": "wecare-commerce:live",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "IAM_REFRESH": "1772814879",
       "INBOUND_TABLE": "stack-wecare-digital-WhatsAppInboundTable",
       "MEDIA_BUCKET": "wecare-digital-get",
       "OUTBOUND_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
-      "WA_CATALOG_ORDERS_ENABLED": "true",
-      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
       "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117"
     },
@@ -495,15 +476,12 @@
     },
     "wecare-seo-tools": {
       "ADMIN_MFA_REQUIRED": "true",
-      "AI_ENABLED": "false",
       "AWS_AMPLIFY_APP_ID": "d22dm4b0jn71jw",
       "AWS_AMPLIFY_BRANCH": "stack",
-      "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
       "BLOG_SOURCE": "aws",
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
       "COST_MODE": "FREE",
       "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
-      "FAQ_AI_GENERATION": "false",
       "LOG_LEVEL": "INFO",
       "SEO_TOOLS_TABLE": "stack-wecare-digital-SeoToolsTable",
       "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup"

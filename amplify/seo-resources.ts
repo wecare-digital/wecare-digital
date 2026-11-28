@@ -39,11 +39,8 @@ export function addSeoResources ( stack: Stack ) {
             LOG_LEVEL: 'INFO',
             SEO_TOOLS_TABLE: SEO_TOOLS_TABLE_NAME,
             WEBHOOK_DEDUP_TABLE: 'stack-wecare-digital-WebhookDedup',
-            BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6',
-            // Derived-SEO cost/AI posture. FREE + AI off is the fail-safe default.
+            // Derived-SEO cost posture. FREE is the fail-safe default.
             COST_MODE: process.env.COST_MODE || 'FREE',
-            AI_ENABLED: process.env.AI_ENABLED || 'false',
-            FAQ_AI_GENERATION: process.env.FAQ_AI_GENERATION || 'false',
         },
     } );
 

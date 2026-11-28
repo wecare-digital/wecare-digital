@@ -498,115 +498,6 @@ export function fileToBase64 ( file: File | Blob ): Promise<string> {
 
 
 // ============================================================================
-// AI CONFIG MANAGEMENT API (Bedrock Control)
-// ============================================================================
-
-interface BedrockAIConfig {
-  enabled: boolean;
-  autoReplyEnabled: boolean;
-  respondToInteractive: boolean;
-  respondToText: boolean;
-  respondToMedia: boolean;
-  respondToLocation: boolean;
-  maxResponseLength: number;
-  responseDelay: number;
-  supportedLanguages: string[];
-  defaultLanguage: string;
-  agentId: string;
-  agentAlias: string;
-  knowledgeBaseId: string;
-  modelId: string;
-}
-
-export interface AIInteraction {
-  interactionId: string;
-  messageId: string;
-  query: string;
-  response: string;
-  detectedLanguage?: string;
-  approved: boolean;
-  timestamp: number;
-}
-
-
-
-/**
- * Get Bedrock AI configuration
- * API: GET /ai/config
- */
-export async function getBedrockAIConfig (): Promise<BedrockAIConfig> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config` );
-  if ( data && data.config )
-  {
-    return data.config;
-  }
-  // Return defaults if API fails
-  return {
-    enabled: false,
-    autoReplyEnabled: false,
-    respondToInteractive: true,
-    respondToText: true,
-    respondToMedia: false,
-    respondToLocation: true,
-    maxResponseLength: 500,
-    responseDelay: 0,
-    supportedLanguages: [ 'en', 'hi', 'hi-Latn', 'bn', 'ta', 'te', 'gu', 'mr' ],
-    defaultLanguage: 'en',
-    agentId: '',
-    agentAlias: '',
-    knowledgeBaseId: '',
-    modelId: 'amazon.nova-pro-v1:0',
-  };
-}
-
-/**
- * Update Bedrock AI configuration
- * API: PUT /ai/config
- */
-export async function updateBedrockAIConfig ( updates: Partial<BedrockAIConfig> ): Promise<BedrockAIConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  if ( data && data.config )
-  {
-    return data.config;
-  }
-  return null;
-}
-
-
-
-
-
-
-
-
-/**
- * Test AI response generation
- * API: POST /ai/test
- */
-export async function testBedrockAIResponse ( message: string ): Promise<{
-  message: string; response: string; detectedLanguage: string;
-  responseLanguage: string; languageSource: string; modelId: string;
-} | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/test`, {
-    method: 'POST',
-    body: JSON.stringify( { message } ),
-  } );
-  if ( !data || typeof data.response !== 'string' || !data.response.trim() ) return null;
-  return {
-    message: typeof data.message === 'string' ? data.message : message,
-    response: data.response,
-    detectedLanguage: data.detectedLanguage || 'und',
-    responseLanguage: data.responseLanguage || '',
-    languageSource: data.languageSource || '',
-    modelId: data.modelId || '',
-  };
-}
-
-
-// ============================================================================
 // WABA ADVANCED MANAGEMENT API (Meta Graph API)
 // ============================================================================
 
@@ -1162,7 +1053,7 @@ export interface SystemConfig {
 
 /**
  * Get system configuration by key
- * Lambda: wecare-ai-config-management
+ * Settings API Lambda: wecare-ai-config-management (GET/PUT /ai/config?key=)
  */
 export async function getSystemConfig ( configKey: string ): Promise<SystemConfig | null> {
   const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}`, {cache:'no-store'} );
@@ -1193,7 +1084,7 @@ function containsConfig ( stored: any, requested: any ): boolean {
 
 /**
  * Update system configuration
- * Lambda: wecare-ai-config-management
+ * Settings API Lambda: wecare-ai-config-management (GET/PUT /ai/config?key=)
  */
 export async function updateSystemConfig ( configKey: string, config: any ): Promise<boolean> {
   const body = JSON.stringify( { key: configKey, config } );

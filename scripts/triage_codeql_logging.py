@@ -214,11 +214,6 @@ REVIEWED_KEYS = re.compile(
     # The keyword that matched a fixed set, added by this session's own fix -- a member
     # of PAY_KEYWORDS/PAY_FUZZY, never free text.
     r"matched_?keyword|"
-    # The agent tool names whose class is APPLY and which are enabled, read from
-    # `lambda_utils/agent/governance.py`'s CATALOG. That catalog is a fixed in-repo
-    # dict of tool names, so the list can only ever contain identifiers this repository
-    # declares. The assertion it feeds is that the list is EMPTY.
-    r"enabled_applies|"
     # Meta's ban/restriction metadata about OUR OWN number.
     r"ban_?info|"
     # A Graph API path, plus the AI classifier's own output about its own decision.

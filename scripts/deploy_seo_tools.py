@@ -8,9 +8,7 @@ Idempotent: safe to re-run. Creates on first run, updates code+config afterward.
 
 What it does:
   1. Create DynamoDB `stack-wecare-digital-SeoToolsTable` (PK id, 2 GSIs, PAY_PER_REQUEST, PITR).
-  2. Add an additive Bedrock inference-profile inline policy to the shared lambda role
-     (ai.py uses cross-region `global.anthropic.*` profiles the role didn't cover).
-  3. Package the Lambda (shim + operations/seo-tools + shared/lambda_utils) and
+  2. Package the Lambda (shim + operations/seo-tools + shared/lambda_utils) and
      create/update `wecare-seo-tools` (python3.12, handler seo_tools_handler.handler).
 
 Usage:  python scripts/deploy_seo_tools.py
@@ -50,15 +48,10 @@ ENV_VARS = {
     "LOG_LEVEL": "INFO",
     "SEO_TOOLS_TABLE": TABLE_NAME,
     "WEBHOOK_DEDUP_TABLE": DEDUP_TABLE,
-    "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
-    "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",    # Derived-SEO cost/AI posture (seo_config.py). FREE + AI off is the fail-safe default the
-    # brief mandates: the deterministic engine and the scheduled freshness check need none of
-    # these on, and a public read path must never be one typo from a model call. seo_config
-    # additionally requires ENABLE_BEDROCK_ASSIST for AI, so either flag off is sufficient to
-    # force deterministic behaviour. Change COST_MODE/AI_ENABLED here to opt in deliberately.
+    "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
+    # Derived-SEO cost posture (seo_config.py). FREE is the fail-safe default: the deterministic
+    # engine and the scheduled freshness check need nothing more.
     "COST_MODE": "FREE",
-    "AI_ENABLED": "false",
-    "FAQ_AI_GENERATION": "false",
 }
 
 
@@ -122,32 +115,6 @@ def ensure_table() -> None:
         print(f"[table] {TABLE_NAME} PITR enabled")
     else:
         print(f"[table] {TABLE_NAME} PITR already enabled")
-
-
-def ensure_bedrock_inference_profile_perms() -> None:
-    """Additive inline policy so ai.py's cross-region `global.*` profiles can invoke."""
-    iam = boto3.client("iam")
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "BedrockInferenceProfiles",
-                "Effect": "Allow",
-                "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-                "Resource": [
-                    f"arn:aws:bedrock:*:{ACCOUNT}:inference-profile/*",
-                    f"arn:aws:bedrock:*:{ACCOUNT}:application-inference-profile/*",
-                    "arn:aws:bedrock:*::foundation-model/*",
-                ],
-            }
-        ],
-    }
-    iam.put_role_policy(
-        RoleName=ROLE_NAME,
-        PolicyName="seo-bedrock-inference-profiles",
-        PolicyDocument=json.dumps(policy),
-    )
-    print(f"[iam] ensured inline policy seo-bedrock-inference-profiles on {ROLE_NAME}")
 
 
 def ensure_freshness_schedule() -> None:
@@ -427,8 +394,6 @@ def main() -> None:
     with_schedule = "--with-schedule" in _sys.argv[1:]
     print("=== deploy wecare-seo-tools ===")
     ensure_table()
-    # Retained only for the separate page-SEO audit feature.
-    ensure_bedrock_inference_profile_perms()
     zip_bytes = package()
     deploy_lambda(zip_bytes)
     ensure_api_route()
