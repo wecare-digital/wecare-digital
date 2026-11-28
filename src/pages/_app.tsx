@@ -1050,9 +1050,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
         `}</style>
         <Header />
         <Component { ...pageProps } />
-        <PublicPolicyDetails />
+        {/* The widgets get their own boundary with no fallback (audit WEB-10): if one of them
+            throws, it disappears and the page around it stays, instead of the error card
+            replacing checkout or the article. */}
+        <ErrorBoundary fallback={ null }><PublicPolicyDetails /></ErrorBoundary>
         <div className="public-action-tail" data-public-auth-button-theme={ router.pathname === '/' ? undefined : 'active' }>
-          <PublicShare />
+          <ErrorBoundary fallback={ null }><PublicShare /></ErrorBoundary>
         </div>
         <Footer />
         <style jsx>{`
@@ -1089,9 +1092,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
             Telugu, Bengali or most other Indic languages, so the button was hidden for
             nearly every language this serves), and the widget IS on the dashboard now -
             see the mount in the authenticated branch below for the one attribute that
-            makes that safe. Three mounts total, all in this file: here, AuthGate, and the
-            authenticated branch. PublicWidgets.test.tsx counts them. */}
-        <SupportWidget />
+            makes that safe. Three mounts total: here, AuthGate in AuthShell.tsx, and the
+            authenticated branch. */}
+        <ErrorBoundary fallback={ null }><SupportWidget /></ErrorBoundary>
         </PublicToastProvider>
       </ErrorBoundary>
     );
@@ -1196,7 +1199,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
                     attribute this mount would let an operator machine-translate
                     live customer data, which is why it was previously excluded.
                     The retired legacy AI widget is no longer mounted. */}
-                <SupportWidget />
+                <ErrorBoundary fallback={ null }><SupportWidget /></ErrorBoundary>
               </ConfirmProvider>
             </ToastProvider>
           );

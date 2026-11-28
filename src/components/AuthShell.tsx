@@ -35,11 +35,8 @@
  *
  * WHAT MOVED HERE VERBATIM: `authTheme` and `AuthGate`, including AuthGate's styled-jsx. The
  * reasoning in those comments is unchanged and is not re-litigated by the move - read them
- * where they are. `src/test/PublicWidgets.test.tsx` sums the support-widget mounts across
- * this file AND `_app.tsx` for that reason: the invariant it protects is "three places a
- * visitor can land", not "three occurrences in one file", and AuthGate is one of the three.
- * That sentence deliberately does not write the JSX tag - the test counts the tag, so naming
- * it in prose here would inflate the count, which is exactly how it first failed.
+ * where they are. The support widget is mounted in three places a visitor can land: the
+ * public branch and the authenticated branch of `_app.tsx`, and AuthGate here.
  */
 
 import type React from 'react';
@@ -52,6 +49,7 @@ import Footer from './Footer';
 import PublicShare from './PublicShare';
 import PublicToastProvider from './public/PublicToastProvider';
 import SupportWidget from './SupportWidget';
+import ErrorBoundary from './ErrorBoundary';
 
 // Custom Amplify UI Theme - Lime + Dark Green matching site design
 const authTheme: Theme = {
@@ -203,10 +201,11 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
         <div className="ag-centre">
           { children }
         </div>
-        <div className="ag-public-share"><PublicShare /></div>
+        <div className="ag-public-share"><ErrorBoundary fallback={ null }><PublicShare /></ErrorBoundary></div>
         <Footer />
       </div>
-      <SupportWidget />
+      {/* Own boundaries, no fallback: a widget crash must not replace the sign-in screen. */}
+      <ErrorBoundary fallback={ null }><SupportWidget /></ErrorBoundary>
       <style jsx>{`
         /* 108px, not the flat 96px this used to inline.
            The public header is position:fixed and 108px tall, dropping to 96px only
