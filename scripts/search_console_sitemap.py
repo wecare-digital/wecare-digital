@@ -18,9 +18,8 @@ when the block lapses. So:
 
   * Removing an OLD URL from the index -> not available, and not needed. What actually
     drops a URL is the response the crawler gets when it re-fetches it: 301 consolidates
-    onto the replacement, 404/410 drops it. Both are already true for every retired URL
-    on this site - verified by scripts/retired_url_probe.py, which fails if any retired
-    URL answers 200. The Removals tool only ever hides a URL that is still live, which
+    onto the replacement, 404/410 drops it. Use scripts/retired_url_probe.py with paths from a current crawl or Search Console
+    to verify each missing URL against current registration. The Removals tool only ever hides a URL that is still live, which
     is a different problem from the one we have.
 
 AUTHORIZATION: THE SCOPE IS SOLVED, THE PROPERTY GRANT IS NOT.

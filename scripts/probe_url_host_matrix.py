@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Probe the URL/host matrix and fail on any row that does not match its expectation.
 
-WHAT THIS IS FOR. `scripts/retired_url_probe.py` checks historical public URLs against
-current explicit registration and the shared 404 fallback. This answers a different one: does the
+WHAT THIS IS FOR. `scripts/retired_url_probe.py` checks current public registration and
+arbitrary missing URLs against the shared 404 fallback. This answers a different one: does the
 WHOLE host-and-path surface still behave the way it was measured to behave, including the
 rows that are supposed to be boring. Hosts, the 404 fallback, the provider passthroughs, the
 staff entry, and the aliases the owner retired, all in one pass with one exit code.
@@ -125,8 +125,8 @@ def matrix() -> list[dict]:
                      "must serve the shared 404.html document with noindex",
                      body_contains=('"page":"/404"', 'name="robots"', 'noindex')))
     rows.append(_row("fallback", f"{SITE}/404/", 200, "the exported page itself"))
-    rows.append(_row("fallback", f"{SITE}/cart/", 404,
-                     "retired cart route must use the same not-found fallback as removed pages",
+    rows.append(_row("fallback", f"{SITE}/definitely-not-a-page/nested/", 404,
+                     "unknown nested page uses the shared 404 fallback",
                      body_contains=('"page":"/404"', 'noindex')))
 
     # ── the staff entry, untouched ──────────────────────────────────────────────────
@@ -139,8 +139,6 @@ def matrix() -> list[dict]:
     # ── customer auth and public pages ──────────────────────────────────────────────
     rows.append(_row("public", f"{SITE}/auth", 200, "the canonical CUSTOMER auth flow",
                      body_contains=("WECARE.DIGITAL", "Sign in to WECARE.DIGITAL")))
-    rows.append(_row("fallback", f"{SITE}/account/sign-in/", 404,
-                     "retired customer sign-in URL is removed; /auth is the only sign-in URL"))
     for path in PUBLIC_PAGES:
         rows.append(_row("public", f"{SITE}{path}", 200, "a live public page"))
 

@@ -3,6 +3,7 @@
 // Usage: PUBLIC_QA_BASE=https://wecare.digital node scripts/verify_404_home_handoff.mjs
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
 
 const base = process.env.PUBLIC_QA_BASE;
@@ -11,17 +12,13 @@ const origin = new URL(base);
 assert.ok(['http:', 'https:'].includes(origin.protocol), 'HTTP(S) base required');
 const home = new URL('/', origin).href;
 const read = name => JSON.parse(readFileSync(new URL('../config/' + name, import.meta.url), 'utf8'));
-const history = read('historical-route-paths.json');
-const active = new Set(read('public-pages.json').pages.map(page => page.path));
-const protectedPaths = new Set(history.infrastructureAdjacent);
-const unassigned = history.publicPaths.filter(path => !active.has(path) && !protectedPaths.has(path));
+const current = read('public-pages.json').pages.map(page => page.path.replace(/\/+$/, '') || '/');
+const key = '/qa-missing-' + randomUUID();
 const missing = [
-  ...unassigned.map(path => path + '/'),
-  '/definitely-not-a-page/', '/definitely-not-a-page/nested/',
-  '/definitely-not-a-page?utm_source=qa',
-  ...unassigned.slice(0, 1).map(path => path + '/?utm_source=qa'),
+  key + '/', key + '/nested/', key + '?utm_source=qa',
+  key + '/?utm_source=qa#section', '/shop' + key + '/', '/workspace' + key + '/',
 ];
-const valid = [...new Set(['/', '/terms/', '/shop/', '/atmos/nano-climate/', ...history.publicPaths.filter(path => active.has(path) && !protectedPaths.has(path)).map(path => path + '/')])];
+const valid = [...new Set(current.map(path => path === '/' ? '/' : path + '/'))];
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ serviceWorkers: 'block' });
 const results = [];

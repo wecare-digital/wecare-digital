@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Find every URL Google still has impressions for that this site no longer serves.
 
-WHY THIS IS NOT scripts/retired_url_probe.py. That script probes a HAND-WRITTEN list
-assembled from this repository's own record of removals, and it answers one question:
-"did we leave a retired page serving 200?" It is a regression guard, and it can only
-ever know about removals somebody wrote down.
+WHY THIS IS NOT scripts/retired_url_probe.py. That script validates supplied URLs and
+synthetic missing routes against current public registration. This script discovers
+historical URLs from search data instead of keeping a permanent retirement list.
 
 This script asks the opposite question, and takes its list from Google rather than from
 us: "which URLs is Google still SHOWING, that we answer with a 404?" Those are the ones

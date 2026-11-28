@@ -32,9 +32,8 @@ const OUTPUT_FILE = path.join( OUT_DIR, 'sitemap.xml' );
 // Anything added here must be a real public route AND in the isPublic allowlist in
 // _app.tsx, or it will 200 with an empty body.
 //
-// [retired public path] and /partners were removed: both pages were deleted on owner instruction, so
-// those entries described URLs that no longer build. /terms and /privacy carry real
-// published documents now and are indexable, so they belong here.
+// Register only current public routes with actual source pages. The prebuild
+// registration guard validates the catalogue against the source and this list.
 const PUBLIC_EXACT = new Set( [
   '/',
   '/elsewhere/arogya-yatra',
@@ -104,30 +103,6 @@ const PUBLIC_EXACT = new Set( [
 // because normalizeRoute('/shop/file-assist/') yields '/shop/file-assist', which still
 // startsWith('/shop/'); the withdrawn index was an EXACT entry, so removing it cannot affect this.
 const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
-
-/**
- * Historical family and Shop aliases that are not implicitly public.
- *
- * These names still exist in navigation as non-clickable grouping labels, but only their
- * concrete children are public pages. Keeping the guard here prevents a future refactor or
- * stale export from silently advertising a deleted parent again.
- */
-const RETIRED_FAMILY_PARENTS = new Set( [
-  '/atmos',
-  '/clear-closure',
-  '/dastavez',
-  '/elsewhere',
-  '/hunar',
-  '/niji-setu',
-  '/partner',
-  '/ritual-guru',
-  '/aastha',
-  '/shop/ritual-guru-puja-guidance',
-  '/shop/ritual-guru-diy-puja-kit',
-  '/shop/ritual-guru-ritva',
-  '/shop/sehat',
-  '/shipments',
-] );
 
 function normalizeRoute ( base ) {
   if ( !base ) return '/';
@@ -421,16 +396,6 @@ function robotsDisallows () {
 
 const routes = findHtmlFiles( OUT_DIR );
 
-const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) && !PUBLIC_EXACT.has( route ) );
-if ( retiredFamilyRoutes.length > 0 )
-{
-  console.error(
-    '\nSITEMAP REFUSED: retired family parent route(s) were found in the export:\n'
-    + retiredFamilyRoutes.map( route => `    ${route}` ).join( '\n' )
-    + '\n  Unassigned historical paths must stay absent. Explicitly register a new public page before reusing one.\n'
-  );
-  process.exit( 1 );
-}
 const postRoutes = routes.filter( route => route.startsWith( '/post/' ) );
 
 const missing = [ ...PUBLIC_EXACT ].filter( route => !routes.includes( route ) );

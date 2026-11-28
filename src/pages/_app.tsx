@@ -607,28 +607,14 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // WITHOUT THIS LINE every page but the first renders an empty body at HTTP 200 - a 404 that
     // does not look like one, with a 200 in the sitemap and a 200 in every uptime check.
     || router.pathname === '/shop/page/[page]';
-  // [retired public path] and /partners are deliberately ABSENT. stack still lists them because this
-  // branch's removal has not landed there yet; both pages were deleted on owner
-  // instruction and re-adding the routes here would render blank 200s for them.
+  // Only currently registered public pages receive public chrome and metadata.
   // PUBLIC_PAGE_META is the single list of public marketing routes now. The seven new product
   // pages made the old inline chain of ORs unreadable and, worse, made it possible to add a
   // page to the menu and the sitemap while forgetting this one - which renders an empty body
   // with HTTP 200 and is invisible until someone loads the route. Deriving the allowlist from
   // the metadata map means a product cannot exist for structured data but not for rendering.
-  // Bare /get is retired; the generic not-found rule sends it Home.
-  // /get/<*> remains the necessary CloudFront media namespace.
-  // '/contact-test' WAS LISTED HERE AND HAD TO COME OFF. It was the only route that was
-  // both in this allowlist AND wrapped in the authenticated <Layout> by its own page file,
-  // and the combination leaked the dashboard into public HTML: because the export is
-  // prerendered with no session, Layout rendered in full, so
-  // https://wecare.digital/contact-test/ returned HTTP 200 carrying the entire staff
-  // sidebar - Inbox, Contacts, Broadcast, Payments, Service Ops, Store, Forms, Tasks - the
-  // page search box and the BottomNav, to anyone who asked. Verified live before removal;
-  //
-  // It was also a duplicate: /contact is the real public contact page, and this one's form
-  // resolved a setTimeout and threw the message away. De-listed rather than deleted so the
-  // removal is one reversible line; PublicRouteRegistration.test.ts now fails any public
-  // route that imports Layout, so this shape cannot return.
+  // /get/<*> remains the protected CloudFront media namespace.
+  // Public registration must never expose authenticated Layout or staff navigation.
   // '/404' IS PUBLIC, and it has to be listed here rather than in PUBLIC_PAGE_META.
   // Header, Footer and SupportWidget are mounted once, below, inside `if ( isPublic )` - so
   // a page receives the three common pieces by being on this list and by no other means.
@@ -781,7 +767,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // translations, sharing controls or a loading waypoint while navigating.
   // /404 renders Head only. /vault displays its actual file content
   // only after an owner-scoped verification, or silently navigates Home.
-  // /cart has been retired as a page: /checkout owns basket handoffs directly.
+  // /checkout owns basket handoffs directly.
   if ( router.pathname === '/404' || router.pathname === '/vault' )
   {
     return (
