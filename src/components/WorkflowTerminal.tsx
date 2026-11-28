@@ -797,7 +797,10 @@ const WorkflowTerminal: React.FC = () => {
         </button>
       ) }
 
-      <div className="wt-window" aria-hidden="true" dir="ltr">
+      {/* inert as well as aria-hidden (audit WEB-8): its scrolling rows were keyboard-focusable
+          scrollers, 22 empty tab stops at 390px. inert takes them out of the tab order; the
+          panel still scrolls itself, but it no longer takes the reader's wheel or swipe. */}
+      <div className="wt-window" aria-hidden="true" inert dir="ltr">
         <div className="wt-bar">
           {/* Class names carry the POSITION, not the colour. They were wt-red / wt-amber /
               wt-lime and each one outlived the colour it named at least once - see the rule
