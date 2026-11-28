@@ -328,14 +328,15 @@ def _handle_clear_all(event, origin):
     if body.get('preview'):
         return _clear_all_preview(event, origin)
 
+    actor = _clear_all_actor(event)
+    # Only the Admin whose preview minted the token may redeem it.
     consumed = destructive_confirm.consume(
         CONFIRM_SCOPE, str(body.get('confirmationToken') or '').strip(),
-        CLEAR_ALL_SELECTION)
+        CLEAR_ALL_SELECTION, actor=actor)
     if not consumed.get('ok'):
         return cors_response(consumed.get('status', 409),
                              {'error': consumed.get('error', 'Confirmation failed')}, origin)
 
-    actor = _clear_all_actor(event)
     log_id = record_audit(
         action='messages.clear_all',
         actor=actor,
@@ -343,7 +344,8 @@ def _handle_clear_all(event, origin):
         resource_id='inbound,outbound',
         details={'selection': CLEAR_ALL_SELECTION,
                  'tables': [INBOUND_TABLE, OUTBOUND_TABLE],
-                 'previewCounts': consumed.get('counts', {})},
+                 'previewCounts': consumed.get('counts', {}),
+                 'previewActor': consumed.get('actor', '')},
     )
     if not log_id:
         # `record_audit` fails open by design; this caller cannot afford that.

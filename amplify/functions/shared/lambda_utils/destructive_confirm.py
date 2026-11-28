@@ -28,6 +28,9 @@ conditional on the row still existing.
 
 **Short TTL.** A token left open in a browser tab is not a standing authorisation.
 
+**Bound to the previewing actor.** A caller that passes `actor` to `consume` can redeem
+only a token its own preview minted, so a token is not transferable between staff users.
+
 What this is NOT
 ----------------
 Not authentication and not authorisation. It proves the caller saw a server-computed
@@ -98,13 +101,18 @@ def mint(scope: str, selection: Iterable[str], counts: Dict[str, int], actor: st
         return None
 
 
-def consume(scope: str, token: str, selection: List[str]) -> Dict[str, Any]:
+def consume(scope: str, token: str, selection: List[str],
+            actor: Optional[str] = None) -> Dict[str, Any]:
     """Verify and DELETE the token row.
 
-    Returns `{'ok': True, 'counts': {...}, 'actor': str}` on success, or
-    `{'error': str, 'status': int}` on refusal. The row is consumed BEFORE the caller
-    deletes anything, so a replay or a concurrent request is refused rather than
-    duplicated.
+    `actor` is the redeeming caller, derived the same way as the actor passed to `mint`.
+    When given, it must equal the stored actor or the token is refused and left unused.
+    A caller that omits it is not bound, and that is logged as `confirm_actor_unbound`.
+
+    Returns `{'ok': True, 'counts': {...}, 'actor': str}` on success, where `actor` is the
+    previewing actor, or `{'error': str, 'status': int}` on refusal. The row is consumed
+    BEFORE the caller deletes anything, so a replay or a concurrent request is refused
+    rather than duplicated.
     """
     if not token:
         return {'error': 'confirmationToken required — preview first', 'status': 400}
@@ -132,6 +140,14 @@ def consume(scope: str, token: str, selection: List[str]) -> Dict[str, Any]:
     if sorted(str(s) for s in (row.get('selection') or [])) != wanted:
         logger.warning(json.dumps({'event': 'confirm_selection_mismatch', 'scope': scope}))
         return {'error': 'Selection does not match the confirmed preview', 'status': 409}
+
+    stored_actor = str(row.get('actor') or '')
+    if actor is None:
+        logger.warning(json.dumps({'event': 'confirm_actor_unbound', 'scope': scope}))
+    elif not stored_actor or stored_actor != str(actor):
+        logger.warning(json.dumps({'event': 'confirm_actor_mismatch', 'scope': scope}))
+        return {'error': 'Confirmation token belongs to another user — preview again',
+                'status': 403}
 
     try:
         table.delete_item(Key=key, ConditionExpression='attribute_exists(id)')
