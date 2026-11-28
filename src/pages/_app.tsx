@@ -48,7 +48,7 @@ import { useState, useEffect } from 'react';
    authenticated branch below), none of them functions without JavaScript, and the shell they
    used to ship was the half-render described above rather than a usable sign-in screen.
    DO NOT RESTORE `ssr: true` to put that HTML back - it is what blanked the page, and
-   src/test/PublicBundleWeight.test.ts now fails the change.
+   tests/public-bundle-isolation.test.mjs now fails the change.
    The perf win is untouched: the public branch still never renders this module, so no public
    page downloads the 450 kB chunk. `ssr: false` splits it at least as aggressively.
    `aws-amplify` itself used to stay a static import here, on the reasoning that the configuration
@@ -64,6 +64,12 @@ const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: fal
    AuthShell does. It exposes the same `({ signOut, user }) => ReactNode` render contract, so
    the render function below is identical whichever shell wraps it. */
 const WsAuthShell = dynamic( () => import( '../components/ws/WsAuthShell' ), { ssr: false } );
+/* THE /workspace CHROME IS LAZY TOO (WEB-3). It was a static import, and through PushOptIn and
+   useUserRole it put aws-amplify/auth, the staff API client and Capacitor into the bundle every
+   public page downloads, including the staff pool id. It renders only inside the authenticated
+   branch below, which is already client-only, so ssr:false changes no exported HTML.
+   tests/public-bundle-isolation.test.mjs fails if any of these shells becomes static again. */
+const WorkspaceShell = dynamic( () => import( '../components/WorkspaceShell' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single
@@ -104,7 +110,6 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PublicShare from '../components/PublicShare';
 import PublicToastProvider from '../components/public/PublicToastProvider';
-import WorkspaceShell from '../components/WorkspaceShell';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
