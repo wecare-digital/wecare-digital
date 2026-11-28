@@ -1,0 +1,60 @@
+name: Current URL reference scan (audit only)
+on:
+  pull_request:
+    branches: [wecare.digital]
+    paths:
+      - '.github/workflows/current-url-reference-scan.yml'
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 3
+      - name: Find exact historical page URL mentions, without matching active child routes
+        run: |
+          git show 755adec6519aa779efe26e23e4aef81088bca7b6:config/historical-route-paths.json > "$RUNNER_TEMP/historical-audit-input.json"
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          from collections import Counter
+          history = json.loads(Path(os.environ['RUNNER_TEMP'], 'historical-audit-input.json').read_text())
+          paths = sorted(history['publicPaths'] + history['workspacePaths'], key=len, reverse=True)
+          pattern = re.compile(r"(?<![A-Za-z0-9_./-])(?:https?://(?:www\.)?wecare\.digital)?(" + "|".join(map(re.escape, paths)) + r")/?(?=$|[?#\x22\x27\x60\s<>),;:\]\}])")
+          files = subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          total = 0
+          matches = []
+          scanned = Counter()
+          for name in files:
+              if not name or name.endswith(('.png','.jpg','.jpeg','.webp','.woff','.woff2','.ico','.pdf','.zip','.lock')) or name == 'package-lock.json':
+                  continue
+              p = Path(name)
+              if not p.is_file():
+                  continue
+              try:
+                  content = p.read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  continue
+              total += 1
+              root = name.split('/')[0]
+              scanned[root] += 1
+              for n,line in enumerate(content.splitlines(),1):
+                  for m in pattern.finditer(line):
+                      if name.startswith(('docs/','.agents/','.kiro/','architecture/')):
+                          group = 'historical-document'
+                      elif line.lstrip().startswith(('//','*','#','/*','<!--','{/*')):
+                          group = 'comment'
+                      elif name.startswith(('tests/','scripts/','tools/','.github/')):
+                          group = 'test-or-tool'
+                      else:
+                          group = 'runtime-or-config'
+                      matches.append({'file':name,'line':n,'path':m.group(1),'kind':group})
+          print('SCAN_SUMMARY '+json.dumps({'filesScanned':total,'scannedByRoot':dict(scanned),'references':len(matches),'byKind':dict(Counter(m['kind'] for m in matches))}))
+          for match in matches:
+              print('SCAN_ROW '+json.dumps(match))
+          PY
