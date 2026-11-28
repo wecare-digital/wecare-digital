@@ -37,7 +37,15 @@ test('Orders action chooser keeps compact search; F004 uses an upfront bordered 
   assert.ok(journey.includes("call( 'request-service-web-quote' )"));
   assert.ok(journey.includes("if ( !ready || ( paymentState !== 'idle' && paymentState !== 'failed' ) )"));
   const orders=read('src/components/orders/OrdersPage.tsx');
-  assert.ok(orders.includes('{ submitOrderNumber ? <SubmitRequestJourney'));
+  assert.ok(orders.includes('/orders/request/#order='));
+  assert.doesNotMatch(orders, /<SubmitRequestJourney/);
+  const requestPage=read('src/pages/orders/request.tsx');
+  assert.ok(requestPage.includes('<SubmitRequestJourney'));
+  assert.ok(requestPage.includes('noindex, nofollow'));
+  assert.ok(journey.includes("call( 'request-service-web-prepare'"));
+  assert.ok(journey.includes('new window.Razorpay'));
+  assert.ok(journey.includes('/ecommerce/verify-callback'));
+  assert.doesNotMatch(form, /Check WhatsApp|Pay on WhatsApp/);
   assert.doesNotMatch(orders, /ord-web-request/);
   assert.ok(form.includes('expectedTotalPaise: quote.totalPayablePaise'));
   assert.ok(read('scripts/verify_checkout_fixture.mjs').includes('mock-orders-request-menu'));

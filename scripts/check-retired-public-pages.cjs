@@ -64,7 +64,7 @@ if (exists(deadDesignDir)) {
 // not orphaned public pages; they are intentionally audited separately.
 const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/_app', '/_document', '/404', '/auth', '/vault',
-  '/checkout', '/checkout/status', '/checkout/success',
+  '/checkout', '/checkout/status', '/checkout/success', '/orders/request',
   // Public pre-launch holding pages use UpcomingProductPage's explicit noindex.
   // They are navigable, but not advertised in the marketing catalogue or sitemap.
   '/udyam-bids', '/get-kosh',

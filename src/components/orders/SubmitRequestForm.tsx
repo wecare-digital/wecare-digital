@@ -30,6 +30,8 @@ export interface SubmitRequestFormProps {
   onReview: () => void;
   onPay: ( input: { orderNumber: string; note: string; expectedTotalPaise: number } ) => void;
   onCheckStatus: () => void;
+  resumeAmount?: number;
+  onResume?: () => void;
   onDone: () => void;
   onNewRequest: () => void;
 }
@@ -38,7 +40,7 @@ const MAX_NOTE_LENGTH = 300;
 
 export default function SubmitRequestForm ( {
   orderNumber, quote, quoteUnavailable = false, paymentState,
-  onReview, onPay, onCheckStatus, onDone, onNewRequest,
+  onReview, onPay, onCheckStatus, onDone, onNewRequest, resumeAmount = 0, onResume,
 }: SubmitRequestFormProps ): React.ReactElement {
   const [ note, setNote ] = useState( '' );
   const [ invalid, setInvalid ] = useState( false );
@@ -131,7 +133,7 @@ export default function SubmitRequestForm ( {
         { failed && <p className="sr-error" role="alert">Payment was not completed.</p> }
       </> }
       { starting && <p className="sr-copy" role="status">Preparing payment…</p> }
-      { pending && <p className="sr-copy" role="status">Check WhatsApp to complete your payment.</p> }
+      { pending && <p className="sr-copy" role="status">{ resumeAmount ? 'Continue your existing website payment.' : 'Checking payment status. Do not start another payment.' }</p> }
       { saving && <p className="sr-copy" role="status">Payment received. Saving your request.</p> }
       <div className="sr-actions">
         { received ? <>
@@ -140,6 +142,7 @@ export default function SubmitRequestForm ( {
         </>
           : starting ? <button type="button" className="sr-action" disabled>Preparing payment…</button>
             : waiting ? <>
+              { pending && resumeAmount > 0 && onResume && <button type="button" className="sr-action" onClick={ onResume }>Continue payment · { formatPaiseINR( resumeAmount, 'INR' ) }</button> }
               <button type="button" className="sr-action" onClick={ onCheckStatus }>Check status</button>
               <button type="button" className="sr-action" onClick={ onDone }>Back to orders</button>
             </>

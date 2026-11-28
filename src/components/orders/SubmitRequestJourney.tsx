@@ -1,12 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { usePublicToast } from '../public/PublicToastProvider';
+import { loadRazorpaySdk, type RazorpaySuccess } from '../../lib/razorpayCheckout';
+import { colors } from '../../lib/design-tokens';
+import { LOGO_URL } from '../../lib/schema';
 import SubmitRequestForm, { type SubmitRequestPaymentState, type SubmitRequestQuote } from './SubmitRequestForm';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const ENDPOINT = `${API_BASE}/ecommerce/checkout`;
 type Phase = Exclude<SubmitRequestPaymentState, 'starting'>;
-type State = { state: Phase; orderNumber: string; requestKey?: string };
-type Reply = { state?: unknown; orderNumber?: unknown; requestKey?: unknown; quote?: SubmitRequestQuote; error?: string };
+type State = { state: Phase; orderNumber: string; requestKey?: string; resumeAmount: number };
+type Reply = { state?: unknown; orderNumber?: unknown; requestKey?: unknown; quote?: SubmitRequestQuote; error?: string; resumeAvailable?: unknown; amountPaise?: unknown; options?: unknown };
+type GatewayOptions = { keyId: string; orderId: string; amountPaise: number; currency: 'INR'; paymentAttemptId: string };
+
+function parseOptions ( value: unknown, amount: number ): GatewayOptions | null {
+  if ( !value || typeof value !== 'object' || !Number.isSafeInteger( amount ) || amount <= 0 ) return null;
+  const o = value as Partial<GatewayOptions>;
+  if ( typeof o.keyId !== 'string' || !o.keyId.startsWith( 'rzp_' )
+    || typeof o.orderId !== 'string' || !o.orderId.startsWith( 'order_' )
+    || typeof o.paymentAttemptId !== 'string' || !o.paymentAttemptId
+    || o.currency !== 'INR' || o.amountPaise !== amount ) return null;
+  return o as GatewayOptions;
+}
 type Props = { orderNumber: string; accessToken: string; onDone: () => void; onExpired: () => void };
 
 function parseState ( reply: Reply, orderNumber: string ): State | null {
@@ -15,7 +29,10 @@ function parseState ( reply: Reply, orderNumber: string ): State | null {
     || ( phase !== 'idle' && phase !== 'pending' && phase !== 'saving' && phase !== 'received' && phase !== 'failed' ) ) return null;
   const key = typeof reply.requestKey === 'string' && /^[a-f0-9]{32}$/.test( reply.requestKey ) ? reply.requestKey : undefined;
   if ( phase !== 'idle' && !key ) return null;
-  return { state: phase, orderNumber, requestKey: key };
+  const resumeAmount = phase === 'pending' && reply.resumeAvailable === true
+    && typeof reply.amountPaise === 'number' && Number.isSafeInteger( reply.amountPaise ) && reply.amountPaise > 0
+    ? reply.amountPaise : 0;
+  return { state: phase, orderNumber, requestKey: key, resumeAmount };
 }
 
 export default function SubmitRequestJourney ( { orderNumber, accessToken, onDone, onExpired }: Props ): React.ReactElement {
@@ -25,6 +42,11 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
   const [ quoteUnavailable, setQuoteUnavailable ] = useState( false );
   const [ paymentState, setPaymentState ] = useState<SubmitRequestPaymentState>( 'idle' );
   const [ generation, setGeneration ] = useState( 0 );
+  const [ resumeAmount, setResumeAmount ] = useState( 0 );
+  const [ modalOpen, setModalOpen ] = useState( false );
+  const [ verificationStarted, setVerificationStarted ] = useState( false );
+  const modalRef = useRef( false );
+  const verifyingRef = useRef( false );
   const { showToast } = usePublicToast();
   const toastRef = useRef( showToast );
   useEffect( () => { toastRef.current = showToast; }, [ showToast ] );
@@ -72,8 +94,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
       setQuote( null );
       setQuoteUnavailable( true );
     }
+    setResumeAmount( state.resumeAmount );
+    if ( state.state === 'received' && phaseRef.current !== 'received' ) toastRef.current( 'success' );
     changePhase( state.state );
-
     return true;
   }, [ changePhase ] );
 
@@ -155,6 +178,78 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     return () => window.clearTimeout( timer );
   }, [ ready, generation, paymentState, review ] );
 
+  const openGateway = async ( value: unknown, amount: number ) => {
+    const options = parseOptions( value, amount );
+    if ( !options || modalRef.current || verifyingRef.current || !mounted.current ) return;
+    if ( !await loadRazorpaySdk() || !window.Razorpay || !mounted.current ) {
+      if ( mounted.current ) toastRef.current( 'failure' );
+      return;
+    }
+    if ( phaseRef.current !== 'pending' || modalRef.current || verifyingRef.current ) return;
+    modalRef.current = true;
+    setModalOpen( true );
+    const close = () => {
+      modalRef.current = false;
+      if ( mounted.current ) {
+        setModalOpen( false );
+        void checkStatus();
+      }
+    };
+    try {
+      const gateway = new window.Razorpay( {
+        key: options.keyId, order_id: options.orderId,
+        amount: options.amountPaise, currency: options.currency,
+        name: 'WECARE.DIGITAL', description: 'Submit Request', image: LOGO_URL,
+        theme: { color: colors.primary },
+        handler: async ( result: RazorpaySuccess ) => {
+          if ( verifyingRef.current ) return;
+          verifyingRef.current = true;
+          if ( mounted.current ) setVerificationStarted( true );
+          close();
+          try {
+            // The server verifies signature AND captured payment. The modal's
+            // callback is never proof of a completed request.
+            const response = await fetch( `${API_BASE}/ecommerce/verify-callback`, {
+              method: 'POST', cache: 'no-store',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify( {
+                action: 'verify', razorpay_order_id: result.razorpay_order_id,
+                razorpay_payment_id: result.razorpay_payment_id, razorpay_signature: result.razorpay_signature,
+              } ),
+            } );
+            if ( response.status === 401 && mounted.current ) expired.current();
+          } catch { /* Independent webhook and owned status polling settle uncertain callbacks. */ }
+          finally { if ( mounted.current ) void checkStatus(); }
+        },
+        modal: { ondismiss: close },
+      } );
+      gateway.on( 'payment.failed', () => { if ( mounted.current ) void checkStatus(); } );
+      gateway.open();
+    } catch {
+      close();
+      if ( mounted.current ) toastRef.current( 'failure' );
+    }
+  };
+
+  const resumePayment = async () => {
+    if ( starting.current || checking.current || modalRef.current || verifyingRef.current || !resumeAmount ) return;
+    starting.current = true;
+    try {
+      const key = acceptedKey.current;
+      const result = await call( 'request-service-web-resume' );
+      if ( !mounted.current ) return;
+      const state = result.ok ? parseState( result.data, orderNumber ) : null;
+      if ( !state || state.requestKey !== key || !applyState( state ) ) {
+        toastRef.current( 'blocked' );
+        return;
+      }
+      if ( state.state === 'pending' && state.resumeAmount === resumeAmount && result.data.options ) {
+        await openGateway( result.data.options, resumeAmount );
+      }
+    } catch { if ( mounted.current ) toastRef.current( 'failure' ); }
+    finally { starting.current = false; if ( mounted.current ) void checkStatus(); }
+  };
+
   const pay = async ( input: { orderNumber: string; note: string; expectedTotalPaise: number } ) => {
     if ( starting.current || checking.current || quoting.current || ambiguous.current
       || !requestKey.current || !quote || quote.orderNumber !== orderNumber
@@ -164,7 +259,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     changePhase( 'starting' );
 
     try {
-      const result = await call( 'request-service-web-start', {
+      const result = await call( 'request-service-web-prepare', {
         requestKey: requestKey.current, note: input.note, expectedTotalPaise: input.expectedTotalPaise,
       } );
       if ( !mounted.current ) return;
@@ -174,6 +269,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
           previousKey.current = state.requestKey || '';
           setQuoteUnavailable( true );
           requestKey.current = '';
+        } else if ( state.state === 'pending' && state.requestKey === requestKey.current
+          && result.data.options ) {
+          await openGateway( result.data.options, input.expectedTotalPaise );
         }
         return;
       }
@@ -209,6 +307,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     setQuote( null );
     setQuoteUnavailable( false );
 
+    verifyingRef.current = false;
+    setVerificationStarted( false );
+    setResumeAmount( 0 );
     setGeneration( value => value + 1 );
     changePhase( 'idle' );
   };
@@ -219,7 +320,9 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
         <SubmitRequestForm key={ generation } orderNumber={ orderNumber } quote={ quote }
           quoteUnavailable={ quoteUnavailable } paymentState={ paymentState }
           onReview={ () => { void review(); } } onPay={ input => { void pay( input ); } }
-          onCheckStatus={ () => { void checkStatus( false, true ); } } onDone={ onDone } onNewRequest={ newRequest } />
+          onCheckStatus={ () => { void checkStatus( false, true ); } } onDone={ onDone } onNewRequest={ newRequest }
+          resumeAmount={ !modalOpen && !verificationStarted ? resumeAmount : 0 }
+          onResume={ () => { void resumePayment(); } } />
       </> : <section className="sr-journey-loading" aria-label="Submit Request">
         <h2>Submit Request</h2>
         <p role="status">{ unavailable ? 'Submit Request is temporarily unavailable.' : 'Checking request status…' }</p>

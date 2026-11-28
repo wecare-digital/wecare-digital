@@ -645,6 +645,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // PUBLIC_PAGE_META so they are not treated as indexable marketing surfaces. Each page sets
     // robots:noindex itself. They render for a signed-in customer returning from an in-chat
     // payment; the per-route fallback WebPage schema above is the correct, minimal markup for them.
+    || router.pathname === '/orders/request'
     || router.pathname === '/checkout/status'
     || router.pathname === '/checkout/success'
     // Pre-launch product destinations: public chrome, noindex on the page, not in the sitemap.
