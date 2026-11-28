@@ -9,11 +9,17 @@
  * router.push('/'). The one extra surface is PushOptIn — a self-contained control that registers a
  * device push token through an existing authenticated endpoint and renders NOTHING on web /
  * unsupported platforms, so it never shows an empty or dead section in a browser.
+ * Sign-in & MFA (TotpSetup) lives here too: it was only reachable from SettingsGear, which is
+ * mounted nowhere, so staff could not enrol or change an authenticator app.
  */
 import React from 'react';
 import SEO from '../../../components/SEO';
 import WsShell from '../../../components/ws/WsShell';
 import PushOptIn from '../../../components/PushOptIn';
+import dynamic from 'next/dynamic';
+// Loaded only on this page and only in the browser: it calls Cognito with the signed-in user's
+// own tokens, so there is nothing to prerender.
+const TotpSetup = dynamic( () => import( '../../../components/security/TotpSetup' ), { ssr: false } );
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -39,6 +45,10 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
           <div className="ws-settings-push">
             <PushOptIn />
           </div>
+          <section className="ws-settings-mfa" aria-labelledby="ws-settings-mfa-title">
+            <h2 id="ws-settings-mfa-title" className="ws-settings-heading">Sign-in &amp; MFA</h2>
+            <TotpSetup />
+          </section>
 
           {/* Mobile fallback: on desktop Sign out is always in the sidebar foot. */}
           <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() } disabled={ !signOut }>
@@ -98,6 +108,13 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             overflow:hidden;
           }
           .ws-settings-push :global(.push-optin){ border-top:0; }
+          .ws-settings-mfa{ margin-bottom:16px; min-width:0; }
+          .ws-settings-heading{
+            margin:0 0 8px;
+            font-size:15px;
+            font-weight:700;
+            color:var(--text,#1a1a1a);
+          }
           .ws-settings-signout{
             display:inline-flex;
             align-items:center;

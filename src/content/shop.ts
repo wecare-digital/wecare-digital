@@ -288,7 +288,7 @@ export const shopMetaDescription = ( product: ShopProduct ): string => {
  *
  * The descriptor is the same on all seven because it is a statement about the PAGE, not the product.
  * Splicing in each product's own tagline breaks the length bound: Paperwork's is 60 characters,
- * which with the name and suffix runs to 96 against tools/browser/seocheck.js's 75-character
+ * which with the name and suffix runs to 96 against the 75-character title
  * ceiling. The longest of the seven as written is 62.
  */
 export const shopPageTitle = ( product: ShopProduct ): string =>

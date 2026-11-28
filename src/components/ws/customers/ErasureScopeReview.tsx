@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import type { Contact } from '../../../api/client';
+import Modal from '../../ui/Modal';
 import styles from './ErasureScopeReview.module.css';
 
 interface Props {
@@ -59,7 +60,6 @@ function buildErasureScopePreview(
 const ErasureScopeReview: React.FC<Props> = ({ contacts, onClose }) => {
   const [protectedIds, setProtectedIds] = React.useState<Set<string>>(() => new Set());
   const [search, setSearch] = React.useState('');
-  const headingId = React.useId();
 
   // A concurrent directory refresh may remove or replace a row. Never keep
   // an invisible, stale protection selection after the identity disappears.
@@ -90,79 +90,70 @@ const ErasureScopeReview: React.FC<Props> = ({ contacts, onClose }) => {
     });
   };
 
+  // ui/Modal moves focus in, traps Tab, closes on Escape and restores focus (audit WEB-11).
   return (
-    <div className={styles.backdrop} role="presentation"
-      onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className={styles.panel} role="dialog" aria-modal="true" aria-labelledby={headingId}>
-        <header className={styles.header}>
-          <div>
-            <h2 id={headingId}>Review permanent deletion scope</h2>
-            <p>Select the exact customer records to keep. Two customers with the same name
-              are not automatically the same identity.</p>
-          </div>
-          <button type="button" onClick={onClose} className={styles.close}
-            aria-label="Close deletion scope review">Close</button>
-        </header>
-        <div className={styles.body}>
-          <label className={styles.search}>
-            <span>Find contacts to preserve</span>
-            <input type="search" value={search} onChange={event => setSearch(event.target.value)}
-              placeholder="Search name, phone, or customer ID" />
-          </label>
-          <ul className={styles.contacts} aria-label="Choose exact contacts to keep">
-            {visible.map((contact, index) => {
-              const id = contactKey(contact);
-              return (
-                <li key={id || 'missing-id-' + index}>
-                  <label className={styles.contact}>
-                    <input type="checkbox" checked={Boolean(id) && protectedIds.has(id)}
-                      disabled={!id} onChange={() => toggle(id)}
-                      aria-label={'Keep ' + (contact.name || 'Unnamed contact') + ' ' + (contact.phone || id)} />
-                    <span>
-                      <strong>{contact.name || 'Unnamed contact'}</strong>
-                      <small>{contact.phone || 'Phone not shared'}</small>
-                      <small>{contact.customerDisplayId || id || 'Missing canonical ID'}</small>
-                      {contact.locked && <small>Retention lock</small>}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+    <Modal isOpen onClose={onClose} title="Review permanent deletion scope" size="lg"
+      footer={<>
+        <button type="button" className={styles.cancel} onClick={onClose}>Close review</button>
+        <button type="button" className={styles.disabledDelete} disabled
+          title="Requires Operator approval, MFA, legal retention review, and audited cross-service erasure">
+          Delete candidates — approval required
+        </button>
+      </>}>
+      <div className={styles.body}>
+        <p className={styles.intro}>Select the exact customer records to keep. Two customers with the same name
+          are not automatically the same identity.</p>
+        <label className={styles.search}>
+          <span>Find contacts to preserve</span>
+          <input type="search" value={search} onChange={event => setSearch(event.target.value)}
+            placeholder="Search name, phone, or customer ID" />
+        </label>
+        <ul className={styles.contacts} aria-label="Choose exact contacts to keep">
+          {visible.map((contact, index) => {
+            const id = contactKey(contact);
+            return (
+              <li key={id || 'missing-id-' + index}>
+                <label className={styles.contact}>
+                  <input type="checkbox" checked={Boolean(id) && protectedIds.has(id)}
+                    disabled={!id} onChange={() => toggle(id)}
+                    aria-label={'Keep ' + (contact.name || 'Unnamed contact') + ' ' + (contact.phone || id)} />
+                  <span>
+                    <strong>{contact.name || 'Unnamed contact'}</strong>
+                    <small>{contact.phone || 'Phone not shared'}</small>
+                    <small>{contact.customerDisplayId || id || 'Missing canonical ID'}</small>
+                    {contact.locked && <small>Retention lock</small>}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
 
-          <div className={styles.counts} role="status" aria-live="polite">
-            <div><span>Protected contacts</span><strong>{review.protectedContacts}</strong></div>
-            <div><span>Others to assess</span><strong>{review.candidateContacts}</strong></div>
-            <div><span>Locked among others</span><strong>{review.candidateLocked}</strong></div>
-            <div><span>Certified for erasure</span><strong>{review.eligibleToDelete}</strong></div>
-          </div>
-
-          {review.incomplete && <p className={styles.warning}>
-            Protection selection is incomplete or an identity is missing/duplicated.
-            No deletion can be requested from an incomplete scope.
-          </p>}
-          <p className={styles.warning}>
-            This preview only counts currently loaded contacts. It does not inspect every
-            WhatsApp message, versioned media object, identity claim, Razorpay transaction,
-            payment webhook, invoice, order, or legal hold. Those records and all
-            payment-related communications must remain untouched until an authenticated,
-            independently reviewed cross-service inventory certifies eligibility.
-          </p>
-          <p>
-            Permanent deletion still requires Admin MFA, approved case evidence and
-            an independently deployed erasure coordinator. Without that coordinator,
-            the API reports ERASURE_COORDINATOR_UNAVAILABLE. No records have been changed by this review.
-          </p>
+        <div className={styles.counts} role="status" aria-live="polite">
+          <div><span>Protected contacts</span><strong>{review.protectedContacts}</strong></div>
+          <div><span>Others to assess</span><strong>{review.candidateContacts}</strong></div>
+          <div><span>Locked among others</span><strong>{review.candidateLocked}</strong></div>
+          <div><span>Certified for erasure</span><strong>{review.eligibleToDelete}</strong></div>
         </div>
-        <footer className={styles.footer}>
-          <button type="button" className={styles.cancel} onClick={onClose}>Close review</button>
-          <button type="button" className={styles.disabledDelete} disabled
-            title="Requires Operator approval, MFA, legal retention review, and audited cross-service erasure">
-            Delete candidates — approval required
-          </button>
-        </footer>
-      </section>
-    </div>
+
+        {review.incomplete && <p className={styles.warning}>
+          Protection selection is incomplete or an identity is missing/duplicated.
+          No deletion can be requested from an incomplete scope.
+        </p>}
+        <p className={styles.warning}>
+          This preview only counts currently loaded contacts. It does not inspect every
+          WhatsApp message, versioned media object, identity claim, Razorpay transaction,
+          payment webhook, invoice, order, or legal hold. Those records and all
+          payment-related communications must remain untouched until an authenticated,
+          independently reviewed cross-service inventory certifies eligibility.
+        </p>
+        <p>
+          Permanent deletion still requires Admin MFA, approved case evidence and
+          an independently deployed erasure coordinator. Without that coordinator,
+          the API reports ERASURE_COORDINATOR_UNAVAILABLE. No records have been changed by this review.
+        </p>
+      </div>
+    </Modal>
   );
 };
 

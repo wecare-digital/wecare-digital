@@ -10,6 +10,7 @@ import { useRouter } from 'next/router';
 import Header from './Header';
 import Footer from './Footer';
 import PublicShare from './PublicShare';
+import ErrorBoundary from './ErrorBoundary';
 import SearchModal from './SearchModal';
 import PushOptIn from './PushOptIn';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -137,7 +138,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
           </div>
         </main>
 
-        <div className="workspace-public-share"><PublicShare /></div>
+        <div className="workspace-public-share"><ErrorBoundary fallback={ null }><PublicShare /></ErrorBoundary></div>
         <Footer />
 
         <SearchModal isOpen={ searchOpen } onClose={ () => setSearchOpen( false ) } />

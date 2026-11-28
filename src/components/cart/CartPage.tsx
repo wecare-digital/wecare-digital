@@ -46,8 +46,8 @@ import { CONTRIBUTION_AMOUNT_LABEL, CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_I
 import { colors } from '../../lib/design-tokens';
 /**
  * THE OPAQUE SQUARE MARK, and it has to be that one. Razorpay composites this logo onto its own
- * modal surface, so it is a renderer we do not control - exactly the case src/test/BrandAssets.
- * test.ts bans `wecaredigital.png` from, because that file is 68.4% transparent with a black mark
+ * modal surface, so it is a renderer we do not control - exactly the case `wecaredigital.png`
+ * must not be used for, because that file is 68.4% transparent with a black mark
  * and flattens to an invisible logo on a dark ground. `schema.ts`'s LOGO_URL is the 1080x1080
  * opaque-white-ground asset already serving apple-touch-icon and the Organization logo, and it is
  * imported rather than restated so the two cannot drift.
@@ -2002,7 +2002,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   { quoteSignInRequired && (
                     <div className="cart-signin">
                       <p className="cart-price-note">Sign in with your WhatsApp verification code. Your payment stays on the website{ hasContribution ? '.' : ' when you choose Pay on Website.' }</p>
-                      <Link className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</Link>
+                      {/* A full page load: /auth is rendered without the analytics tags, which a client-side
+                          navigation would carry over from this page. */}
+                      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                      <a className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</a>
                     </div>
                   ) }
               {/* A returning customer's stored identity must remain visible when the

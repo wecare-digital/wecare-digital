@@ -84,109 +84,38 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     addLog(`Total unique URLs: ${allUrls.length}`);
     addLog('');
 
-    // Step 2: Submit public URLs to Google. Authentication comes from the
-    // existing SEO platform integration when configured.
-    addLog('Submitting to Google Indexing API...');
-    addLog('Note: Google allows ~200 URL submissions per day per property.');
-    addLog('Each submission tells Google to re-crawl that URL.');
+    // The browser has no Google Indexing API credential. (A token used to be read from
+    // localStorage 'seo_token' for an SEO platform URL that is not configured; removed.)
+    addLog('Direct Google Indexing API submission is not available from the browser.');
+    addLog('');
+    addLog('Alternative: Run from terminal:');
+    addLog('  python seo-crawler/scripts/google_reindex_now.py');
+    addLog('');
+    addLog('Or deploy the Google Indexer Lambda:');
+    addLog('  cd seo-crawler && sam build && sam deploy');
+    addLog('  Then POST to /index endpoint');
+    addLog('');
+    addLog('Meanwhile, Google can crawl the single public sitemap:');
+    addLog('  - https://wecare.digital/sitemap.xml');
+    addLog('');
+    addLog('The sitemap is regenerated from the public Amplify export on every build.');
+    addLog('Full re-indexing typically takes 3-7 days.');
     addLog('');
 
-    let submitted = 0;
-    let failed = 0;
-    let quotaHit = false;
-
-    // Try to get Google token from the SEO platform backend
-    const seoApiUrl = process.env.NEXT_PUBLIC_SEO_API_URL || '';
-    let googleToken = '';
-
-    if (seoApiUrl) {
+    // Still useful: ping Google with sitemap notification
+    addLog('Pinging Google with sitemap URLs...');
+    const sitemaps = [ 'https://wecare.digital/sitemap.xml' ];
+    for (const sm of sitemaps) {
       try {
-        addLog('Getting Google auth token from SEO platform...');
-        const tokenRes = await fetch(`${seoApiUrl}/api/auth/google/token`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('seo_token') || ''}` },
-        });
-        if (tokenRes.ok) {
-          const tokenData = await tokenRes.json();
-          googleToken = tokenData.access_token || '';
-          addLog('✅ Google token obtained');
-        }
+        const pingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sm)}`;
+        await fetch(pingUrl, { mode: 'no-cors' });
+        addLog(`  ✅ Pinged: ${sm}`);
       } catch {
-        addLog('SEO platform not available — using direct submission');
+        addLog(`  ❌ Failed: ${sm}`);
       }
     }
-
-    if (!googleToken) {
-      addLog('');
-      addLog('⚠️ No Google Indexing API token available.');
-      addLog('');
-      addLog('To enable direct Google indexing:');
-      // Named `wecare-seo-platform` until 2026-09-23. No such function exists - the
-      // only SEO function in the account is wecare-seo-tools. Telling an operator to
-      // deploy something that does not exist sends them hunting a missing deployment
-      // instead of the real blocker, which is the Search Console OAuth grant below.
-      addLog('  1. Deploy the SEO backend');
-      addLog('  2. Set NEXT_PUBLIC_SEO_API_URL in .env.local');
-      addLog('  3. Connect Google Search Console via OAuth');
-      addLog('');
-      addLog('Alternative: Run from terminal:');
-      addLog('  python seo-crawler/scripts/google_reindex_now.py');
-      addLog('');
-      addLog('Or deploy the Google Indexer Lambda:');
-      addLog('  cd seo-crawler && sam build && sam deploy');
-      addLog('  Then POST to /index endpoint');
-      addLog('');
-      addLog('Meanwhile, Google can crawl the single public sitemap:');
-      addLog('  - https://wecare.digital/sitemap.xml');
-      addLog('');
-      addLog('The sitemap is regenerated from the public Amplify export on every build.');
-      addLog('Full re-indexing typically takes 3-7 days.');
-      addLog('');
-
-      // Still useful: ping Google with sitemap notification
-      addLog('Pinging Google with sitemap URLs...');
-      const sitemaps = [ 'https://wecare.digital/sitemap.xml' ];
-      for (const sm of sitemaps) {
-        try {
-          const pingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sm)}`;
-          await fetch(pingUrl, { mode: 'no-cors' });
-          addLog(`  ✅ Pinged: ${sm}`);
-        } catch {
-          addLog(`  ❌ Failed: ${sm}`);
-        }
-      }
-      addLog('');
-      addLog('Done. Google has been notified of sitemap updates.');
-    } else {
-      // Submit URLs with token
-      for (let i = 0; i < allUrls.length; i++) {
-        if (quotaHit) break;
-        try {
-          const resp = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: allUrls[i], type: 'URL_UPDATED' }),
-          });
-          if (resp.status === 200) {
-            submitted++;
-          } else if (resp.status === 429) {
-            quotaHit = true;
-            addLog(`⚠️ Quota hit after ${submitted} submissions`);
-          } else {
-            failed++;
-          }
-        } catch {
-          failed++;
-        }
-        if ((i + 1) % 25 === 0) {
-          addLog(`  Progress: ${submitted}/${i + 1} submitted, ${failed} failed`);
-        }
-        await new Promise(r => setTimeout(r, 150));
-      }
-      addLog('');
-      addLog(`✅ Submitted: ${submitted}/${allUrls.length}`);
-      addLog(`❌ Failed: ${failed}`);
-      if (quotaHit) addLog('⚠️ Daily quota reached — remaining URLs will be indexed via sitemap');
-    }
+    addLog('');
+    addLog('Done. Google has been notified of sitemap updates.');
 
     setRunning('');
   }

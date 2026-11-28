@@ -18,8 +18,9 @@
  * Do not import aws-amplify from pages/_app.tsx again; that puts it back on every public page.
  */
 import { Amplify } from 'aws-amplify';
+import { cognitoUserPoolsTokenProvider } from 'aws-amplify/auth/cognito';
 // I18n lives in aws-amplify/utils in v6, not on the root export.
-import { I18n } from 'aws-amplify/utils';
+import { I18n, sessionStorage } from 'aws-amplify/utils';
 
 /**
  * Plain-English labels for the MFA chooser.
@@ -92,4 +93,11 @@ Amplify.configure( {
     }
   }
 } );
+
+/* STAFF TOKENS LIVE IN sessionStorage, NOT localStorage (WEB-1). Amplify's default is
+   localStorage, which keeps the refresh token for its whole lifetime and lets any script on
+   this origin read it from any page. sessionStorage limits it to the signed-in tab and clears
+   it when the tab closes, so staff sign in again per tab. Amplify's adapter falls back to memory
+   during the static export. The customer pool does not use this module (lib/customerAuth.ts). */
+cognitoUserPoolsTokenProvider.setKeyValueStorage( sessionStorage );
 

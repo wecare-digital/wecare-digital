@@ -286,7 +286,7 @@ response = requests.post(
                         start in ltr and 74px in rtl. 74 is the arithmetically correct value
                         (14 padding + 10 gap = 24 for the avatar, which is 40 wide and ends at
                         64, + 10 gap = 74), so ltr was carrying a phantom gap.
-                        rtlcheck.js reported it as a 10px mirror asymmetry and it was briefly
+                        An RTL mirror check reported it as a 10px asymmetry and it was briefly
                         allowlisted as a browser quirk. It is not a quirk worth keeping: the
                         element was dead markup, and deleting it removes the asymmetry and 10px
                         of unintended space at the same time. If a back chevron is ever wanted
