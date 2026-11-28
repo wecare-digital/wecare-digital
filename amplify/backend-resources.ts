@@ -48,11 +48,15 @@ export function addBackendResources ( stack: Stack ) {
     retentionPeriod: Duration.days( 7 ),
   } );
 
-  // SNS Topic (if not already exists)
+  // Alarm notifications go to `wecare-alarm-notifications`, whose subscriber is a
+  // confirmed email. `stack-wecare-digital` is the WhatsApp event topic: its only
+  // subscriber is the wecare-inbound-whatsapp Lambda, which drops alarm messages.
+  // It was removed from every live alarm on 2026-11-28 (audit AWS-5). Do not add it
+  // back to any alarm action.
   const alarmTopic = sns.Topic.fromTopicArn(
     stack,
     'AlarmTopic',
-    `arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack-wecare-digital`
+    `arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:wecare-alarm-notifications`
   );
 
   // CloudWatch Alarms
@@ -252,8 +256,8 @@ export function addBackendResources ( stack: Stack ) {
   // fail on "already exists". If you later fully adopt IaC, import them first.
 
   // ─── Amplify build-failure notification ────────────────────────────
-  // The shared legacy topic delivers to the WhatsApp worker, not email.
-  // Keep other alarm declarations separate from this verified email route.
+  // Same email topic as `alarmTopic` above, imported separately so the rule and
+  // its topic policy below stay self-contained.
   const buildFailureTopic = sns.Topic.fromTopicArn(
     stack,
     'BuildFailureTopic',

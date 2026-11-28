@@ -1,0 +1,528 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Captures failed asynchronous Lambda invocations: one encrypted SQS queue is the
+  OnFailure destination of every EventBridge, Scheduler and in-code async target,
+  with alarms on AsyncEventsDropped and on queue depth. Audit AWS-8.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    arch: async invoke (EventBridge rule, Scheduler, InvocationType=Event) -> fn:qualifier -> retries exhausted or max age -> FailureQueue; alarms -> AlarmTopicName
+    must:
+      - one EventInvokeConfig per (fn, qualifier) actually invoked async; unqualified caller -> $LATEST config
+      - skip any fn:qualifier that already has an EventInvokeConfig (wecare-secure-files:live -> wecare-lambda-async-dlq)
+      - wecare-log-retention-enforcer stays out (its stack must not change; its role is CloudFormation-managed)
+      - grant SendMessage only through SendFailureRecordsPolicy; wecare-digital-lambda-role has no inline-policy room and its inline policies stay unchanged
+      - adding a target -> add its EventInvokeConfig + Dropped alarm here, and its role to SendFailureRecordsPolicy.Roles
+Parameters:
+  AlarmTopicName:
+    Type: String
+    Default: wecare-alarm-notifications
+    AllowedPattern: '^[A-Za-z0-9_-]{1,256}$'
+    Description: Existing SNS topic with a confirmed human (email) subscriber.
+Resources:
+  FailureQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: holds Lambda on-failure invocation records (request payload + error) for 14d so a failed async event can be inspected and replayed; SSE-SQS so no KMS grants are needed on 3 roles
+        must:
+          - standard queue (Lambda destinations reject FIFO)
+          - Retain: records are evidence of lost work; drain before deleting by hand
+        mutable: change-with-constraints
+        mutability:
+          QueueName: must-never-change
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-dlq'
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+  FailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: TLS-only access; Lambda writes with the function role's identity policy, so no Allow is needed here
+    Properties:
+      Queues:
+        - !Ref FailureQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 'sqs:*'
+            Resource: !GetAtt FailureQueue.Arn
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+  SendFailureRecordsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Lambda sends on-failure records with the execution role, and PutFunctionEventInvokeConfig checks that permission, so every EventInvokeConfig depends on this
+        must:
+          - Roles = every execution role of a target below
+          - customer-managed, never inline (shared role inline quota)
+    Properties:
+      ManagedPolicyName: !Sub '${AWS::StackName}-send'
+      Description: Lets async-invoked WECARE Lambda functions write on-failure records to the async failure queue.
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SendAsyncFailureRecords
+            Effect: Allow
+            Action: sqs:SendMessage
+            Resource: !GetAtt FailureQueue.Arn
+      Roles:
+        - wecare-digital-lambda-role
+        - wecare-service-requests-role
+        - wecare-whatsapp-analytics-export-role
+  # wecare-razorpay-webhook:live <- EventBridge wecare-commerce-customer-links; in-code from wecare-inbound-whatsapp
+  OnFailureRazorpayWebhook:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-razorpay-webhook
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-docs-scraper:$LATEST <- EventBridge wecare-docs-scraper-daily (unqualified target)
+  OnFailureDocsScraper:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-docs-scraper
+      Qualifier: '$LATEST'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-media-cleanup:$LATEST <- EventBridge wecare-media-cleanup-daily (unqualified target)
+  OnFailureMediaCleanup:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-media-cleanup
+      Qualifier: '$LATEST'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-partner-token-refresh:$LATEST <- EventBridge wecare-partner-token-refresh-daily (unqualified target)
+  OnFailurePartnerTokenRefresh:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-partner-token-refresh
+      Qualifier: '$LATEST'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-scheduled-messages:live <- EventBridge wecare-scheduled-messages-trigger
+  OnFailureScheduledMessages:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-scheduled-messages
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-whatsapp-business-api:live <- EventBridge wecare-whatsapp-delivery-reconciliation and wecare-whatsapp-template-flow-meta-sync; in-code from razorpay-webhook, inbound-whatsapp and its own flows/submit_request.py
+  OnFailureWhatsappBusinessApi:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-whatsapp-business-api
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-whatsapp-analytics-export:live <- EventBridge wecare-whatsapp-operational-analytics
+  OnFailureWhatsappAnalyticsExport:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-whatsapp-analytics-export
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-seo-tools:$LATEST <- EventBridge Scheduler wecare-seo-freshness-daily (unqualified target)
+  OnFailureSeoTools:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-seo-tools
+      Qualifier: '$LATEST'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-service-requests:live <- in-code lambda_utils/ecommerce/service_request_dispatch.py
+  OnFailureServiceRequests:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-service-requests
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-rcs-send:live <- in-code from wecare-rcs-dlr
+  OnFailureRcsSend:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-rcs-send
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-outbound-whatsapp:live <- in-code from inbound-whatsapp, whatsapp-business-api and its flows/common.py
+  OnFailureOutboundWhatsapp:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-outbound-whatsapp
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-whatsapp-voice:live <- in-code from wecare-inbound-whatsapp
+  OnFailureWhatsappVoice:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-whatsapp-voice
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-inbound-whatsapp:live <- in-code from wecare-whatsapp-calling
+  OnFailureInboundWhatsapp:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-inbound-whatsapp
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  # wecare-sms-aws:live <- in-code from plivo-answer and lambda_utils/comms/notify.py
+  OnFailureSmsAws:
+    Type: AWS::Lambda::EventInvokeConfig
+    DependsOn: SendFailureRecordsPolicy
+    Properties:
+      FunctionName: wecare-sms-aws
+      Qualifier: 'live'
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt FailureQueue.Arn
+  DroppedRazorpayWebhook:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-razorpay-webhook'
+      AlarmDescription: 'Lambda dropped an async event for wecare-razorpay-webhook after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-razorpay-webhook
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedDocsScraper:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-docs-scraper'
+      AlarmDescription: 'Lambda dropped an async event for wecare-docs-scraper after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-docs-scraper
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedMediaCleanup:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-media-cleanup'
+      AlarmDescription: 'Lambda dropped an async event for wecare-media-cleanup after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-media-cleanup
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedPartnerTokenRefresh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-partner-token-refresh'
+      AlarmDescription: 'Lambda dropped an async event for wecare-partner-token-refresh after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-partner-token-refresh
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedScheduledMessages:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-scheduled-messages'
+      AlarmDescription: 'Lambda dropped an async event for wecare-scheduled-messages after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-scheduled-messages
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedWhatsappBusinessApi:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-whatsapp-business-api'
+      AlarmDescription: 'Lambda dropped an async event for wecare-whatsapp-business-api after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-whatsapp-business-api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedWhatsappAnalyticsExport:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-whatsapp-analytics-export'
+      AlarmDescription: 'Lambda dropped an async event for wecare-whatsapp-analytics-export after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-whatsapp-analytics-export
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedSeoTools:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-seo-tools'
+      AlarmDescription: 'Lambda dropped an async event for wecare-seo-tools after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-seo-tools
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedServiceRequests:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-service-requests'
+      AlarmDescription: 'Lambda dropped an async event for wecare-service-requests after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-service-requests
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedRcsSend:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-rcs-send'
+      AlarmDescription: 'Lambda dropped an async event for wecare-rcs-send after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-rcs-send
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedOutboundWhatsapp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-outbound-whatsapp'
+      AlarmDescription: 'Lambda dropped an async event for wecare-outbound-whatsapp after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-outbound-whatsapp
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedWhatsappVoice:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-whatsapp-voice'
+      AlarmDescription: 'Lambda dropped an async event for wecare-whatsapp-voice after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-whatsapp-voice
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedInboundWhatsapp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-inbound-whatsapp'
+      AlarmDescription: 'Lambda dropped an async event for wecare-inbound-whatsapp after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-inbound-whatsapp
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  DroppedSmsAws:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dropped-wecare-sms-aws'
+      AlarmDescription: 'Lambda dropped an async event for wecare-sms-aws after retries or max age. The on-failure record is in the async failure queue.'
+      Namespace: AWS/Lambda
+      MetricName: AsyncEventsDropped
+      Dimensions:
+        - Name: FunctionName
+          Value: wecare-sms-aws
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+  FailureQueueDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-queue-depth'
+      AlarmDescription: 'A failed async Lambda invocation record is waiting in the async failure queue. Read it, fix the cause, then replay or delete it.'
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt FailureQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+Outputs:
+  FailureQueueArn:
+    Value: !GetAtt FailureQueue.Arn
+  FailureQueueUrl:
+    Value: !Ref FailureQueue
+  SendFailureRecordsPolicyArn:
+    Value: !Ref SendFailureRecordsPolicy

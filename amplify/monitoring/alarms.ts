@@ -19,7 +19,9 @@ const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 export const ALARM_CONFIG = {
   namespace: 'WECARE.DIGITAL',
-  snsTopicArn: `arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack-wecare-digital`,
+  // Not `stack-wecare-digital`: that is the WhatsApp event topic, and its only
+  // subscriber (the inbound WhatsApp Lambda) drops alarm messages (audit AWS-5).
+  snsTopicArn: `arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:wecare-alarm-notifications`,
   
   alarms: {
     // Lambda Error Rate Alarm
@@ -98,11 +100,11 @@ export const ALARM_CONFIG = {
  * CloudWatch Alarm Actions
  * 
  * These actions are triggered when alarms enter ALARM state.
- * All alarms publish to the SNS topic for notification.
+ * All alarms publish to the email alarm topic `wecare-alarm-notifications`.
  */
 export const ALARM_ACTIONS = {
-  ok: [`arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack-wecare-digital`],
-  alarm: [`arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack-wecare-digital`],
+  ok: [`arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:wecare-alarm-notifications`],
+  alarm: [`arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:wecare-alarm-notifications`],
   insufficientData: [],
 };
 

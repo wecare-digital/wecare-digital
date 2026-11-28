@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Delivers the WhatsApp event topic to the wecare-inbound-whatsapp live alias instead
+  of the unqualified function ($LATEST), with an encrypted SNS dead-letter queue for
+  deliveries SNS cannot make. Audit AWS-8.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    arch: SNS stack-wecare-digital -> lambda subscription -> wecare-inbound-whatsapp:live; undeliverable msg -> SnsDeliveryDlq; async fn failure -> async-failure-destinations stack
+    must:
+      - the old unqualified subscription (function:wecare-inbound-whatsapp) is removed by hand after this stack; never run both, every message would be handled twice
+      - alias permission must exist before the subscription, or SNS deliveries fail
+      - release rules for the live alias stay in architecture/whatsapp-inbound-release.md; this stack only points SNS at the alias
+    ref:
+      - at: architecture/whatsapp-inbound-release.md
+        has: inbound live-alias promotion checks
+Parameters:
+  TopicName:
+    Type: String
+    Default: stack-wecare-digital
+    AllowedPattern: '^[A-Za-z0-9_-]{1,256}$'
+    Description: Existing WhatsApp event topic.
+  FunctionName:
+    Type: String
+    Default: wecare-inbound-whatsapp
+    AllowedPattern: '^[A-Za-z0-9_-]{1,64}$'
+    Description: Existing inbound WhatsApp worker function.
+  AliasName:
+    Type: String
+    Default: live
+    AllowedPattern: '^[A-Za-z0-9_-]{1,128}$'
+    Description: Existing alias that serves production traffic.
+  AlarmTopicName:
+    Type: String
+    Default: wecare-alarm-notifications
+    AllowedPattern: '^[A-Za-z0-9_-]{1,256}$'
+    Description: Existing SNS topic with a confirmed human (email) subscriber.
+Resources:
+  SnsDeliveryDlq:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: keeps topic messages SNS could not hand to the alias (permission, throttle, deleted alias) for 14d instead of SNS discarding them; SSE-SQS because the topic is unencrypted and SNS needs no KMS grant
+        must:
+          - standard queue (SNS DLQ for a standard topic)
+          - Retain: holds undelivered WhatsApp events; drain before deleting by hand
+        mutable: change-with-constraints
+        mutability:
+          QueueName: must-never-change
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-dlq'
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+  SnsDeliveryDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: SNS writes redriven messages with its service principal, so the queue must allow exactly this topic
+        must:
+          - keep aws:SourceArn = the WhatsApp topic (confused-deputy guard)
+    Properties:
+      Queues:
+        - !Ref SnsDeliveryDlq
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowWhatsAppTopicRedrive
+            Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt SnsDeliveryDlq.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 'sqs:*'
+            Resource: !GetAtt SnsDeliveryDlq.Arn
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+  LiveAliasInvokePermission:
+    Type: AWS::Lambda::Permission
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: resource policy on the alias only; the unqualified sns-invoke-stack statement is left in place for rollback
+    Properties:
+      FunctionName: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:${AliasName}'
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}'
+  LiveAliasSubscription:
+    Type: AWS::SNS::Subscription
+    DependsOn:
+      - LiveAliasInvokePermission
+      - SnsDeliveryDlqPolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: SNS invokes the alias, so the topic runs the released version, not whatever $LATEST holds
+        must:
+          - RedrivePolicy -> SnsDeliveryDlq
+    Properties:
+      TopicArn: !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}'
+      Protocol: lambda
+      Endpoint: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:${AliasName}'
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SnsDeliveryDlq.Arn
+  SnsDeliveryDlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-dlq-depth'
+      AlarmDescription: 'SNS could not deliver a WhatsApp topic message to the inbound live alias. Read the message in the DLQ before replaying it.'
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SnsDeliveryDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+      OKActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${AlarmTopicName}'
+Outputs:
+  SubscriptionArn:
+    Value: !Ref LiveAliasSubscription
+  SnsDeliveryDlqArn:
+    Value: !GetAtt SnsDeliveryDlq.Arn
