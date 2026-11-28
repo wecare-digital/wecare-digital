@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router';
 import React, { useEffect, useRef, useState } from 'react';
 
 import PageMeta from '../PageMeta';
@@ -341,6 +342,7 @@ async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
 }
 
 export default function OrdersPage (): React.ReactElement {
+  const router = useRouter();
   const [ view, setView ] = useState<View>( 'loading' );
   const [ token, setToken ] = useState( '' );
   const [ requestSelection, setRequestSelection ] = useState<OrderRequestId | null>( null );
@@ -937,7 +939,7 @@ export default function OrdersPage (): React.ReactElement {
                                 ) }
                               <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ id => {
                                 if ( id === 'submit-request' ) {
-                                  window.location.assign( `/orders/request/#order=${encodeURIComponent( order.orderNumber )}` );
+                                  void router.push( `/orders/request/#order=${encodeURIComponent( order.orderNumber )}` );
                                   return;
                                 }
                                 setRequestSelection( id );
