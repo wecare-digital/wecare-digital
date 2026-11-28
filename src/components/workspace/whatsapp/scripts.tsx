@@ -60,7 +60,9 @@ const ScriptsPageBody: React.FC<Props> = () => {
     // Load overrides from SystemConfig
     const flowTriggers = { ...defaultFlowTriggers };
     try {
-      const configTriggers = await api.getSystemConfig('flow_triggers_config');
+      const triggersResult = await api.getSystemConfigResult('flow_triggers_config');
+      if (!triggersResult.ok) toast.error(`Saved trigger overrides are unavailable (${triggersResult.failure.message}). Showing built-in defaults only.`);
+      const configTriggers = triggersResult.ok ? triggersResult.data.config : null;
       if (configTriggers && typeof configTriggers === 'object') {
         for (const [key, val] of Object.entries(configTriggers as Record<string, any>)) {
           if (val?.message?.body && flowTriggers[key]) {

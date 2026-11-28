@@ -1106,7 +1106,7 @@ def ensure_route_throttle(dry_run: bool) -> str:
     if stale:
         return (f"SKIPPED — the stage carries settings for route(s) that no longer exist, which "
                 f"makes RouteSettings unwritable: {stale}. Clear them with "
-                f"`python scripts/deploy_mcp_server.py` (it owns DeleteRouteSettings), then "
+                f"`aws apigatewayv2 delete-route-settings` for each key, then "
                 f"re-run. `--verify` will keep failing until {PRICE_ROUTE_KEY} is capped")
     api().update_stage(ApiId=API_ID, StageName=STAGE,
                        RouteSettings={PRICE_ROUTE_KEY: wanted})

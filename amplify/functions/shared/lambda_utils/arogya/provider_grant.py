@@ -57,6 +57,8 @@ class VerifiedGmailGrant:
             raise MailboxAccessRequired('Explicit Apollo service grant binding required')
         self.table, self.kms, self.key_arn, self.owner = table, kms, key_arn, owner
         self.key = {'pk': 'connection:' + owner + ':' + PROVIDER}
+        # Kept as 'workspace-mcp' on purpose: it is the KMS encryption context / table name
+        # of data already encrypted. Renaming it would make existing ciphertext undecryptable.
         self.context = {'purpose': 'workspace-mcp', 'owner': owner, 'provider': PROVIDER}
         self.oauth_config, self.clock, self.refresh = oauth_config, clock, refresh
 

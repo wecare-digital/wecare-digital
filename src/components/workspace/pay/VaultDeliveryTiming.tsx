@@ -48,13 +48,7 @@ const VaultDeliveryTiming: React.FC = () => {
     void api.getSystemConfigResult( CONFIG_KEY ).then( result => {
       if ( !current ) return;
       if ( !result.ok ) {
-        const status = result.failure.status;
-        setError( status === 404
-          ? 'The settings API has been removed, so Vault access timing cannot be read or saved.'
-          : status === 401 || status === 403
-            ? 'Staff authorization is required to read and save Vault access timing. Check your session and permissions.'
-            : 'Vault timing read failed' + ( status ? ' (HTTP ' + status + ')' : '' )
-              + '. Saving is disabled until the server confirms the current value.' );
+        setError( 'The settings API has been removed, so Vault access timing cannot be read or saved.' );
         return;
       }
       const configured = readVaultTiming( result.data.config );
