@@ -2,7 +2,7 @@
 
 This module is the one money policy for all customer shop SKUs except Contribute:
     ProductsTable base -> 18% supply GST -> Delight (0.5%, max Rs50)
-    -> Rs25 Vault / Rs45 other Express ONCE per basket -> 2.5% convenience -> 18% GST on fee.
+    -> Rs15 Submit Request / Rs25 Vault / Rs45 other Express ONCE per basket -> 2.5% convenience -> 18% GST on fee.
 
 Contribute retains its exact Rs300 gross-target policy, including Rs15 Express,
 in contribute_taxable.py. Internal Rs2 commerce QA bypasses this customer policy.
@@ -21,7 +21,7 @@ from lambda_utils.ecommerce import (
 )
 
 SUPPLY_GST_BPS = 1800
-POLICY = "shop-gst-exclusive-vault-25-2026-11-02"
+POLICY = "shop-gst-exclusive-f004-15-2026-11-28"
 
 
 def price_components(item_subtotal_paise: int, *,
@@ -37,6 +37,7 @@ def price_components(item_subtotal_paise: int, *,
             "shop GST-exclusive subtotal must be positive integer paise")
     if type(express_paise) is not int or express_paise not in (
             express_policy.VAULT_EXPRESS_PAISE,
+            express_policy.SUBMIT_REQUEST_EXPRESS_PAISE,
             express_policy.STANDARD_EXPRESS_PAISE):
         raise checkout_pricing.PricingError("unverified ordinary cart Express rate")
     gst = checkout_pricing.round_half_up(item_subtotal_paise, SUPPLY_GST_BPS)

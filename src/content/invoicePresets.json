@@ -278,13 +278,13 @@
   {
     "id": "fixed-24",
     "name": "Request · Submit Request",
-    "basePaise": 9900,
-    "supplyGstPaise": 1782,
-    "delightPaise": 58,
-    "expressPaise": 4500,
-    "convenienceFeePaise": 403,
-    "convenienceGstPaise": 73,
-    "totalPayablePaise": 16600,
+    "basePaise": 4900,
+    "supplyGstPaise": 882,
+    "delightPaise": 28,
+    "expressPaise": 1500,
+    "convenienceFeePaise": 181,
+    "convenienceGstPaise": 33,
+    "totalPayablePaise": 7468,
     "workflow": "submit-request"
   },
   {

@@ -58,6 +58,14 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
     return positive_paise(value)
 
 
+def _request_express(kind: str) -> int:
+    if kind == service_requests.SUBMIT_REQUEST:
+        return express_policy.SUBMIT_REQUEST_EXPRESS_PAISE
+    if kind == service_requests.VAULT:
+        return express_policy.VAULT_EXPRESS_PAISE
+    return express_policy.STANDARD_EXPRESS_PAISE
+
+
 def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str, int]]:
     """Public preview from the SAME unified checkout calculator, for all five services.
 
@@ -66,8 +74,7 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
     """
     if kind not in service_requests.SERVICE_KIND_BY_VARIANT.values():
         return None
-    express = (express_policy.VAULT_EXPRESS_PAISE if kind == service_requests.VAULT
-               else express_policy.STANDARD_EXPRESS_PAISE)
+    express = _request_express(kind)
     return unified_pricing.price_components(item_subtotal_paise, express_paise=express)
 
 
@@ -139,8 +146,7 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
         try:
             stored = product_reader(variant)
             paise = _variant_paise(stored)
-            expected = (express_policy.VAULT_EXPRESS_PAISE if kind == service_requests.VAULT
-                        else express_policy.STANDARD_EXPRESS_PAISE)
+            expected = _request_express(kind)
             express_policy.verified_registered_fee(
                 stored.get("expressPaise") if isinstance(stored, Mapping) else None, expected)
             row: Dict[str, Any] = {"available": True, "paise": paise}

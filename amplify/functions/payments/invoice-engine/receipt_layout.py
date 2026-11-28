@@ -37,7 +37,7 @@ DIVIDER = (150, 153, 163)
 DOTS = (208, 211, 216)         # dotted row separators
 TAX_SEPARATOR = (130, 130, 142)
 WEB_GREEN = (8, 118, 16)
-RED = (255, 0, 64)             # brand dot, #ff0040 as in BrandLockup
+BRAND_DOT = (26, 58, 42)        # shared forest-green brand dot
 
 BASE_W = 1024
 
@@ -554,8 +554,8 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     if convenience_net:
         totals.append(("Convenience Fee", convenience_net))
     if total_gst:
-        # One compact tax row labelled with the seller GSTIN, as on the approved reference.
-        totals.append((seller_gstin or "GST", total_gst))
+        # The GSTIN is printed only in the seller header; the tax row has one combined amount.
+        totals.append(("GST", total_gst))
 
     words_lines = _wrap(fonts.role("words"), amount_in_words(total), TEXT_RIGHT - 166, 2)
 
@@ -575,7 +575,7 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     # Masthead.
     _logo(canvas, logo_bytes)
     wordmark_w = put.put("wordmark", "WECARE", 470, 120, fill=HEAD)
-    _disc(canvas, 470 + wordmark_w + 7.5, 114.5, 4.5, RED)
+    _disc(canvas, 470 + wordmark_w + 7.5, 114.5, 4.5, BRAND_DOT)
     put.put("wordmark", "DIGITAL", 472, 160, fill=HEAD)
     put.put("legal", company.get("legal_name") or "WECARE.DIGITAL BHARATWORKS", 513, 197,
             align="center", fill=HEAD, max_w=640, min_size=20)
