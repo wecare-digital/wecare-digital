@@ -57,6 +57,7 @@ _CONTRACTS = (
         product_id="f829697a-b1db-5c4e-bfce-51d1487278a7",
         sku="RSR7M2P9",
         flow_capability="submit_request",
+        express_paise=express_policy.SUBMIT_REQUEST_EXPRESS_PAISE,
     ),
     RequestServiceContract(
         service_code="REQUEST_AMENDMENT",

@@ -3,7 +3,8 @@
 A customer basket pays ONE Express amount, not one amount per line:
 * Contribute: ₹15 within its existing exact ₹300 gross contract.
 * Vault: ₹25 once per standalone Vault checkout.
-* The other 27 customer SKUs: ₹45 once per checkout.
+* Submit Request: ₹15 once per standalone checkout.
+* The other 26 customer SKUs: ₹45 once per checkout.
 The unlisted commerce verification SKUs are internal QA, not customer items.
 
 Customer payment amounts are now calculated by unified_pricing.py using
@@ -19,6 +20,9 @@ from decimal import Decimal
 from typing import Any
 
 CONTRIBUTE_EXPRESS_PAISE = 1_500
+SUBMIT_REQUEST_EXPRESS_PAISE = 1_500
+SUBMIT_REQUEST_PRODUCT_ID = "f829697a-b1db-5c4e-bfce-51d1487278a7"
+SUBMIT_REQUEST_VARIANT_ID = "RSR7M2P9"
 VAULT_EXPRESS_PAISE = 2_500
 STANDARD_EXPRESS_PAISE = 4_500
 VAULT_PRODUCT_ID = "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907"
@@ -59,6 +63,10 @@ def expected_express_paise(product_id: object, variant_id: object) -> int:
     """
     product = str(product_id or "").strip().lower()
     variant = str(variant_id or "").strip()
+    if product == SUBMIT_REQUEST_PRODUCT_ID or variant == SUBMIT_REQUEST_VARIANT_ID:
+        if product != SUBMIT_REQUEST_PRODUCT_ID or variant != SUBMIT_REQUEST_VARIANT_ID:
+            raise ValueError("SUBMIT_REQUEST_VARIANT_POLICY_UNVERIFIED")
+        return SUBMIT_REQUEST_EXPRESS_PAISE
     if product == VAULT_PRODUCT_ID:
         if variant != VAULT_VARIANT_ID:
             raise ValueError("VAULT_VARIANT_POLICY_UNVERIFIED")
@@ -99,11 +107,13 @@ def frozen_customer_cart_express_paise(items: Sequence[Mapping[str, Any]]) -> in
         if not isinstance(item, Mapping):
             raise ValueError("EXPRESS_INVALID_LINE")
         expected = expected_express_paise(item.get("productId"), item.get("variantId"))
-        if expected in (0, CONTRIBUTE_EXPRESS_PAISE):
+        if expected == 0 or str(item.get("productId") or "").strip().lower() == CONTRIBUTE_PRODUCT_ID:
             raise ValueError("EXPRESS_SEPARATE_CONTRIBUTE_OR_QA_REQUIRED")
         fees.add(verified_registered_fee(item.get("expressPaise"), expected))
     if len(fees) != 1:
         raise ValueError("EXPRESS_MIXED_VAULT_CART_NOT_ALLOWED")
+    if SUBMIT_REQUEST_EXPRESS_PAISE in fees and (len(items) != 1 or items[0].get("quantity") != 1):
+        raise ValueError("SUBMIT_REQUEST_SEPARATE_CHECKOUT_REQUIRED")
     return next(iter(fees))
 
 
@@ -158,6 +168,7 @@ def with_standard_express(base: Any) -> Any:
 
 __all__ = [
     "CONTRIBUTE_EXPRESS_PAISE", "VAULT_EXPRESS_PAISE", "STANDARD_EXPRESS_PAISE",
+    "SUBMIT_REQUEST_EXPRESS_PAISE", "SUBMIT_REQUEST_PRODUCT_ID", "SUBMIT_REQUEST_VARIANT_ID",
     "VAULT_PRODUCT_ID", "VAULT_VARIANT_ID", "CONTRIBUTE_PRODUCT_ID",
     "CONTRIBUTE_VARIANT_ID", "STANDARD_EXPRESS_POLICY", "INTERNAL_QA_PRODUCT_ID",
     "INTERNAL_QA_VARIANT_ID", "INTERNAL_QA_ONE_PRODUCT_ID",
