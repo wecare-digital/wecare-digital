@@ -122,7 +122,7 @@ def _list_payments(params: Dict, request_id: str, show_contacts: bool = False) -
         
         # Trim to requested limit
         payments = payments[:max_results]
-        
+
         return _response(200, {
             'payments': [_normalize_payment(p, show_contacts) for p in payments],
             'count': len(payments)
