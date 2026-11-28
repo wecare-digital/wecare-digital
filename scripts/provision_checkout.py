@@ -495,6 +495,24 @@ def expected_role_policy(acct: str | None = None) -> dict:
                 "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"],
             },
             {
+                # Website F004 Submit Request (lambda_utils/ecommerce/website_submit_request.py):
+                # flow_completion.claim_completion writes the submission with a conditional
+                # PutItem, then the customer's contact gets a conditional UpdateItem pointing at
+                # it. Without these the paid request fails with AccessDenied after the order row
+                # has already been stamped. Reads are covered by InvoiceRefundCases and
+                # InvoiceContactLookup.
+                "Sid": "WebsiteSubmitRequestRecords",
+                "Effect": "Allow",
+                "Action": ["dynamodb:PutItem"],
+                "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{FLOW_SUBMISSIONS_TABLE}"],
+            },
+            {
+                "Sid": "WebsiteSubmitRequestContactPointer",
+                "Effect": "Allow",
+                "Action": ["dynamodb:UpdateItem"],
+                "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}"],
+            },
+            {
                 # Four ARNs, no wildcard. The two `wecare-outbound-whatsapp` entries are the
                 # grant the in-chat send needs; this role is used by one function, the widening
                 # grants no new data access and no ability to charge. The SAME four ARNs are
