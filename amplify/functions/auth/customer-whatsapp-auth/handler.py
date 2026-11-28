@@ -10,10 +10,13 @@ Security invariants:
 - never read/store Meta credentials here
 - fail closed if the user's tenant WABA is not a member of the configured WABA map
 - customer users are provisioned administratively; public self-sign-up stays off
+- one code per phone, stored only as a salted hash; each new sign-in under the send budget
+  replaces it, and wrong answers are counted per phone across codes
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import secrets
@@ -49,6 +52,8 @@ META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", PRIMARY_PHONE_NUMB
 TEMPLATE_NAME = os.environ.get("OTP_TEMPLATE_NAME", "wecare_otp")
 TEMPLATE_LANGUAGE = os.environ.get("OTP_TEMPLATE_LANGUAGE", "en")
 OTP_TTL_SECONDS = int(os.environ.get("OTP_TTL_SECONDS", "600"))
+# Answers per Cognito session. The per-code and per-phone limits are CODE_MAX_ATTEMPTS and
+# FAIL_MAX_PER_WINDOW below.
 MAX_ATTEMPTS = int(os.environ.get("MAX_ATTEMPTS", "3"))
 
 # The WABA -> sender map, and the only thing the isolation gate consults.
@@ -305,6 +310,214 @@ def _consume_send_budget(phone_digits: str) -> None:
         raise OtpSendThrottled("send budget could not be verified") from exc
 
 
+# One code per phone, and a per-phone count of wrong answers.
+#
+# Cognito keeps each session's private challenge parameters separate, so a per-session code
+# gave every new InitiateAuth a fresh code and three fresh guesses. The code now lives in the
+# counter table under its own key prefix: a salted hash, `expiresAt` and `attempts`, the
+# answers counted against this code (at most CODE_MAX_ATTEMPTS).
+#
+# Every new sign-in that the send budget allows mints a new code, replaces the stored one and
+# sends it. The customer may be asking again because the first message never arrived, and
+# only the hash is stored, so the old code cannot be sent again. The next answer in the same
+# session keeps the code. Over the budget nothing is stored or sent, and an active code stays
+# the one to enter.
+#
+# Because a resend replaces the code, guesses are limited per phone, not per code.
+# `windowStart` and `failedCount` count wrong answers across every code, in a window that
+# opens at the first wrong answer and passes FAIL_WINDOW_SECONDS later. At
+# FAIL_MAX_PER_WINDOW the phone is locked: Verify refuses every answer without comparing it,
+# Define fails every session and no new code is stored, until the window passes. Minting,
+# consuming and discarding a code never touch the count, so a resend gives no fresh guesses.
+#
+# TTL is disabled on this table, so code expiry and the window are checked in the conditions
+# below. The role grants only dynamodb:UpdateItem on this table, so every read is a
+# conditional UpdateItem (`ADD attempts :zero` changes nothing), with ReturnValues for the
+# item, and every write is conditional.
+CODE_PREFIX = "otpcode#"
+CODE_MAX_ATTEMPTS = int(os.environ.get("OTP_CODE_MAX_ATTEMPTS", "5"))
+FAIL_WINDOW_SECONDS = int(os.environ.get("OTP_FAIL_WINDOW_SECONDS", "3600"))
+FAIL_MAX_PER_WINDOW = int(os.environ.get("OTP_FAIL_MAX_PER_WINDOW", "10"))
+_ACTIVE = "attribute_exists(codeHash) AND expiresAt > :now AND attempts < :max"
+# A comparison with a missing attribute is false, so a phone with no window is not locked.
+_WINDOW_OPEN = "windowStart > :cutoff"
+_LOCKED = _WINDOW_OPEN + " AND failedCount >= :limit"
+
+
+class OtpCodeUnavailable(RuntimeError):
+    """The shared code could not be read or written. Callers fail closed."""
+
+
+def _code_key(phone_digits: str) -> dict:
+    return {"grantId": CODE_PREFIX + phone_digits}
+
+
+def _code_hash(salt: str, code: str) -> str:
+    return hashlib.sha256(f"{salt}:{code}".encode("utf-8")).hexdigest()
+
+
+def _conditional_failure(exc: Exception) -> bool:
+    response = getattr(exc, "response", None) or {}
+    return response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
+
+
+def _code_update(phone_digits: str, **kwargs):
+    """One UpdateItem on the phone's code. Returns the response, or None if the condition failed."""
+    try:
+        return _probe_table().update_item(Key=_code_key(phone_digits), **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        if _conditional_failure(exc):
+            return None
+        print(json.dumps({"event": "customer_whatsapp_otp_code_store_failed",
+                          "error": type(exc).__name__}))
+        raise OtpCodeUnavailable("sign-in code store unavailable") from exc
+
+
+def _active_code(phone_digits: str, now: int):
+    """The phone's unexpired code with answers left, or None."""
+    result = _code_update(
+        phone_digits,
+        UpdateExpression="ADD attempts :zero",
+        ConditionExpression=_ACTIVE,
+        ExpressionAttributeValues={":zero": 0, ":now": now, ":max": CODE_MAX_ATTEMPTS},
+        ReturnValues="ALL_NEW",
+    )
+    return None if result is None else (result.get("Attributes") or {})
+
+
+def _store_code(phone_digits: str, code: str, now: int):
+    """Make `code` the phone's code, replacing any other. Returns its hash, or None if locked.
+
+    Only the code's own fields are written, so the phone's wrong-answer count carries over.
+    """
+    salt = secrets.token_hex(16)
+    code_hash = _code_hash(salt, code)
+    result = _code_update(
+        phone_digits,
+        UpdateExpression=(
+            "SET codeSalt = :salt, codeHash = :hash, expiresAt = :exp, attempts = :zero"),
+        ConditionExpression=f"NOT ({_LOCKED})",
+        ExpressionAttributeValues={
+            ":salt": salt, ":hash": code_hash, ":exp": now + OTP_TTL_SECONDS, ":zero": 0,
+            ":cutoff": now - FAIL_WINDOW_SECONDS, ":limit": FAIL_MAX_PER_WINDOW,
+        },
+    )
+    return None if result is None else code_hash
+
+
+def _discard_code(phone_digits: str, code_hash: str) -> None:
+    """Remove a code that was stored but not delivered, unless another session replaced it."""
+    try:
+        _code_update(
+            phone_digits,
+            UpdateExpression="REMOVE codeHash, codeSalt",
+            ConditionExpression="codeHash = :hash",
+            ExpressionAttributeValues={":hash": code_hash},
+        )
+    except OtpCodeUnavailable:
+        pass
+
+
+def _count_answer(phone_digits: str, now: int):
+    """Count one answer against the code and the phone's window. Returns the item, or None.
+
+    None means the answer is refused uncompared: the code is missing, expired or out of
+    answers, or the phone is locked. The first write counts into an open window; the second
+    opens a new one when none is open. The first is tried again because a concurrent answer
+    can open the window between the two.
+    """
+    values = {":one": 1, ":now": now, ":max": CODE_MAX_ATTEMPTS,
+              ":cutoff": now - FAIL_WINDOW_SECONDS}
+    in_window = {
+        "UpdateExpression": "ADD attempts :one, failedCount :one",
+        "ConditionExpression": f"{_ACTIVE} AND {_WINDOW_OPEN} AND failedCount < :limit",
+        "ExpressionAttributeValues": {**values, ":limit": FAIL_MAX_PER_WINDOW},
+    }
+    new_window = {
+        "UpdateExpression": "SET windowStart = :now, failedCount = :one ADD attempts :one",
+        "ConditionExpression": f"{_ACTIVE} AND NOT ({_WINDOW_OPEN})",
+        "ExpressionAttributeValues": values,
+    }
+    for write in (in_window, new_window, in_window):
+        result = _code_update(phone_digits, ReturnValues="ALL_NEW", **write)
+        if result is not None:
+            return result.get("Attributes") or {}
+    return None
+
+
+def _check_answer(phone_digits: str, answer: str, now: int) -> bool:
+    """Count one answer as wrong, compare it in constant time, and uncount it if it was right.
+
+    Counting comes first, in the same conditional update that returns the hash, so parallel
+    sessions cannot compare more than CODE_MAX_ATTEMPTS answers per code or more than
+    FAIL_MAX_PER_WINDOW per phone. Only wrong answers stay on the phone's count.
+    """
+    item = _count_answer(phone_digits, now)
+    if item is None:
+        return False
+    expected = str(item.get("codeHash") or "")
+    salt = str(item.get("codeSalt") or "")
+    correct = bool(expected and salt
+                   and secrets.compare_digest(expected, _code_hash(salt, answer)))
+    if correct:
+        _uncount_answer(phone_digits, item.get("windowStart"))
+    return correct
+
+
+def _uncount_answer(phone_digits: str, window_start) -> None:
+    """Take a right answer off the phone's wrong-answer count, in the window it was counted in."""
+    try:
+        _code_update(
+            phone_digits,
+            UpdateExpression="ADD failedCount :minus",
+            ConditionExpression="windowStart = :start AND failedCount > :zero",
+            ExpressionAttributeValues={":minus": -1, ":start": window_start, ":zero": 0},
+        )
+    except OtpCodeUnavailable:
+        # Left counted, which errs toward the lock. The sign-in itself is unaffected.
+        pass
+
+
+def _phone_locked(phone_digits: str, now: int) -> bool:
+    """Whether the phone has FAIL_MAX_PER_WINDOW wrong answers in a window that has not passed."""
+    return _code_update(
+        phone_digits,
+        UpdateExpression="ADD attempts :zero",
+        ConditionExpression=_LOCKED,
+        ExpressionAttributeValues={":zero": 0, ":cutoff": now - FAIL_WINDOW_SECONDS,
+                                   ":limit": FAIL_MAX_PER_WINDOW},
+    ) is not None
+
+
+def _code_exhausted(phone_digits: str, now: int) -> bool:
+    """Whether the phone's unexpired code has used all its answers."""
+    return _code_update(
+        phone_digits,
+        UpdateExpression="ADD attempts :zero",
+        ConditionExpression=(
+            "attribute_exists(codeHash) AND expiresAt > :now AND attempts >= :max"),
+        ExpressionAttributeValues={":zero": 0, ":now": now, ":max": CODE_MAX_ATTEMPTS},
+    ) is not None
+
+
+def _consume_code(phone_digits: str) -> bool:
+    """Retire the code after a correct answer. False if another session already used it.
+
+    The phone's wrong-answer count stays as it is; only the window passing resets it.
+    """
+    return _code_update(
+        phone_digits,
+        UpdateExpression="REMOVE codeHash, codeSalt",
+        ConditionExpression="attribute_exists(codeHash)",
+    ) is not None
+
+
+def _user_phone_digits(event: dict) -> str:
+    """Digits of the user's `phone_number` attribute. Raises ValueError when absent or invalid."""
+    attributes = (event.get("request") or {}).get("userAttributes") or {}
+    return _normalise_phone(attributes.get("phone_number"))
+
+
 def _normalise_phone(phone: str) -> str:
     """Return WhatsApp's digits-only E.164 destination, honouring the country code written.
 
@@ -521,8 +734,33 @@ def _log_send_failure(route: dict, sender_status, result: dict) -> None:
     }))
 
 
+def _phone_code_check(event: dict, check):
+    """Run a shared-code check for the user's phone. Returns None if it could not run."""
+    try:
+        return check(_user_phone_digits(event))
+    except (OtpCodeUnavailable, ValueError) as exc:
+        print(json.dumps({"event": "customer_whatsapp_otp_define_failed",
+                          "error": type(exc).__name__}))
+        return None
+
+
+def _sign_in_blocked(phone_digits: str, now: int, answered: bool) -> bool:
+    """True when the phone is locked or, after a wrong answer (`answered`), its code is used up.
+
+    Raises OtpCodeUnavailable when the store cannot be read, and Define then fails closed.
+    """
+    if _phone_locked(phone_digits, now):
+        print(json.dumps({"event": "customer_whatsapp_otp_locked"}))
+        return True
+    if answered and _code_exhausted(phone_digits, now):
+        print(json.dumps({"event": "customer_whatsapp_otp_attempts_exhausted"}))
+        return True
+    return False
+
+
 def _define_auth_challenge(event: dict) -> dict:
-    session = event.get("request", {}).get("session") or []
+    request = event.get("request", {})
+    session = request.get("session") or []
     attempts = [
         item
         for item in session
@@ -530,14 +768,27 @@ def _define_auth_challenge(event: dict) -> dict:
     ]
 
     if attempts and attempts[-1].get("challengeResult") is True:
-        event["response"]["issueTokens"] = True
-        event["response"]["failAuthentication"] = False
-    elif len(attempts) >= MAX_ATTEMPTS:
-        event["response"]["issueTokens"] = False
-        event["response"]["failAuthentication"] = True
-    else:
-        event["response"]["issueTokens"] = False
-        event["response"]["failAuthentication"] = False
+        # One sign-in per code. Fails closed if the code was already used or cannot be retired.
+        consumed = _phone_code_check(event, _consume_code)
+        if consumed is False:
+            print(json.dumps({"event": "customer_whatsapp_otp_already_used"}))
+        consumed = consumed is True
+        event["response"]["issueTokens"] = consumed
+        event["response"]["failAuthentication"] = not consumed
+        return event
+
+    # At the start of a sign-in and after each wrong answer, a locked phone ends the session,
+    # so no code is minted or sent while it is locked. After a wrong answer, a code with no
+    # answers left ends it too; a new sign-in then mints a new code (send budget applies).
+    # Fails closed when the store cannot be read.
+    failed = len(attempts) >= MAX_ATTEMPTS
+    if not failed and not request.get("userNotFound"):
+        now = int(time.time())
+        failed = _phone_code_check(
+            event, lambda digits: _sign_in_blocked(digits, now, bool(attempts))) is not False
+    event["response"]["issueTokens"] = False
+    event["response"]["failAuthentication"] = failed
+    if not failed:
         event["response"]["challengeName"] = "CUSTOM_CHALLENGE"
     return event
 
@@ -546,13 +797,8 @@ def _create_auth_challenge(event: dict) -> dict:
     request = event.get("request", {})
     attributes = request.get("userAttributes") or {}
 
-    otp = f"{secrets.randbelow(900000) + 100000:06d}"
-    expires_at = int(time.time()) + OTP_TTL_SECONDS
-
-    event["response"]["privateChallengeParameters"] = {
-        "answer": otp,
-        "expiresAt": str(expires_at),
-    }
+    # No answer here: Verify checks the phone's shared code (see CODE_PREFIX).
+    event["response"]["privateChallengeParameters"] = {"challenge": "WHATSAPP_OTP"}
     event["response"]["challengeMetadata"] = "WHATSAPP_OTP"
     event["response"]["publicChallengeParameters"] = {
         "deliveryMedium": "WHATSAPP",
@@ -590,10 +836,10 @@ def _create_auth_challenge(event: dict) -> dict:
                           "reason": "user_not_found"}))
         event["response"]["publicChallengeParameters"]["destination"] = "********"
         # Rate-limited, so the reveal cannot be used to sweep a list of numbers. Past
-        # the budget the answer becomes indistinguishable from a registered number,
-        # which is the same posture as before the reveal existed - but only for a
-        # caller who has already probed this number five times in an hour, not for
-        # someone who simply mistyped once.
+        # the budget the parameters have the same shape and values as for a registered
+        # number (masked destination, `registered: "true"`) - but only for a caller who
+        # has already probed this number five times in an hour, not for someone who
+        # simply mistyped once. Timing still differs, because no message is sent.
         # `userName` is TOP-LEVEL on a Cognito trigger event, not inside `request`.
         # Reading it from `request` yielded an empty string, so the budget check was
         # skipped and eight consecutive probes all got the reveal.
@@ -601,7 +847,12 @@ def _create_auth_challenge(event: dict) -> dict:
         digits = "".join(ch for ch in username if ch.isdigit())
         if digits and _probe_budget_exhausted(digits):
             print(json.dumps({"event": "otp_probe_budget_exhausted"}))
-            event["response"]["publicChallengeParameters"]["registered"] = "unknown"
+            try:
+                masked = _mask_phone(username)
+            except ValueError:
+                masked = "********"
+            event["response"]["publicChallengeParameters"]["destination"] = masked
+            event["response"]["publicChallengeParameters"]["registered"] = "true"
         else:
             event["response"]["publicChallengeParameters"]["registered"] = "false"
         return event
@@ -634,24 +885,51 @@ def _create_auth_challenge(event: dict) -> dict:
     )
     event["response"]["publicChallengeParameters"]["registered"] = "true"
 
+    # Cognito calls Create again for the next answer in the same session, after a wrong one.
+    # That answer is for the code the customer is already typing: no new code, no message, no
+    # send budget used. Raises OtpCodeUnavailable (fails closed) if the store is unreadable.
+    digits = _normalise_phone(phone)
+    now = int(time.time())
+    answered = any(item.get("challengeName") == "CUSTOM_CHALLENGE"
+                   for item in request.get("session") or [])
+    if answered and _active_code(digits, now) is not None:
+        print(json.dumps({"event": "customer_whatsapp_otp_reused"}))
+        return event
+
+    # A new sign-in, or a session left without an active code (expired or used), gets a new
+    # code under the send budget, replacing any stored one. A customer who asks again because
+    # the first message never arrived needs a code they can read, and only the hash of the
+    # old one is stored (see CODE_PREFIX).
+    #
     # Send throttle, per phone, fail-closed. This is the G5 fix: without it a registered
     # number had no send limit, so looping the browser's direct InitiateAuth call flooded a
     # real handset. Over budget, the challenge is still issued so the Cognito flow is
-    # unchanged and the endpoint stays non-enumerable — the customer simply keeps using the
-    # code they were already sent moments ago. Only the outbound MESSAGE is suppressed.
-    digits = _normalise_phone(phone)
+    # unchanged and the endpoint stays non-enumerable. Nothing is stored or sent: an active
+    # code stays the one to enter, and with none no answer verifies until the window resets.
     try:
         _consume_send_budget(digits)
     except OtpSendThrottled:
-        # No send. Do not reveal throttling to the caller — the public parameters are
-        # identical to a normal issue, so this is invisible from outside and cannot be used
-        # to probe the limit. The private challenge answer is still set, so a code the
-        # customer already holds continues to verify.
+        # Do not reveal throttling to the caller — the public parameters are identical to a
+        # normal issue, so this is invisible from outside and cannot be used to probe the limit.
         print(json.dumps({"event": "customer_whatsapp_otp_send_suppressed",
-                          "reason": "rate_limited"}))
+                          "reason": "rate_limited",
+                          "activeCode": _active_code(digits, now) is not None}))
         return event
 
-    delivered_via = _send_otp(phone, otp, route)
+    otp = f"{secrets.randbelow(900000) + 100000:06d}"
+    code_hash = _store_code(digits, otp, now)
+    if code_hash is None:
+        # Locked after Define checked. Define ends this session at its next answer.
+        print(json.dumps({"event": "customer_whatsapp_otp_send_suppressed",
+                          "reason": "locked"}))
+        return event
+
+    try:
+        delivered_via = _send_otp(phone, otp, route)
+    except Exception:
+        # An undelivered code must not stay active: a sign-in over the budget would keep it.
+        _discard_code(digits, code_hash)
+        raise
 
     # Metadata only. Do not log the OTP or unmasked number.
     print(
@@ -670,17 +948,19 @@ def _create_auth_challenge(event: dict) -> dict:
 
 def _verify_auth_challenge(event: dict) -> dict:
     request = event.get("request", {})
-    private = request.get("privateChallengeParameters") or {}
-    expected = str(private.get("answer") or "")
-    expires_at = int(private.get("expiresAt") or "0")
     supplied = str(request.get("challengeAnswer") or "")
 
-    event["response"]["answerCorrect"] = bool(
-        not bool(request.get("userNotFound"))
-        and expected
-        and time.time() <= expires_at
-        and secrets.compare_digest(expected, supplied)
-    )
+    correct = False
+    # Only a six-digit answer can match, so anything else is refused without a store call.
+    if (not bool(request.get("userNotFound")) and len(supplied) == 6
+            and all(ch in "0123456789" for ch in supplied)):
+        try:
+            correct = _check_answer(_user_phone_digits(event), supplied, int(time.time()))
+        except (OtpCodeUnavailable, ValueError) as exc:
+            # Fails closed. Type only.
+            print(json.dumps({"event": "customer_whatsapp_otp_verify_failed",
+                              "error": type(exc).__name__}))
+    event["response"]["answerCorrect"] = bool(correct)
     return event
 
 

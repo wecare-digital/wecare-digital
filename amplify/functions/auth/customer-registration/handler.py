@@ -766,6 +766,8 @@ def _verify(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> Dict[st
     result = registration.complete(
         raw_phone=body.get("phone"),
         code=code,
+        event=event,
+        throttle_table=_table(),
         challenge_table=_table(),
         pepper=_pepper(),
         resolve_customer=_resolve_customer,

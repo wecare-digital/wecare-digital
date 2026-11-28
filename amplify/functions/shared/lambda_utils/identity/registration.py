@@ -200,6 +200,8 @@ def begin(*,
 def complete(*,
              raw_phone: Any,
              code: str,
+             event: Dict[str, Any],
+             throttle_table: Any,
              challenge_table: Any,
              pepper: str,
              resolve_customer: Callable[[str], Optional[Dict[str, Any]]],
@@ -220,9 +222,10 @@ def complete(*,
     All three are injected. This module performs no AWS call, which is what makes the ordering
     below testable at all.
 
-    The order is: verify, then resolve, then create, then provision. Verification first because
-    everything after it writes, and a code is the only thing that proves the caller holds the
-    number.
+    The order is: throttle, verify, then resolve, then create, then provision. Verification
+    first because everything after it writes, and a code is the only thing that proves the
+    caller holds the number. The throttle counts submissions per number and per client IP in
+    the `verify` buckets, separate from the send budget `begin` uses.
     """
     try:
         # STRICT, and it matters more here than in `begin`: this is where the identity is
@@ -235,6 +238,16 @@ def complete(*,
     except customer_identity.InvalidPhoneNumber as error:
         # `MissingCountryCode` subclasses `InvalidPhoneNumber`, so this clause is unchanged.
         return RegistrationResult(INVALID_PHONE, str(error))
+
+    try:
+        otp_throttle.check_verify_attempt(
+            throttle_table, subject=e164, event=event, now=now, key_attr=key_attr)
+    except otp_throttle.OtpThrottled as error:
+        return RegistrationResult(THROTTLED, f"{error.axis} limit",
+                                  retry_after_seconds=error.retry_after_seconds)
+    except otp_throttle.ThrottleStoreUnavailable as error:
+        # Fails CLOSED, like `begin`.
+        return RegistrationResult(STORE_UNAVAILABLE, str(error))
 
     try:
         verdict = otp_challenge.verify(

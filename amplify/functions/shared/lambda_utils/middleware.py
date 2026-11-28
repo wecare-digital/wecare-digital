@@ -38,6 +38,7 @@ read-only route: with the default gone, `required_role=None` has nothing to chec
 import base64
 import os
 import json
+import time
 import boto3
 from typing import Any, Dict, Optional, Set
 
@@ -152,6 +153,32 @@ def _unverified_clients(token: str) -> Set[str]:
             presented.update(str(item) for item in value if isinstance(item, str) and item)
     return presented
 
+
+def _plausible_access_token(token: str) -> bool:
+    """A cheap screen run before `GetUser`, with claims read WITHOUT signature verification.
+
+    Used only to reject, so junk bearer strings never spend the pool's GetUser quota: the token
+    must be a three-part JWT naming the staff pool issuer and app client, an access token, and
+    not past `exp`. `GetUser` and the pins after it remain the real checks.
+    """
+    parts = token.split('.')
+    if len(parts) != 3 or not all(parts):
+        return False
+    try:
+        payload = parts[1] + '=' * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:  # noqa: BLE001 - a malformed token is simply refused
+        return False
+    if not isinstance(claims, dict):
+        return False
+    exp = claims.get('exp')
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return False
+    return (claims.get('iss') == staff_pool_issuer()
+            and claims.get('client_id') == STAFF_APP_CLIENT_ID
+            and claims.get('token_use') == 'access'
+            and exp > time.time())
+
 # Paths that skip auth. Only genuinely self-authenticating provider endpoints
 # belong here - a Meta Flows data-exchange endpoint proves authenticity by RSA
 # decryption, a provider webhook by HMAC signature. An endpoint that merely
@@ -258,6 +285,10 @@ def require_auth(
 
     if not token:
         return cors_response(401, {'error': 'No authorization token provided'}, origin)
+
+    # Local screen first, so a junk token never reaches GetUser. See `_plausible_access_token`.
+    if not _plausible_access_token(token):
+        return cors_response(401, {'error': 'Invalid or expired token'}, origin)
 
     # Validate with Cognito
     try:

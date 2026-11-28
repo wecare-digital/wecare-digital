@@ -5,8 +5,9 @@ This is the wiring, not the mechanism
 Every hard part already exists as a tested, storage-agnostic, AWS-free module, and this handler
 composes them rather than reimplementing any of them:
 
-- `lambda_utils.otp_throttle`   — per-phone and per-IP limits, fail-closed, so one origin cannot
-                                   flood many addresses and one address cannot be flooded.
+- `lambda_utils.otp_throttle`   — per-address and per-IP limits on sends and on code checks,
+                                   fail-closed, so one origin cannot flood many addresses and one
+                                   address cannot be flooded.
 - `lambda_utils.otp_challenge`  — the code itself: HMAC-with-pepper at rest, TTL, attempt cap,
                                    resend cooldown, resend window, single-use conditional consume.
 - `lambda_utils.comms.verification_email` — the branded SESv2 send from `one@wecare.digital`
@@ -228,25 +229,13 @@ def _request(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> Dict[s
     except identity.InvalidEmailAddress:
         return _no_store(cors_response(400, {"error": "INVALID_EMAIL"}, origin))
 
-    first_name = str(body.get("firstName") or "").strip()
+    first_name = verification_email.clean_first_name(body.get("firstName"))
 
-    # A phone axis is required by the throttle; fall back to the email so an email-only request is
-    # still bounded per-address. The IP axis comes from the gateway context and cannot be spoofed.
-    #
-    # The phone is NORMALISED before it becomes a throttle key. Passing the raw value gave
-    # `+65 9123 4567` and `+6591234567` two separate buckets, so respacing one number bought a
-    # fresh budget - a free evasion. The strict normaliser is used rather than
-    # `identity.normalize_phone` because the lenient one collapses a ten-digit foreign number
-    # onto an unrelated Indian number's bucket, which would let one customer exhaust another's.
-    #
-    # Any failure falls back to the email subject and NEVER returns 400: the phone is optional on
-    # this endpoint, so rejecting the request over its shape would break email-only verification.
+    # Keyed on the normalised email, the address that receives the message. The optional
+    # `phone` field is not used: a caller could vary it to get a fresh budget for one address.
+    # The IP axis comes from `lambda_utils.client_ip`.
     try:
-        throttle_subject = identity.normalize_phone_preserving_country(body.get("phone"))
-    except identity.InvalidPhoneNumber:
-        throttle_subject = email
-    try:
-        otp_throttle.check_and_consume(_table(), phone_e164=throttle_subject, event=event)
+        otp_throttle.check_and_consume(_table(), phone_e164=email, event=event)
     except otp_throttle.OtpThrottled as throttled:
         return _no_store(otp_throttle.throttled_response(throttled, event))
     except otp_throttle.ThrottleStoreUnavailable:
@@ -290,6 +279,14 @@ def _verify(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> Dict[st
     code = str(body.get("code") or "").strip()
     if not code:
         return _no_store(cors_response(400, {"error": "CODE_REQUIRED"}, origin))
+
+    # Per email and per client IP, in the verify buckets (not the send budget). Fails closed.
+    try:
+        otp_throttle.check_verify_attempt(_table(), subject=email, event=event)
+    except otp_throttle.OtpThrottled as throttled:
+        return _no_store(otp_throttle.throttled_response(throttled, event))
+    except otp_throttle.ThrottleStoreUnavailable:
+        return _no_store(cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin))
 
     try:
         result = otp_challenge.verify(
