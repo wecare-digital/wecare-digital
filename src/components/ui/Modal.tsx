@@ -6,6 +6,10 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { lockScroll, unlockScroll } from '../../lib/scrollLock';
 
+// Disabled controls cannot take focus, so they must not be the first or last stop of the trap.
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), '
+  + 'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -31,9 +35,15 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const pressStartedOnOverlay = useRef(false);
 
   const handleEsc = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape' && closeOnEsc) onClose();
+    if (e.key !== 'Escape' || !closeOnEsc) return;
+    // Escape inside another dialog stacked on top (a confirm prompt) closes only that dialog.
+    const target = e.target instanceof Element ? e.target : null;
+    const dialog = target?.closest('[aria-modal="true"]');
+    if (dialog && dialog !== modalRef.current) return;
+    onClose();
   }, [onClose, closeOnEsc]);
 
   // Focus trap
@@ -50,9 +60,7 @@ const Modal: React.FC<ModalProps> = ({
     const timer = setTimeout(() => {
       const modal = modalRef.current;
       if (!modal) return;
-      const focusable = modal.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
+      const focusable = modal.querySelectorAll<HTMLElement>(FOCUSABLE);
       if (focusable.length > 0) focusable[0].focus();
     }, 50);
 
@@ -71,9 +79,7 @@ const Modal: React.FC<ModalProps> = ({
       if (e.key !== 'Tab') return;
       const modal = modalRef.current;
       if (!modal) return;
-      const focusable = modal.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
+      const focusable = modal.querySelectorAll<HTMLElement>(FOCUSABLE);
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -94,7 +100,16 @@ const Modal: React.FC<ModalProps> = ({
   const sizeStyles = { sm: '400px', md: '500px', lg: '700px', xl: '900px' };
 
   return (
-    <div className="ui-modal-overlay" style={overlayStyle} onClick={closeOnOverlay ? onClose : undefined}>
+    <div
+      className="ui-modal-overlay"
+      style={overlayStyle}
+      // Close only when the press started on the backdrop, so a text selection dragged out of
+      // the panel does not close the dialog.
+      onMouseDown={e => { pressStartedOnOverlay.current = e.target === e.currentTarget; }}
+      onClick={e => {
+        if (closeOnOverlay && pressStartedOnOverlay.current && e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         ref={modalRef}
         role="dialog"

@@ -582,6 +582,10 @@ const WsNotionTheme: React.FC = () => (
     .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {border:2px solid ButtonText!important}
   }
 
+  /* ui/Modal dialogs sit above the mobile bottom nav (1100) and the support widget (1300),
+     as .workspace-shell does for /workspace. !important beats Modal's inline z-index. */
+  .ws-shell.ws-notion .ui-modal-overlay {z-index:1400!important}
+
   `}</style>
 );
 
