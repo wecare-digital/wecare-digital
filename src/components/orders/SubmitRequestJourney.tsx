@@ -77,7 +77,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
     return true;
   }, [ changePhase ] );
 
-  const checkStatus = useCallback( async ( initial = false ) => {
+  const checkStatus = useCallback( async ( initial = false, notify = false ) => {
     if ( checking.current || starting.current ) return;
     checking.current = true;
     try {
@@ -86,17 +86,17 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
       const state = result.ok ? parseState( result.data, orderNumber ) : null;
       if ( !state ) {
         if ( initial ) setUnavailable( true );
-        else toastRef.current( 'failure' );
+        else if ( notify ) toastRef.current( 'failure' );
         return;
       }
-      if ( !applyState( state ) && !initial ) toastRef.current( 'blocked' );
+      if ( !applyState( state ) && notify ) toastRef.current( 'blocked' );
       setReady( true );
       setUnavailable( false );
     }
     catch {
       if ( !mounted.current ) return;
       if ( initial ) setUnavailable( true );
-      else toastRef.current( 'failure' );
+      else if ( notify ) toastRef.current( 'failure' );
     }
     finally { checking.current = false; }
   }, [ applyState, call, orderNumber ] );
@@ -219,7 +219,7 @@ export default function SubmitRequestJourney ( { orderNumber, accessToken, onDon
         <SubmitRequestForm key={ generation } orderNumber={ orderNumber } quote={ quote }
           quoteUnavailable={ quoteUnavailable } paymentState={ paymentState }
           onReview={ () => { void review(); } } onPay={ input => { void pay( input ); } }
-          onCheckStatus={ () => { void checkStatus(); } } onDone={ onDone } onNewRequest={ newRequest } />
+          onCheckStatus={ () => { void checkStatus( false, true ); } } onDone={ onDone } onNewRequest={ newRequest } />
       </> : <section className="sr-journey-loading" aria-label="Submit Request">
         <h2>Submit Request</h2>
         <p role="status">{ unavailable ? 'Submit Request is temporarily unavailable.' : 'Checking request status…' }</p>
