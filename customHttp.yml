@@ -41,19 +41,46 @@
 # were already live. Deleting a line here is a live header removal, not a revert to
 # the console value.
 #
-# `Cache-Control` stays conservative on stable URLs: the sitewide `**/*` block and the
-# VayuLok HTML/globe patterns remain `no-store, max-age=0, must-revalidate` so a successful
-# deployment is not masked by stale HTML or a stable iframe URL.
+# `Cache-Control` is set per kind of URL (audit WEB-5, 2026-11-28). Before that every HTML page
+# and every logo was `no-store`, so each one was a CloudFront miss (0.29-0.33 s to first byte
+# against 0.03 s for a cached chunk).
 #
-# The one safe exception is `/_next/static/**/*`. Next writes those assets with a content hash
+#   HTML pages                      public, max-age=0, must-revalidate, s-maxage=31536000
+#   /get/o/** and /images/** media  public, max-age=86400, stale-while-revalidate=604800
+#   /_next/static/** hashed files   public, max-age=31536000, immutable
+#   everything else, VayuLok HTML   no-store, max-age=0, must-revalidate
+#
+# HTML may sit in the CDN because Amplify clears the CDN cache on every CI/CD deployment, and
+# the browser still revalidates it on every load, so a new deploy is never masked. VayuLok's
+# HTML and globe stay `no-store` (see their block below).
+#
+# THE HTML RULE IS PER PAGE SECTION, NOT ON `**/*`, AND THAT IS A SAFETY RULE. `**/*` also
+# matches every response Amplify proxies through its rewrites - `/api/<*>`, `/get/<*>`,
+# `/auth/state`, `/mcp` - and Amplify applies this Cache-Control to every 200 response,
+# overriding the origin's own header. Measured 2026-11-28: GET /api/site-language/languages,
+# whose handler sends `no-store`, is served with the `**/*` value below. A cacheable `**/*` would
+# therefore let the CDN store authenticated API answers and per-session /auth/state answers and
+# serve them to other visitors. So `**/*` stays `no-store`, and HTML is matched by the page
+# sections that exist under src/pages. A new top-level page needs its own block below;
+# tests/custom-http-cache.test.mjs fails until it has one. /auth/ is deliberately left out
+# because its state and step endpoints are proxied under the same prefix.
+#
+# PRECEDENCE. Amplify does not document what happens when several patterns match one URL.
+# Measured 2026-11-28: a /_next/static/ chunk is served with this file's immutable Cache-Control
+# from the later, more specific block AND with Content-Security-Policy-Report-Only, which only
+# the `**/*` block declares. So matching blocks merge, and for one header the later, more
+# specific block wins. Every block below is ordered so that the more specific pattern is also
+# the later one, which gives the same answer under "last wins" and "most specific wins".
+#
+# The `/_next/static/**/*` rule is safe for a year: Next writes those assets with a content hash
 # in the filename, so a different build produces a different URL. The bytes at an existing
 # hashed URL are immutable by construction; caching them for one year cannot strand a visitor
 # on an old deployment because new HTML references new hashes. Keeping these assets on no-store
 # only adds conditional requests and transfer overhead to every repeat visit.
 #
 # Therefore hashed Next assets use `public, max-age=31536000, immutable` while HTML and stable
-# asset URLs continue to revalidate. This restores the performance-safe part of the old cache
-# layer without reintroducing the VayuLok stale-document failure that motivated PR #1467.
+# asset URLs revalidate. This keeps the performance-safe part of the old cache layer without
+# reintroducing the VayuLok stale-document failure that motivated PR #1467.
 #
 # Amplify documents customHttp.yml's Cache-Control as taking precedence over its own
 # default (userguide/managing-cache-configuration.html), and it clears the CDN cache on
@@ -221,6 +248,111 @@ customHeaders:
           form-action 'self'
 
 
+  # ── HTML pages ───────────────────────────────────────────────────────────────────
+  #
+  # One block per page section under src/pages (see the PRECEDENCE and safety notes at the
+  # top). `/x/**` matches the directory URL `/x/` and everything below it. The browser
+  # revalidates on every load (max-age=0, must-revalidate); the CDN keeps the page until the
+  # next deployment clears it (s-maxage). Only Cache-Control is stated: the security headers
+  # come from the `**/*` block, which merges in.
+  - pattern: "/"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/index.html"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/aastha/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/anew/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/atmos/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/blog/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/checkout/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/contact/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/dastavez/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/elsewhere/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/expo-week/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/get-kosh/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/hunar/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/niji-setu/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/orders/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/post/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/privacy/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/relay-os/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/shop/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/terms/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/udyam-bids/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/vault/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/workspace/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+  - pattern: "/ws/**"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=0, must-revalidate, s-maxage=31536000"
+
+
   # ── VayuLok live HTML / standalone globe ───────────────────────────────────────
   #
   # VayuLok changes frequently and its globe is loaded from a stable iframe URL, and
@@ -228,11 +360,9 @@ customHeaders:
   # successful builds. These explicit `no-store` patterns were the first, VayuLok-scoped
   # fix for that (PR #1466), forcing these stable HTML URLs to revalidate from origin.
   #
-  # THEY ARE NOW REDUNDANT WITH THE SITEWIDE `**/*` `no-store` ABOVE, which the full
-  # cache removal (PR #1467) applied to every surface - VayuLok included. They are kept
-  # rather than deleted for two reasons: they are explicit about the pages that triggered
-  # the original problem, and if the sitewide default is ever relaxed back toward a TTL,
-  # these keep VayuLok on `no-store` without anyone having to remember why.
+  # THEY ARE LOAD-BEARING AGAIN. The `/atmos/**` HTML block above makes the rest of /atmos/
+  # cacheable at the CDN, and these later, more specific blocks keep VayuLok on `no-store`.
+  # Keep them after the HTML blocks.
   #
   # Restate the security headers because Amplify does not document whether matching
   # customHttp.yml patterns merge or replace.
@@ -285,13 +415,30 @@ customHeaders:
       - key: Content-Security-Policy
         value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
 
+  # ── Stable media ─────────────────────────────────────────────────────────────────
+  #
+  # Logos, brand images and product media (`/get/o/` is the public tier of the media bucket,
+  # served through the Amplify rewrite; `/images/` is public/images in this repo). The URLs do
+  # not change when the bytes do, so this is a day in the browser and the CDN, then served
+  # stale for up to a week while it revalidates. Amplify applies Cache-Control only to 200
+  # responses, so the edge function's no-store redirect for a missing /get/ key is unchanged.
+  # Other /get/ prefixes stay on the `**/*` no-store default.
+  - pattern: "/get/o/**/*"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=86400, stale-while-revalidate=604800"
+  - pattern: "/images/**/*"
+    headers:
+      - key: Cache-Control
+        value: "public, max-age=86400, stale-while-revalidate=604800"
+
   # ── The build's own content-hashed assets ─────────────────────────────────────────
   #
   # EVERY HEADER HERE IS RESTATED ON PURPOSE - none is special to this block anymore.
   #
   # This pattern gives content-hashed Next assets a DIFFERENT Cache-Control from stable URLs:
   # `public, max-age=31536000, immutable`. The filename hash changes when bytes change, so this
-  # cannot strand a visitor on an old build. HTML and the stable VayuLok URLs remain no-store.
+  # cannot strand a visitor on an old build. HTML revalidates and the VayuLok URLs stay no-store.
   #
   # AWS documents that customHttp.yml overrides the console header set, and it documents
   # `pattern` as a glob, but it does NOT document whether two matching patterns MERGE or
@@ -314,7 +461,7 @@ customHeaders:
   - pattern: "/_next/static/**/*"
     headers:
       # Content-hashed assets are immutable by URL. Cache them aggressively; new deploys
-      # reference new hashes, while stable HTML remains no-store above.
+      # reference new hashes, while HTML revalidates above.
       - key: Cache-Control
         value: "public, max-age=31536000, immutable"
       - key: X-Frame-Options
