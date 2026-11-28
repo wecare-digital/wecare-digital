@@ -2,8 +2,8 @@
 Automation Rules Lambda — CRUD for cross-channel automation rules.
 
 A rule: when an inbound message matches a trigger (keyword/any) on a channel, run an
-action (auto-reply text / AI). Rules live in AutomationRulesTable; the shared
-lambda_utils/automation.py evaluator (called by inbound handlers) reads them.
+action. Rules live in AutomationRulesTable. No handler evaluates them: automatic
+replies to customers are disabled on every channel, so a stored rule never sends anything.
 
 Endpoints (HTTP API):
   GET    /automation/rules          - list rules

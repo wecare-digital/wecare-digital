@@ -78,14 +78,8 @@ registry=REGISTRY.read_text(encoding='utf-8')
 check("capability: 'leave_review'" in registry and "flowId: REVIEW_FLOW_ID, status: 'PUBLISHED'" in registry, 'Active canonical registry must show F002 published')
 
 inbound=INBOUND.read_text(encoding='utf-8')
-leave=inbound[inbound.index("    'leave_review': {"):inbound.index("    'subscribe': {", inbound.index("    'leave_review': {"))]
-idea_alias=inbound[inbound.index("    'customer_idea': {"):inbound.index("    'submit_request': {", inbound.index("    'customer_idea': {"))]
-check("'enabled': False" in leave,'F002 runtime default must be disabled')
-check("'enabled': False" in idea_alias,'legacy customer_idea alias must not be a second live door')
-check("capability='leave_review', registry_row=registry_row, trigger=trigger" in inbound,
-      'normal F002 launch must use canonical keyword decision')
-check("capability='leave_review', registry_row=review_registry" in inbound,
-      'attributed F002 launch must use the same canonical decision')
+check('leave_review' not in inbound and 'evaluate_rules' not in inbound,
+      'inbound handler must not route keywords or send automatic replies')
 
 if errors:
     print('F002 CHECK FAILED')

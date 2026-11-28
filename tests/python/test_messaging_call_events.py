@@ -26,8 +26,7 @@ def calling():
     return module
 
 
-SIDE_EFFECTS = ("_store_call_log", "_send_call_whatsapp_notification", "_auto_pickup_and_play",
-                "_send_post_call_reaction", "put_call_breadcrumb", "_send_disconnect_sms")
+SIDE_EFFECTS = ("_store_call_log", "_auto_pickup_and_play", "put_call_breadcrumb")
 
 
 def deliver(calling, event_type, claimed):
@@ -35,9 +34,7 @@ def deliver(calling, event_type, claimed):
             "to": "919330994400", "duration": 12, "reason": "completed"}
     patches = [mock.patch.object(calling, name) for name in SIDE_EFFECTS]
     with mock.patch.object(calling.webhook_dedup, "claim_event", return_value=claimed) as claim, \
-            mock.patch.object(calling, "_is_auto_pickup_enabled", return_value=True), \
-            mock.patch.object(calling, "_is_sms_on_call_enabled", return_value=True), \
-            mock.patch("lambda_utils.sinch_rcs.is_rcs_enabled", return_value=False):
+            mock.patch.object(calling, "_is_auto_pickup_enabled", return_value=True):
         mocks = [p.start() for p in patches]
         try:
             calling._handle_call_event("waba-1", call, {"phone_number_id": "1016149501586345"},
@@ -59,14 +56,15 @@ def test_first_connect_claims_before_acting(calling):
     claim, effects = deliver(calling, "connect", claimed=True)
     claim.assert_called_once_with("call:wacid.1:connect", source="whatsapp_call")
     assert effects["_store_call_log"].called
-    assert effects["_send_call_whatsapp_notification"].call_count == 1
     assert effects["_auto_pickup_and_play"].call_count == 1
 
 
-def test_first_terminate_sends_one_reaction_and_one_sms(calling):
+def test_first_terminate_records_the_call_and_sends_nothing(calling):
     _, effects = deliver(calling, "terminate", claimed=True)
-    assert effects["_send_post_call_reaction"].call_count == 1
-    assert effects["_send_disconnect_sms"].call_count == 1
+    assert effects["put_call_breadcrumb"].call_count == 1
+    for name in ("_send_post_call_reaction", "_send_disconnect_sms", "_send_call_whatsapp_notification",
+                 "_send_call_followup_text", "_send_incoming_call_sms"):
+        assert not hasattr(calling, name), name
 
 
 def test_handler_source_has_no_sleep_and_no_dead_cooldown():
@@ -76,15 +74,6 @@ def test_handler_source_has_no_sleep_and_no_dead_cooldown():
     assert sleeps == []
     names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     assert "_sms_sent_recently" not in names
-
-
-def test_follow_up_text_is_one_attempt_per_number(calling):
-    with mock.patch.object(calling, "_send_call_followup_text", return_value="") as send, \
-            mock.patch.object(calling.time, "sleep", side_effect=AssertionError("slept")), \
-            mock.patch.object(calling, "dynamodb"):
-        calling._send_call_whatsapp_notification("919800000004", "wacid.1",
-                                                 calling.WABA2_META_ID, "req")
-    assert send.call_count == 2  # WABA2 calls are followed up from both numbers, once each
 
 
 def test_auto_pickup_terminates_without_holding_the_line(calling):

@@ -28,7 +28,6 @@ from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_headers, extract_origin
 from lambda_utils.privacy import mask_contact_id  # contactId is `wa` + the customer's digits
 from lambda_utils.message_store import put_message  # canonical MessagesTable writer
-from lambda_utils.automation import evaluate_rules  # cross-channel auto-reply rules
 from lambda_utils import sinch_signature  # raw-body HMAC on the public callback
 from lambda_utils import rcs_status  # monotonic status ordering + failure classification
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
@@ -173,9 +172,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # ── Interim posture while no webhook secret exists ──
     # Measured over the 7 days to 2026-09-21: 313 of 313 callbacks on this route
     # were MESSAGE_DELIVERY. Zero MESSAGE_INBOUND, zero OPT_IN/OPT_OUT. So the
-    # dangerous paths - _process_inbound writing forged messages into the
-    # canonical MessagesTable, and evaluate_rules invoking wecare-rcs-send with a
-    # phone number from the request body - have never carried legitimate traffic,
+    # dangerous path, _process_inbound writing forged messages into the
+    # canonical MessagesTable, has never carried legitimate traffic,
     # while delivery receipts demonstrably have.
     #
     # Refusing everything unverified would therefore trade a live exploit for a
@@ -457,23 +455,6 @@ def _process_inbound(data: Dict, request_id: str):
         timestamp=now,
     )
     logger.info(f'Inbound RCS stored (canonical): {msg_id} from {identity[-4:] if identity else "?"}')
-
-    # Automation — auto-reply if a rule matches (guarded, async via rcs-send).
-    try:
-        if content and identity:
-            _auto = evaluate_rules(content, 'rcs')
-            if _auto:
-                boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1')).invoke(
-                    FunctionName='wecare-rcs-send:live',  # never $LATEST's unpublished code
-                    InvocationType='Event',
-                    Payload=json.dumps({
-                        'requestContext': {'http': {'method': 'POST'}},
-                        'body': json.dumps({'action': 'send', 'phoneNumber': identity.replace('+', ''), 'text': _auto}),
-                    }),
-                )
-                logger.info(json.dumps({'event': 'automation_auto_reply', 'channel': 'rcs', 'messageId': msg_id}))
-    except Exception as _ae:
-        logger.warning(f'rcs automation auto-reply skipped: {_ae}')
 
 
 def _process_opt(data: Dict, event_type: str, request_id: str):
