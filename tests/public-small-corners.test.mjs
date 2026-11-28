@@ -15,7 +15,7 @@ test('non-Home component-specific radius tokens leave original card and hover to
   assert.match(read('src/components/PublicShare.tsx'),/\.ps-action\{[^}]*border-radius:50%/);
 });
 
-test('Orders action chooser and Submit Request price details use the smaller panel and shared search',()=>{
+test('Orders action chooser keeps compact search; F004 uses an upfront bordered receipt summary',()=>{
   const menu=read('src/components/orders/OrderActionsMenu.tsx'),form=read('src/components/orders/SubmitRequestForm.tsx');
   assert.ok(menu.includes('authCountryPanelGeometry( {'));
   assert.ok(menu.includes("window.visualViewport?.addEventListener( 'resize', reposition )"));
@@ -23,10 +23,22 @@ test('Orders action chooser and Submit Request price details use the smaller pan
   assert.ok(menu.includes('data-public-search-field="compact"'));
   assert.ok(menu.includes('border-radius:var(--public-nav-radius)'));
   assert.doesNotMatch(menu,/\.orm-menu\{[^}]*border-radius:(?:18|24)px/);
-  assert.ok(form.includes('<summary className="sr-details">'));
-  assert.ok(form.includes('details[open] .sr-details svg{transform:rotate(180deg)}'));
-  assert.ok(form.includes('.sr-details:focus-visible{outline:2px solid var(--public-brand-green)'));
+  assert.ok(form.includes('<section className="sr-pricing" aria-label="Payment summary">'));
+  assert.doesNotMatch(form, /<details|<summary/);
+  assert.ok(form.includes("serviceByKind( 'SUBMIT_REQUEST' )?.sku"));
+  assert.ok(form.includes("label: 'GST', paise: quote.supplyGstPaise + quote.convenienceGstPaise"));
+  assert.doesNotMatch(form, /label: 'GST on|label: 'Supply GST/);
+  assert.match(form, /\.sr-pricing\{[^}]*border:1px solid var\(--public-hairline\)/);
+  const foundation=read('src/styles/public-commerce-foundation.css');
+  assert.match(foundation, /\.sr-form textarea\s*\{[^}]*border: 1px solid var\(--public-hairline\)/);
+  assert.match(foundation, /\.sr-form textarea\s*\{[^}]*border-radius: var\(--public-hover-radius\)/);
   assert.ok(form.includes('border-radius:var(--public-card-radius)}.sr-actions'));
+  const journey=read('src/components/orders/SubmitRequestJourney.tsx');
+  assert.ok(journey.includes("call( 'request-service-web-quote' )"));
+  assert.ok(journey.includes("if ( !ready || ( paymentState !== 'idle' && paymentState !== 'failed' ) )"));
+  const orders=read('src/components/orders/OrdersPage.tsx');
+  assert.ok(orders.includes('{ submitOrderNumber ? <SubmitRequestJourney'));
+  assert.doesNotMatch(orders, /ord-web-request/);
   assert.ok(form.includes('expectedTotalPaise: quote.totalPayablePaise'));
   assert.ok(read('scripts/verify_checkout_fixture.mjs').includes('mock-orders-request-menu'));
 });
