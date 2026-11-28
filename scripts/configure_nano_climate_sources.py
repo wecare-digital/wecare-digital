@@ -3,7 +3,7 @@
 
 Dry-run by default. Run only after the new gateway code has passed CI and been staged
 on $LATEST (existing deploy_all_lambdas.py --no-publish path). This script never
-creates a secret, changes Google API restrictions, publishes an alias or prints keys.
+creates a parameter or secret, changes Google API restrictions, publishes an alias or prints keys.
 """
 import argparse
 import json
@@ -15,7 +15,7 @@ ACCOUNT = "775261844268"
 FUNCTION = "wecare-vayulok-environment"
 ROLE = "wecare-vayulok-environment-role"
 TABLE = "stack-wecare-digital-RateLimitTable"
-CPCB = "wecare/nano-climate/cpcb"
+CPCB = "/wecare/nano-climate/cpcb"
 SOURCES = ("elevation", "cpcb", "pvgis", "solar", "spartan")
 
 
@@ -47,23 +47,34 @@ def main():
         "Condition": {"ForAllValues:StringLike": {"dynamodb:LeadingKeys": ["nano-climate:environment:*"]},
                       "Null": {"dynamodb:LeadingKeys": "false"}},
     }]
+    variables.pop("VAYULOK_CPCB_SECRET", None)
     if "cpcb" in wanted:
-        secrets = boto3.client("secretsmanager", region_name=REGION)
-        try:
-            metadata = secrets.describe_secret(SecretId=CPCB)
-        except secrets.exceptions.ResourceNotFoundException:
-            raise SystemExit(f"Secret {CPCB} does not exist. The owner must create it with the data.gov.in API key "
-                             "before CPCB can be enabled. Nothing was changed.")
-        if metadata.get("DeletedDate"):
-            raise SystemExit("CPCB secret pending deletion")
-        statements.append({"Effect": "Allow", "Action": "secretsmanager:GetSecretValue", "Resource": metadata["ARN"]})
-        key = metadata.get("KmsKeyId")
-        if key and key.startswith("arn:aws:kms:"):
-            statements.append({"Effect": "Allow", "Action": "kms:Decrypt", "Resource": key,
-                               "Condition": {"StringEquals": {"kms:ViaService": f"secretsmanager.{REGION}.amazonaws.com"}}})
-        variables["VAYULOK_CPCB_SECRET"] = CPCB
+        ssm = boto3.client("ssm", region_name=REGION)
+        # Metadata only: no GetParameter or decrypted key in this operator script.
+        params = ssm.describe_parameters(ParameterFilters=[
+            {"Key": "Name", "Option": "Equals", "Values": [CPCB]}
+        ]).get("Parameters", [])
+        if (len(params) != 1 or params[0].get("Name") != CPCB
+                or params[0].get("Type") != "SecureString"
+                or params[0].get("Tier") != "Standard"
+                or params[0].get("KeyId") != "alias/aws/ssm"):
+            raise SystemExit(f"Create {CPCB} as a Standard SecureString with alias/aws/ssm first. Nothing was changed.")
+        key = boto3.client("kms", region_name=REGION).describe_key(KeyId="alias/aws/ssm")["KeyMetadata"]
+        if (key.get("KeyManager") != "AWS" or key.get("KeyState") != "Enabled"
+                or not key.get("Arn", "").startswith(f"arn:aws:kms:{REGION}:{ACCOUNT}:key/")):
+            raise SystemExit("Unexpected SSM encryption key. Nothing was changed.")
+        parameter_arn = f"arn:aws:ssm:{REGION}:{ACCOUNT}:parameter{CPCB}"
+        statements.extend([
+            {"Effect": "Allow", "Action": "ssm:GetParameter", "Resource": parameter_arn},
+            {"Effect": "Allow", "Action": "kms:Decrypt", "Resource": key["Arn"],
+             "Condition": {"StringEquals": {
+                 "kms:ViaService": f"ssm.{REGION}.amazonaws.com",
+                 "kms:EncryptionContext:PARAMETER_ARN": parameter_arn,
+             }}},
+        ])
+        variables["VAYULOK_CPCB_PARAMETER"] = CPCB
     else:
-        variables.pop("VAYULOK_CPCB_SECRET", None)
+        variables.pop("VAYULOK_CPCB_PARAMETER", None)
     variables["VAYULOK_EXTENDED_SOURCES"] = ",".join(wanted)
     variables["VAYULOK_EXTENDED_BUDGET_TABLE"] = TABLE
     print(json.dumps({"mode": "apply" if args.apply else "dry-run", "function": FUNCTION,
@@ -80,7 +91,10 @@ def main():
     lam.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION)
     updated = lam.get_function_configuration(FunctionName=FUNCTION)
     actual = updated.get("Environment", {}).get("Variables", {})
-    if actual.get("VAYULOK_EXTENDED_SOURCES") != ",".join(wanted) or actual.get("VAYULOK_EXTENDED_BUDGET_TABLE") != TABLE:
+    if (actual.get("VAYULOK_EXTENDED_SOURCES") != ",".join(wanted)
+            or actual.get("VAYULOK_EXTENDED_BUDGET_TABLE") != TABLE
+            or actual.get("VAYULOK_CPCB_PARAMETER") != (CPCB if "cpcb" in wanted else None)
+            or "VAYULOK_CPCB_SECRET" in actual):
         raise SystemExit("Configuration read-back did not match")
     print("Configured $LATEST only; verify and use the owning Lambda alias release process.")
 
