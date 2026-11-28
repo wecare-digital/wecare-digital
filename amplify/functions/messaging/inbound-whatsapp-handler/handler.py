@@ -653,7 +653,8 @@ def _send_direct_api_typing(whatsapp_message_id: str, meta_phone_id: str = None)
 # reading that parameter. The surviving call sites pass keyword arguments.
 
 
-# TTL: 30 days in seconds
+# Stamped as `expiresAt` (30 days). DynamoDB TTL is disabled on the message tables
+# (scripts/disable_dynamodb_ttl.py), so nothing deletes these rows; retention is open.
 MESSAGE_TTL_SECONDS = 30 * 24 * 60 * 60
 
 # ── Payment flow messages (hardcoded, LLM-independent, edit here to change) ──
@@ -2124,7 +2125,7 @@ def _process_message(
                 'requestId': request_id
             }))
     
-    # Generate message ID and calculate TTL
+    # Generate message ID and the `expiresAt` stamp (not enforced: TTL is disabled)
     message_id = str(uuid.uuid4())
     now = int(time.time())
     expires_at = now + MESSAGE_TTL_SECONDS
