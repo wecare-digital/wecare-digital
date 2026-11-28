@@ -192,6 +192,7 @@ export function publicPolicyDetailsForRoute( pathname: string ): PublicPolicyCop
 
   if ( pathname === '/post/[slug]' ) return BLOG_POST_POLICY;
   if ( pathname === '/shop/page/[page]' ) return SHOP_PAGE_POLICY;
+  if ( pathname === '/orders/request' ) return PAGE_POLICY[ '/checkout' ];
 
   return PAGE_POLICY[ pathname ] || null;
 }
