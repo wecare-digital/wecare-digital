@@ -48,3 +48,22 @@ test('shared menu reacts to visible viewport and protects deliberate keyboard fo
   assert.ok(qa.includes('outside focus was stolen'));
   assert.ok(qa.includes('keyboard-size stress approximation'));
 });
+
+test('public header restores original component radii and shares the Products double arrow',()=>{
+  const header=readFileSync(new URL('../src/components/Header.tsx',import.meta.url),'utf8');
+  const theme=readFileSync(new URL('../src/styles/public-button-theme.css',import.meta.url),'utf8');
+  const tokens=readFileSync(new URL('../src/styles/tokens.css',import.meta.url),'utf8');
+  assert.doesNotMatch(theme,/\.nav-(?:menu|dropdown|item|section-toggle|group-link|trigger|products-more)\b/);
+  assert.match(theme,/\[data-public-search-field\][^}]*--public-hover-radius: var\(--public-search-radius\)/);
+  assert.match(tokens,/--public-hover-radius: 13px;/);
+  assert.match(header,/\.nav-menu\{[^}]*border-radius:24px/);
+  assert.match(header,/\.nav-dropdown\[data-nav-tight='true'\] \.nav-menu\{[^}]*border-radius:14px/);
+  assert.match(header,/\.nav-item\{[^}]*border-radius:var\(--public-nav-radius\)/);
+  assert.match(header,/\.nav-trigger\{[^}]*border-radius:10px/);
+  assert.match(header,/\.nav-trigger:hover\{[^}]*border-radius:var\(--public-hover-radius\)/);
+  assert.match(header,/\.nav-group-link\{[^}]*border-radius:8px/);
+  assert.match(header,/\.nav-products-more\{[^}]*border-radius:50%;background:var\(--public-brand-lime\)/);
+  assert.match(header,/className="nav-products-more-icon"\s+viewBox=\{ ROW_CHEVRON_VIEW_BOX \}[^>]*>\s*<path d=\{ ROW_CHEVRON_PATH \} \/>/);
+  assert.match(header,/\.nav-products-more-icon\{fill:var\(--public-nav-arrow\);stroke:none;transform:rotate\(90deg\)\}/);
+  assert.match(header,/onClick=\{ scrollProductsForward \}/);
+});
