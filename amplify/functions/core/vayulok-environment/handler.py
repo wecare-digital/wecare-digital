@@ -607,6 +607,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _extra_log_host(url: str) -> str:
+    # Only fixed provider hosts may appear in logs, never a caller-supplied
+    # hostname, path, query, credentials or upstream message.
+    for endpoint in (CPCB_URL, ELEVATION_URL, PVGIS_URL, BUILDING_INSIGHTS_URL):
+        if url.startswith(endpoint + "?"):
+            return urllib.parse.urlsplit(endpoint).hostname or "unknown"
+    if url.startswith(SPARTAN_BASE):
+        return urllib.parse.urlsplit(SPARTAN_BASE).hostname or "unknown"
+    return "unknown"
+
+
 def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
                 limit: int = MAX_UPSTREAM_BYTES) -> bytes:
     request = urllib.request.Request(
@@ -620,6 +631,9 @@ def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
     except urllib.error.HTTPError as exc:
         if url.startswith(CPCB_URL + "?"):
             logger.warning("nano_climate_cpcb_upstream_http status=%d", exc.code)
+        else:
+            logger.warning("nano_climate_upstream_http host=%s code=%d",
+                           _extra_log_host(url), exc.code)
         raise ProviderFailure(404 if exc.code == 404 else 502) from None
     except Exception as exc:
         if url.startswith(CPCB_URL + "?"):
@@ -627,6 +641,9 @@ def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
             reason = exc.reason if isinstance(exc, urllib.error.URLError) else None
             logger.warning("nano_climate_cpcb_transport type=%s reason_type=%s",
                            type(exc).__name__, type(reason).__name__)
+        else:
+            logger.warning("nano_climate_upstream_error host=%s type=%s",
+                           _extra_log_host(url), type(exc).__name__)
         raise ProviderFailure(502) from None
     if len(body) > limit:
         if url.startswith(CPCB_URL + "?"):

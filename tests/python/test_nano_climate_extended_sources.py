@@ -259,7 +259,7 @@ def test_spartan_and_pvgis_follow_the_selected_place_not_a_previous_one(monkeypa
     assert pvgis["gridLat"] == round(lat, 2) and pvgis["gridLng"] == round(lng, 2)
     assert any(f"lat={round(lat, 2)}" in c for c in calls)
 
-def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch):
+def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch, capsys):
     import sys
     script = path.parents[4] / "scripts/configure_nano_climate_sources.py"
     spec = importlib.util.spec_from_file_location("configure_nano_climate_test", script)
@@ -313,6 +313,8 @@ def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch):
     assert variables["VAYULOK_CPCB_PARAMETER"] == cfg.CPCB
     assert variables["VAYULOK_EXTENDED_SOURCES"] == "cpcb,pvgis,spartan"
     clients["ssm"].get_parameter.assert_not_called()
+    assert "python scripts/configure_nano_climate_sources.py --sources pvgis spartan --apply" in capsys.readouterr().out
+
 
 def test_cpcb_diagnostics_never_log_url_key_or_provider_message(monkeypatch, caplog):
     import urllib.error
@@ -349,3 +351,92 @@ def test_cpcb_complete_single_snapshot_and_provider_error_fail_closed(monkeypatc
     assert "limit=10000" in provider.call_args.args[0]
     assert len(h._cpcb_snapshot()) == 2
     assert provider.call_count == 2
+
+
+def _load_source_config():
+    script = path.parents[4] / "scripts/configure_nano_climate_sources.py"
+    spec = importlib.util.spec_from_file_location("configure_nano_climate_rollback_test", script)
+    cfg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cfg)
+    return cfg
+
+
+@pytest.mark.parametrize("before,selection", [
+    ("", "--disable-all"),
+    ("cpcb", "--sources cpcb"),
+    (" solar, elevation, solar ", "--sources elevation solar"),
+    ("spartan,pvgis,cpcb", "--sources cpcb pvgis spartan"),
+])
+def test_source_rollback_preserves_previous_subset(before, selection):
+    cfg = _load_source_config()
+    previous = cfg._previous_sources({"VAYULOK_EXTENDED_SOURCES": before})
+    assert cfg._rollback_command(previous) == (
+        "python scripts/configure_nano_climate_sources.py " + selection + " --apply"
+    )
+    assert "--confirm-google-key-and-billing" not in cfg._rollback_command(previous)
+
+
+def test_source_rollback_rejects_unknown_values_without_echoing_them():
+    cfg = _load_source_config()
+    with pytest.raises(SystemExit, match="Unexpected existing source selection") as exc:
+        cfg._previous_sources({"VAYULOK_EXTENDED_SOURCES": "unrecognized;not-a-command"})
+    assert "unrecognized" not in str(exc.value)
+
+
+def test_disable_all_is_explicit_and_dry_run_by_default(monkeypatch, capsys):
+    import sys
+    cfg = _load_source_config()
+    clients = {name: Mock() for name in ("sts", "lambda", "iam", "dynamodb")}
+    monkeypatch.setattr(cfg.boto3, "client", lambda name, **kwargs: clients[name])
+    clients["sts"].get_caller_identity.return_value = {"Account": cfg.ACCOUNT}
+    clients["dynamodb"].describe_table.return_value = {"Table": {
+        "TableStatus": "ACTIVE",
+        "TableArn": f"arn:aws:dynamodb:{cfg.REGION}:{cfg.ACCOUNT}:table/{cfg.TABLE}",
+        "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    }}
+    old = {"Role": f"arn:aws:iam::{cfg.ACCOUNT}:role/{cfg.ROLE}", "RevisionId": "revision",
+           "Environment": {"Variables": {"VAYULOK_EXTENDED_SOURCES": "elevation,solar",
+                                          "UNRELATED": "preserve"}}}
+    clients["lambda"].get_function_configuration.return_value = old
+    monkeypatch.setattr(sys, "argv", ["configure", "--disable-all"])
+    cfg.main()
+    assert '"sources": []' in capsys.readouterr().out
+    clients["iam"].put_role_policy.assert_not_called()
+    clients["lambda"].update_function_configuration.assert_not_called()
+    monkeypatch.setattr(sys, "argv", ["configure", "--disable-all", "--sources", "pvgis"])
+    with pytest.raises(SystemExit):
+        cfg.main()
+    clients["lambda"].get_function_configuration.side_effect = [old, {
+        "Environment": {"Variables": {"VAYULOK_EXTENDED_SOURCES": "",
+                                       "VAYULOK_EXTENDED_BUDGET_TABLE": cfg.TABLE,
+                                       "UNRELATED": "preserve"}}}]
+    monkeypatch.setattr(sys, "argv", ["configure", "--disable-all", "--apply"])
+    cfg.main()
+    command = capsys.readouterr().out
+    assert "--sources elevation solar --apply" in command
+    assert "Google sources require fresh key/billing verification" in command
+    variables = clients["lambda"].update_function_configuration.call_args.kwargs["Environment"]["Variables"]
+    assert variables["VAYULOK_EXTENDED_SOURCES"] == ""
+    assert variables["UNRELATED"] == "preserve"
+
+
+@pytest.mark.parametrize("url,host", [
+    (h.ELEVATION_URL + "?key=unit-test-placeholder", "maps.googleapis.com"),
+    (h.PVGIS_URL + "?key=unit-test-placeholder", "re.jrc.ec.europa.eu"),
+    (h.BUILDING_INSIGHTS_URL + "?key=unit-test-placeholder", "solar.googleapis.com"),
+    (h.SPARTAN_BASE + "unit-test-placeholder", "spartan-cloud.s3.us-west-2.amazonaws.com"),
+    ("https://unit-test-placeholder.invalid/private?key=unit-test-placeholder", "unknown"),
+])
+def test_extended_source_diagnostics_log_only_known_host_and_error_type(monkeypatch, caplog, url, host):
+    import urllib.error
+    fake = Mock()
+    fake.open.side_effect = urllib.error.HTTPError(url, 403, "unit-test-placeholder", {}, None)
+    monkeypatch.setattr(h.urllib.request, "build_opener", lambda *_: fake)
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert f"nano_climate_upstream_http host={host} code=403" in caplog.text
+    fake.open.side_effect = urllib.error.URLError("unit-test-placeholder")
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert f"nano_climate_upstream_error host={host} type=URLError" in caplog.text
+    assert "unit-test-placeholder" not in caplog.text

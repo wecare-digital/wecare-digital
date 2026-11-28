@@ -69,7 +69,14 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   require --confirm-google-key-and-billing after checking actual key and billing.
   The script preserves existing environment variables, modifies the existing
   execution role with namespaced rights and configures $LATEST only. Validate
-  before moving the live alias through the established workflow.
+  before moving the live alias through the established workflow. Its rollback
+  guidance restores the captured previous source subset, including an empty
+  subset via explicit --disable-all (dry-run unless --apply). Google restoration
+  still needs fresh key/billing confirmation; the command does not add that flag.
+  Review the live alias and its shared IAM role before removing provider access:
+  this is a source-selection rollback, not a full Lambda/IAM snapshot restore.
+  Upstream failures for other extended sources log only fixed provider hosts and
+  HTTP codes/exception classes; CPCB retains its more detailed sanitized logs.
 - Frontend build switch NEXT_PUBLIC_VAYULOK_EXTENDED=true only after the gateway
   is deployed and approved. Existing public browser-key and viewport defer gates
   remain. Selection changes cancel the previous request; no polling, no
