@@ -2002,7 +2002,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   { quoteSignInRequired && (
                     <div className="cart-signin">
                       <p className="cart-price-note">Sign in with your WhatsApp verification code. Your payment stays on the website{ hasContribution ? '.' : ' when you choose Pay on Website.' }</p>
-                      <Link className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</Link>
+                      {/* A full page load: /auth is rendered without the analytics tags, which a client-side
+                          navigation would carry over from this page. */}
+                      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                      <a className="cart-auth-action cart-auth-primary" href="/auth?return=/checkout/">Sign in to continue</a>
                     </div>
                   ) }
               {/* A returning customer's stored identity must remain visible when the

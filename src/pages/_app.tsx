@@ -6,7 +6,6 @@ import { buildPageTitle } from '../lib/page-title';
 
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import Script from 'next/script';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
@@ -721,7 +720,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   useEffect( () => {
 
     // The web Service Worker/cache layer has been removed. Clean up any worker/cache
-    // left behind in returning browsers without touching Cognito/OTP auth storage.
+    // left behind in returning browsers; the customer OTP session storage is not touched.
     if ( 'serviceWorker' in navigator )
     {
       navigator.serviceWorker.getRegistrations()
@@ -734,6 +733,14 @@ export default function App ( { Component, pageProps }: AppProps ) {
         .then( ( keys ) => Promise.all( keys.map( ( k ) => caches.delete( k ) ) ) )
         .catch( () => { } );
     }
+    // Staff Cognito tokens now live in sessionStorage (lib/amplifyConfig.ts). Remove the copies
+    // older builds left in localStorage, where any script on this origin could read them.
+    try
+    {
+      Object.keys( window.localStorage )
+        .filter( ( k ) => k.startsWith( 'CognitoIdentityServiceProvider.' ) )
+        .forEach( ( k ) => window.localStorage.removeItem( k ) );
+    } catch { /* storage unavailable */ }
     // Init Capacitor native plugins - inside a native shell only, and loaded on demand there. On
     // the web nothing below runs and none of the plugin code is downloaded (see isNativeShell).
     // onPushToken arms push registration (SNS endpoint via POST /push/register); the API client it
@@ -768,9 +775,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // webview where the bundle failed showed white.
   //
   // It guarded nothing specific: `mounted` was set in one effect and read in one place,
-  // with no client-only value in the render path. The window.dataLayer and
-  // window.fbAsyncInit references below are inside inline <script> strings, so they are
-  // never evaluated during render and cannot cause a mismatch.
+  // with no client-only value in the render path.
   //
   // If a hydration warning does surface, fix the element that causes it rather than
   // restoring this. Grammarly injecting attributes into <body> is the known one, and
@@ -1147,21 +1152,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
             no direct gtag.js accompanies it. */}
-      {/* Facebook SDK for JavaScript */ }
-      <Script id="facebook-sdk-init" strategy="afterInteractive">
-        { `
-          window.fbAsyncInit = function() {
-            FB.init({
-              appId: '${process.env.NEXT_PUBLIC_FB_APP_ID || ''}',
-              cookie: true,
-              xfbml: true,
-              version: 'v27.0'
-            });
-            FB.AppEvents.logPageView();
-          };
-        `}
-      </Script>
-      <Script src="https://connect.facebook.net/en_US/sdk.js" strategy="afterInteractive" id="facebook-jssdk" />
+      {/* No Facebook SDK on the staff pages any more (WEB-1). It ran with an empty appId and
+          logged CompletedRegistration on every render. */}
       {/* The Amplify UI tree - ThemeProvider, Authenticator.Provider, AuthGate and the
           Authenticator itself - now lives in AuthShell and arrives as a dynamic chunk. The
           render function below is unchanged: the page, its signOut wiring and the two widget
@@ -1172,10 +1164,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
           render contract, so only the surrounding sign-in UI differs by route. */}
       <Shell>
         { ( { signOut, user } ) => {
-          if ( typeof window !== 'undefined' && ( window as any ).FB )
-          {
-            ( window as any ).FB.AppEvents.logEvent( 'CompletedRegistration' );
-          }
           const handleSignOut = () => { signOut?.(); void router.push( '/' ); };
           const routedPage = (
             <Component { ...pageProps } signOut={ handleSignOut } user={ user as any } />
