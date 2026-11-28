@@ -155,12 +155,12 @@ jobs:
         run: |
           set +e
           [ "$PUBLIC_QA_ENGINE" = firefox ] || exit 0
-          QA_AXE_RULES=aria-allowed-attr QA_PROBE=list DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/list.log" 2>&1
-          grep -E "^PROBE" "$RUNNER_TEMP/list.log"
-          n=$(grep -o "PROBECOUNT [0-9]*" "$RUNNER_TEMP/list.log" | awk '{print $2}')
-          for i in $(seq 0 $((n-1))); do
-            QA_AXE_RULES=aria-allowed-attr,target-size,nested-interactive QA_PROBE=$i DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/p-$i.log" 2>&1
-            echo "PRB $i crash=$(grep -c page-crash "$RUNNER_TEMP/p-$i.log")"
+          R=aria-allowed-attr,target-size,nested-interactive,aria-conditional-attr,aria-prohibited-attr,label-content-name-mismatch
+          for n in 1 2; do
+            QA_AXE_RULES=$R DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/a$n.log" 2>&1; echo "EXP profile-as-is try=$n crash=$(grep -c page-crash $RUNNER_TEMP/a$n.log)"
+            QA_AXE_RULES=$R QA_BLUR=1 DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/b$n.log" 2>&1; echo "EXP profile-blur try=$n crash=$(grep -c page-crash $RUNNER_TEMP/b$n.log) $(grep -o 'failures":\[[^]]*' $RUNNER_TEMP/b$n.log | tail -1 | cut -c1-200)"
+            QA_AXE_RULES=$R QA_MODE=ready DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/c$n.log" 2>&1; echo "EXP ready-nofocus try=$n crash=$(grep -c page-crash $RUNNER_TEMP/c$n.log)"
+            QA_AXE_RULES=$R QA_MODE=ready QA_FOCUS_READY=1 DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/d$n.log" 2>&1; echo "EXP ready-focus try=$n crash=$(grep -c page-crash $RUNNER_TEMP/d$n.log)"
           done
           exit 0
       - name: Retain synthetic screenshots and report

@@ -149,7 +149,9 @@ async function runScenario(browser,width,mode) {
       // crash in every width with axe, none without). Legacy mode scans in the
       // page itself; the rule set and tags are unchanged.
       const only=process.env.QA_AXE_RULES;
-      if(only&&label!=='name-only-profile'){console.log(JSON.stringify({label,axeSkipped:true}));return;}
+      if(process.env.QA_FOCUS_READY&&label==='mock-paid-orders'){await page.locator('a,button,input').filter({visible:true}).first().focus();}
+      if(process.env.QA_BLUR==='1'){await page.evaluate(()=>document.activeElement&&document.activeElement.blur());}
+      if(only&&label!=='name-only-profile'&&!(process.env.QA_FOCUS_READY&&label==='mock-paid-orders')){console.log(JSON.stringify({label,axeSkipped:true}));return;}
       let ab=new AxeBuilder({page}).setLegacyMode(engine==='firefox');
       if(process.env.QA_PROBE){
         const list=await page.evaluate(()=>{const els=[...document.querySelectorAll('*')].filter(e=>e.getAttributeNames().some(n=>n.startsWith('aria-')||n==='role'));els.forEach((e,i)=>e.setAttribute('data-qa-probe',String(i)));return els.map((e,i)=>i+' '+e.outerHTML.slice(0,220).replace(/\s+/g,' '));});
@@ -334,7 +336,7 @@ try {
   }
   const bisect=process.env.QA_AXE_RULES;
   for(const width of bisect?[390]:[390,768,1440,280,160]) {
-    for(const mode of bisect?['profile']:width===390?['profile','mismatch','ready']:['ready']) {
+    for(const mode of bisect?[process.env.QA_MODE||'profile']:width===390?['profile','mismatch','ready']:['ready']) {
       try {await scenario(width,mode);} catch(e){failures.push(engine+' '+width+' '+mode+': '+String(e.message).slice(0,500));}
     }
   }
