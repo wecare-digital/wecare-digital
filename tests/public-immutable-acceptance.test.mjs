@@ -43,6 +43,8 @@ test('immutable acceptance shares a verified exact export, never proxies transac
   assert.match(fixture,/return withIsolatedBrowser\(runAppointmentGate\)/);
   // #2531: the Arogya form is public; sign-in is checked only at submission.
   assert.match(fixture,/Sign in to submit your request/);
+  // Firefox scans in-page so axe never opens/closes a tab mid-scenario.
+  assert.match(fixture,/new AxeBuilder\(\{page\}\)\.setLegacyMode\(engine==='firefox'\)\.withTags\(\['wcag2a'/);
   assert.match(fixture,/assert\.equal\(bookingCalls,0\)/);
   assert.doesNotMatch(fixture,/Retry live choices|verifyAuthGate\(page,origin,'\/elsewhere\/arogya-yatra\/'\)/);
   assert.match(fixture,/finally \{ await browser\.close\(\); \}/);

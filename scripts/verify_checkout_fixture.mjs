@@ -143,7 +143,12 @@ async function runScenario(browser,width,mode) {
         return {width,scroll,overflowTargets};
       });
       phase='accessibility scan: '+label;
-      const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
+      // Firefox: AxeBuilder's default mode opens and closes a blank page in this
+      // context for every scan. In Firefox that tab close repeatedly preceded a
+      // content-process SIGSEGV on the next checkout render (CI bisect, PR #2553:
+      // crash in every width with axe, none without). Legacy mode scans in the
+      // page itself; the rule set and tags are unchanged.
+      const axe=await new AxeBuilder({page}).setLegacyMode(engine==='firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
       await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
