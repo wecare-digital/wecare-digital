@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import React, { useEffect, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import SubmitRequestJourney from '../../components/orders/SubmitRequestJourney';
@@ -9,6 +10,7 @@ import { isOrderNumber } from '../../lib/paymentVocabulary';
 /** Private customer-session task, not a public order-detail or payment link.
  * The fragment is only a selection hint. The checkout API owns the order check. */
 export default function OrderRequestPage (): React.ReactElement {
+  const router = useRouter();
   const [ selection, setSelection ] = useState<{ orderNumber: string; accessToken: string } | null>( null );
   const [ missing, setMissing ] = useState( false );
   useEffect( () => {
@@ -28,7 +30,7 @@ export default function OrderRequestPage (): React.ReactElement {
     const timer = window.setTimeout( () => { void open(); }, 0 );
     return () => { live = false; window.clearTimeout( timer ); };
   }, [] );
-  const done = () => { window.location.assign( '/orders/' ); };
+  const done = () => { void router.push( '/orders/' ); };
   const expire = () => { clearSession(); window.location.replace( '/auth?return=/orders/' ); };
   return <>
     <PageMeta title="Submit Request" description="Submit a request for an existing order." path="/orders/request/" />
