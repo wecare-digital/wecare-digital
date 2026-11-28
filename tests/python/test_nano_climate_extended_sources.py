@@ -169,8 +169,9 @@ def test_cpcb_request_sends_named_user_agent(monkeypatch):
     monkeypatch.setattr(h, "_reserve_extra", lambda source: None)
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
     seen = {}
-    def fake(url, headers=None):
+    def fake(url, headers=None, *, timeout=None):
         seen["headers"] = headers
+        assert 0 < timeout <= h.CPCB_SNAPSHOT_SECONDS
         return {"status": "ok", "records": [], "total": 0}
     monkeypatch.setattr(h, "_extra_json", fake)
     assert h._cpcb_snapshot() == []
@@ -348,7 +349,7 @@ def test_cpcb_complete_single_snapshot_and_provider_error_fail_closed(monkeypatc
     assert len(h._cpcb_snapshot()) == 2
     assert reserve.call_count == 2
     assert provider.call_count == 2
-    assert "limit=10000" in provider.call_args.args[0]
+    assert "limit=1000" in provider.call_args.args[0]
     assert len(h._cpcb_snapshot()) == 2
     assert provider.call_count == 2
 
@@ -440,3 +441,92 @@ def test_extended_source_diagnostics_log_only_known_host_and_error_type(monkeypa
         h._extra_read(url)
     assert f"nano_climate_upstream_error host={host} type=URLError" in caplog.text
     assert "unit-test-placeholder" not in caplog.text
+
+
+def _mock_cpcb_pages(monkeypatch, pages):
+    monkeypatch.setattr(h, "_extra_cache", {})
+    reserve = Mock()
+    key = Mock(return_value="unit-test-placeholder")
+    provider = Mock(side_effect=pages)
+    monkeypatch.setattr(h, "_reserve_extra", reserve)
+    monkeypatch.setattr(h, "_cpcb_key", key)
+    monkeypatch.setattr(h, "_extra_json", provider)
+    return reserve, key, provider
+
+
+def _cpcb_page(rows, total, offset, revision="test-revision"):
+    return {"status": "ok", "records": rows, "total": str(total),
+            "count": str(len(rows)), "offset": str(offset), "updated_date": revision}
+
+
+def test_cpcb_documented_limit_complete_national_snapshot(monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+    # Synthetic records, not a stored or uploaded provider CSV.
+    rows = [{"station": f"test-{i}"} for i in range(3934)]
+    pages = [_cpcb_page(rows[i:i + 1000], len(rows), i) for i in range(0, len(rows), 1000)]
+    reserve, key, provider = _mock_cpcb_pages(monkeypatch, pages)
+    assert h._cpcb_snapshot() == rows
+    assert h.EXTRA_LIMITS["cpcb"] == (24, 744)
+    assert reserve.call_count == provider.call_count == 4
+    assert all(call.args == ("cpcb",) for call in reserve.call_args_list)
+    key.assert_called_once()
+    queries = [parse_qs(urlsplit(call.args[0]).query) for call in provider.call_args_list]
+    assert [q["offset"] for q in queries] == [["0"], ["1000"], ["2000"], ["3000"]]
+    assert all(q["limit"] == ["1000"] for q in queries)
+    assert all(call.kwargs["headers"]["User-Agent"] == h.CPCB_USER_AGENT for call in provider.call_args_list)
+    assert h._cpcb_snapshot() == rows
+    assert provider.call_count == reserve.call_count == 4
+
+
+@pytest.mark.parametrize("second", [
+    _cpcb_page([{"station": "B"}], 2, 1, "changed"),
+    _cpcb_page([{"station": "B"}], 3, 1),
+    _cpcb_page([{"station": "B"}], 2, 0),
+    _cpcb_page([{"station": "A"}], 2, 1),
+    _cpcb_page([], 2, 1),
+    {"status": "ok", "total": 2, "records": [{"station": "B"}]},
+])
+def test_cpcb_pagination_rejects_inconsistent_pages(monkeypatch, second):
+    reserve, _, provider = _mock_cpcb_pages(monkeypatch, [
+        _cpcb_page([{"station": "A"}], 2, 0), second,
+    ])
+    with pytest.raises(h.ProviderFailure):
+        h._cpcb_snapshot()
+    assert reserve.call_count == provider.call_count == 2
+    assert h._extra_cached("cpcb:national", 3600) is None
+
+
+def test_cpcb_pagination_budget_denial_stops_before_second_request(monkeypatch):
+    reserve, _, provider = _mock_cpcb_pages(monkeypatch, [_cpcb_page([{"station": "A"}], 2, 0)])
+    reserve.side_effect = [None, h.ExtraBudgetExhausted("limit")]
+    with pytest.raises(h.ExtraBudgetExhausted):
+        h._cpcb_snapshot()
+    assert reserve.call_count == 2
+    provider.assert_called_once()
+    assert h._extra_cached("cpcb:national", 3600) is None
+
+
+@pytest.mark.parametrize("total,rows", [
+    (10001, [{"station": "A"}]),
+    (1001, [{"station": str(i)} for i in range(1001)]),
+    (1.5, [{"station": "A"}]),
+])
+def test_cpcb_rejects_oversize_or_noninteger_counts(monkeypatch, total, rows):
+    reserve, _, provider = _mock_cpcb_pages(monkeypatch, [_cpcb_page(rows, total, 0)])
+    with pytest.raises(h.ProviderFailure):
+        h._cpcb_snapshot()
+    reserve.assert_called_once()
+    provider.assert_called_once()
+    assert h._extra_cached("cpcb:national", 3600) is None
+
+
+def test_cpcb_aggregate_response_size_is_bounded(monkeypatch):
+    monkeypatch.setattr(h, "MAX_UPSTREAM_BYTES", 25)
+    reserve, _, provider = _mock_cpcb_pages(monkeypatch, [
+        _cpcb_page([{"station": "one"}], 2, 0),
+        _cpcb_page([{"station": "two"}], 2, 1),
+    ])
+    with pytest.raises(h.ProviderFailure):
+        h._cpcb_snapshot()
+    assert reserve.call_count == provider.call_count == 2
+    assert h._extra_cached("cpcb:national", 3600) is None
