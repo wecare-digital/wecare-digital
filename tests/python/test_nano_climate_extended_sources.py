@@ -168,7 +168,7 @@ def test_cpcb_request_sends_named_user_agent(monkeypatch):
     seen = {}
     def fake(url, headers=None):
         seen["headers"] = headers
-        return {"records": [], "total": 0}
+        return {"status": "ok", "records": [], "total": 0}
     monkeypatch.setattr(h, "_extra_json", fake)
     assert h._cpcb_snapshot() == []
     assert seen["headers"]["User-Agent"].startswith("wecare-nano-climate/")
