@@ -32,7 +32,9 @@ if (!profile) throw new Error('Unknown viewport profile');
 const out = process.env.PUBLIC_QA_OUTPUT || join(tmpdir(), 'wecare-public-acceptance');
 await mkdir(out, { recursive: true });
 const { pages } = JSON.parse(await readFile(new URL('../config/public-pages.json', import.meta.url), 'utf8'));
-const routes = pages.map(p => ({ path: pathOf(p.path), name: p.name, kind: ['/orders/', '/elsewhere/arogya-yatra/'].includes(pathOf(p.path)) ? 'gated' : 'indexable' }));
+// Arogya Yatra is public since #2531 (sign-in is checked at submission), so it
+// is audited as an indexable page; only Orders still redirects to sign-in.
+const routes = pages.map(p => ({ path: pathOf(p.path), name: p.name, kind: pathOf(p.path) === '/orders/' ? 'gated' : 'indexable' }));
 for (const path of ['/get-kosh/', '/udyam-bids/', '/auth/', '/checkout/', '/checkout/status/', '/checkout/success/']) {
   routes.push({ path, name: path, kind: 'noindex' });
 }
