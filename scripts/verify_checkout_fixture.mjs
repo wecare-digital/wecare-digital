@@ -148,7 +148,11 @@ async function runScenario(browser,width,mode) {
       // content-process SIGSEGV on the next checkout render (CI bisect, PR #2553:
       // crash in every width with axe, none without). Legacy mode scans in the
       // page itself; the rule set and tags are unchanged.
-      const axe=await new AxeBuilder({page}).setLegacyMode(engine==='firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
+      const only=process.env.QA_AXE_RULES;
+      if(only&&label!=='name-only-profile'){console.log(JSON.stringify({label,axeSkipped:true}));return;}
+      let ab=new AxeBuilder({page}).setLegacyMode(engine==='firefox');
+      ab=only?ab.withRules(only.split(',')):ab.withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
+      const axe=await ab.analyze();
       const result={engine,width,mode,label,geometry:geom,violations:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))};
       evidence.push(result);console.log(JSON.stringify(result));
       await page.screenshot({path:join(out,engine+'-'+width+'-'+mode+'-'+label+'.png')});
@@ -320,11 +324,12 @@ async function runAppointmentGate(browser){
   } finally {await context.close();}
 }
 try {
-  if(snapshot){
+  if(snapshot&&!process.env.QA_AXE_RULES){
     try{await verifyAppointmentGate();}catch(e){failures.push(engine+' appointment fixture: '+String(e.message).slice(0,500));}
   }
-  for(const width of [390,768,1440,280,160]) {
-    for(const mode of width===390?['profile','mismatch','ready']:['ready']) {
+  const bisect=process.env.QA_AXE_RULES;
+  for(const width of bisect?[390]:[390,768,1440,280,160]) {
+    for(const mode of bisect?['profile']:width===390?['profile','mismatch','ready']:['ready']) {
       try {await scenario(width,mode);} catch(e){failures.push(engine+' '+width+' '+mode+': '+String(e.message).slice(0,500));}
     }
   }

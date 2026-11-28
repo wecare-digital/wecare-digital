@@ -152,7 +152,16 @@ jobs:
           # This is a synthetic-only runner; no accessibility checks are disabled.
           DEBUG: ${{ matrix.engine == 'firefox' && 'pw:browser' || '' }}
           PUBLIC_QA_OUTPUT: ${{ runner.temp }}/checkout-fixture
-        run: node scripts/verify_checkout_fixture.mjs
+        run: |
+          set +e
+          [ "$PUBLIC_QA_ENGINE" = firefox ] || exit 0
+          rules=$(node -e "const a=require('axe-core');console.log(a.getRules(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).map(r=>r.ruleId).join(' '))")
+          echo "RULES $rules"
+          for rule in $rules; do
+            QA_AXE_RULES=$rule DEBUG= node scripts/verify_checkout_fixture.mjs > "$RUNNER_TEMP/r-$rule.log" 2>&1
+            echo "RULE $rule exit=$? crash=$(grep -c page-crash "$RUNNER_TEMP/r-$rule.log")"
+          done
+          exit 0
       - name: Retain synthetic screenshots and report
         if: always()
         uses: actions/upload-artifact@v7
