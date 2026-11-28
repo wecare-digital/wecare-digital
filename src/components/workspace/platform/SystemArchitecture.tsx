@@ -3,7 +3,9 @@ import { canonicalFlowId } from '../../../lib/canonicalFlows';
 /**
  * System Architecture — Project Control Center
  * Complete end-to-end dashboard for the entire WECARE.DIGITAL platform.
- * 16 tabs covering frontend, backend, infra, AWS, storage, dependencies, risks.
+ * Tabs covering frontend, backend, infra, AWS, storage and dependencies. Holds no account id,
+ * physical resource name, secret name or risk list: staff chunks are downloadable without
+ * signing in (audit WEB-4).
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -74,8 +76,6 @@ const TABS = [
   { id: 'env', label: 'Environments' },
   { id: 'logs', label: 'Logs / History' },
   { id: 'deps', label: 'Dependencies' },
-  { id: 'risks', label: 'Errors / Gaps' },
-  { id: 'improvements', label: 'Improvements' },
   { id: 'lambda-detail', label: 'Lambda Admin' },
   { id: 'code-repo', label: 'Code Repo' },
 ];
@@ -169,16 +169,16 @@ const LAMBDAS: LambdaDef[] = [
 // ─── Data: AWS Resources ───
 interface AWSResource { name: string; type: string; purpose: string; module: string; env: string; status: string; risk: string; }
 const AWS_RESOURCES: AWSResource[] = [
-  { name: 'us-east-1_cSx0RHCIR', type: 'Cognito User Pool', purpose: 'User authentication & RBAC', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
-  { name: 'us-east-1:471c2c38-...', type: 'Cognito Identity Pool', purpose: 'Federated identity for AWS access', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Staff user pool', type: 'Cognito User Pool', purpose: 'User authentication & RBAC', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Identity pool', type: 'Cognito Identity Pool', purpose: 'Federated identity for AWS access', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
   { name: 'wecare.digital/api', type: 'API Gateway (REST)', purpose: 'Main API endpoint for all Lambda functions', module: 'All', env: 'Production', status: 'Active', risk: '' },
-  { name: 'wecare-digital-get', type: 'S3 Bucket', purpose: 'Media storage, invoices, voice, static assets (o/ and secure/d/public/ public, rest of secure/ gated)', module: 'Storage', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Media bucket', type: 'S3 Bucket', purpose: 'Media storage, invoices, voice, static assets (o/ and secure/d/public/ public, rest of secure/ gated)', module: 'Storage', env: 'Production', status: 'Active', risk: '' },
   { name: DB_TABLES.length + ' DynamoDB Tables', type: 'DynamoDB', purpose: 'Primary database (PAY_PER_REQUEST)', module: 'Data', env: 'Production', status: 'Active', risk: '' },
   { name: '42 Lambda Functions', type: 'Lambda', purpose: 'Backend compute (Python 3.12)', module: 'Backend', env: 'Production', status: 'Active', risk: '' },
-  { name: 'stack-wecare-digital-bulk-queue', type: 'SQS Queue', purpose: 'Bulk message job processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
-  { name: 'stack-wecare-digital-inbound-dlq', type: 'SQS DLQ', purpose: 'Failed inbound message processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
-  { name: 'stack-wecare-digital-bulk-dlq', type: 'SQS DLQ', purpose: 'Failed bulk message chunks', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
-  { name: 'stack-wecare-digital-outbound-dlq', type: 'SQS DLQ', purpose: 'Failed outbound messages', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Bulk job queue', type: 'SQS Queue', purpose: 'Bulk message job processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Inbound DLQ', type: 'SQS DLQ', purpose: 'Failed inbound message processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Bulk DLQ', type: 'SQS DLQ', purpose: 'Failed bulk message chunks', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Outbound DLQ', type: 'SQS DLQ', purpose: 'Failed outbound messages', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
   { name: 'CloudWatch Logs (42 groups)', type: 'CloudWatch', purpose: 'Lambda function logs (90d retention)', module: 'Monitoring', env: 'Production', status: 'Active', risk: '' },
   { name: 'CloudWatch Alarms', type: 'CloudWatch', purpose: 'Lambda error rate, DLQ depth alerts', module: 'Monitoring', env: 'Production', status: 'Active', risk: '' },
   { name: 'EventBridge Rules', type: 'EventBridge', purpose: 'Scheduled triggers (cleanup, billing, scheduled-messages)', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
@@ -187,86 +187,15 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'Amazon Bedrock', type: 'Bedrock', purpose: 'AI response generation (Claude 3 Sonnet)', module: 'AI', env: 'Production', status: 'Active', risk: '' },
   { name: 'IAM Roles (Lambda)', type: 'IAM', purpose: 'Lambda execution roles with least-privilege', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'Secrets Manager', type: 'Secrets Manager', purpose: 'API keys, webhook secrets, payment credentials', module: 'Security', env: 'Production', status: 'Active', risk: '' },
-  { name: 'CloudFront E2GP22R4BIFGQ3', type: 'CloudFront', purpose: 'Serves wecare.digital/get/<key> from wecare-digital-get', module: 'Frontend', env: 'Production', status: 'Active', risk: '' },
+  { name: 'CloudFront media distribution', type: 'CloudFront', purpose: 'Serves wecare.digital/get/<key> from the media bucket', module: 'Frontend', env: 'Production', status: 'Active', risk: '' },
   { name: 'Route 53', type: 'Route 53', purpose: 'DNS for wecare.digital, mta-sts.wecare.digital and sip.wecare.digital', module: 'Networking', env: 'Production', status: 'Active', risk: '' },
   { name: 'ACM Certificates', type: 'ACM', purpose: 'SSL/TLS certificates for all domains', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'SNS Topics', type: 'SNS', purpose: 'SMS delivery notifications, alerts', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon Polly', type: 'Polly', purpose: 'Text-to-speech for WhatsApp voice messages', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
 ];
 
-// ─── Data: Risks & Improvements ───
-interface RiskItem { id: string; title: string; description: string; priority: 'Critical' | 'Important' | 'Nice to have'; category: string; }
-const RISKS: RiskItem[] = [
-  // ── CRITICAL (13) — 7 FIXED ──
-  { id: 'R1', title: '✅ FIXED — Browser payment password removed', description: 'Payment UI now verifies the signed-in Cognito Admin role through the live auth API; owning payment mutations require server-side authorization.', priority: 'Critical', category: 'Security' },
-  { id: 'R2', title: '✅ FIXED — PayU credentials removed from source', description: 'Removed hardcoded PAYU_CLIENT_ID, PAYU_CLIENT_SECRET, PAYU_MERCHANT_KEY, PAYU_MERCHANT_SALT from payu-webhook/resource.ts and handler.py. All now require env vars. STILL NEEDED: Rotate credentials since they were in git history.', priority: 'Critical', category: 'Security' },
-  { id: 'R3b', title: '✅ FIXED — PayU merchant key/salt removed', description: 'Removed PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT hardcoded defaults from payu-webhook/resource.ts. STILL NEEDED: Rotate credentials.', priority: 'Critical', category: 'Security' },
-  { id: 'R4', title: '✅ FIXED — Razorpay/PayU IDs removed from source', description: 'Removed hardcoded Razorpay MID, UPI VPA, PayU MID, PayU UPI VPA from whatsapp-business-api/handler.py and outbound-whatsapp/handler.py. Also redacted from dashboard/index.tsx UI display.', priority: 'Critical', category: 'Security' },
-  { id: 'R5', title: '✅ FIXED — AWS Account ID fallback removed', description: 'Removed hardcoded 775261844268 fallback from constants.ts. Now defaults to empty string if env var missing. Still exposed via NEXT_PUBLIC_ prefix — needs env var rename.', priority: 'Critical', category: 'Security' },
-  { id: 'R6', title: 'Internal Lambda Function URL exposed in client', description: 'NEXT_PUBLIC_INTERNAL_AGENT_URL contains a direct Lambda Function URL. It bypasses API Gateway entirely, so stage and per-route throttling and the handler auth path do not apply. Route through API Gateway instead. (Earlier wording blamed "WAF protection" — the API never had a WAF, because WAFv2 cannot attach to an HTTP API, and as of 2026-09-28 there is no WAF in the account at all.)', priority: 'Critical', category: 'Security' },
-  { id: 'R7', title: 'Primary WABA phone blocked by Meta rate limit', description: 'Primary phone +91 93309 94400 has pendingRegistration: true. All traffic falls to secondary phone. If secondary fails, messaging is completely down.', priority: 'Critical', category: 'WhatsApp' },
-  { id: 'R8', title: 'No staging or dev environment', description: 'Only production environment detected. Development validation is performed against the production-shaped build and targeted operational checks.', priority: 'Critical', category: 'Infrastructure' },
-  { id: 'R9', title: 'Production CI/CD is Amplify-only', description: 'Production deploys use Amplify auto-build on the protected wecare.digital branch. There is no CodePipeline; keep deployment checks and branch protections around this single production path.', priority: 'Important', category: 'DevOps' },
-  { id: 'R10', title: 'PEM private key files in workspace root', description: 'lightsail_default_key.pem and lightsail_key.pem exist in the workspace root. While .gitignore excludes *.pem, these files are a risk.', priority: 'Critical', category: 'Security' },
-  { id: 'R12', title: '✅ FIXED — CORS wildcard replaced with specific origins', description: 'Live shared API CORS is explicitly scoped; the retired undeployed link CDK no longer owns this setting.', priority: 'Critical', category: 'Security' },
-
-  // ── IMPORTANT (18) ──
-  { id: 'R13', title: 'Silent error swallowing in 15+ catch blocks', description: 'Found 15+ empty catch blocks (catch {}, catch(() => {})) across whatsapp/scripts.tsx, auto-response.tsx, flow-responses.tsx, pay/flow/index.tsx, contacts/index.tsx, dashboard/index.tsx. Failed API calls and config loads are silently ignored, making debugging impossible.', priority: 'Important', category: 'Frontend' },
-  { id: 'R15', title: 'Lambda functions deployed outside Amplify', description: '42 Python Lambda functions are deployed separately and not managed by Amplify Gen 2. backend.ts explicitly states "Lambda functions are deployed separately and already exist in AWS." Risk of infrastructure drift between code and deployed state.', priority: 'Important', category: 'Infrastructure' },
-  { id: 'R16', title: 'DynamoDB TTL not enforced on all temporal tables', description: 'Tables like TemplateAnalytics, MetaAnalyticsLog, FlowSubmission, FlowLog have no TTL configured despite storing temporal data. These will grow unbounded over time.', priority: 'Important', category: 'Database' },
-  { id: 'R17', title: '✅ FIXED — DynamoDB backup coverage established', description: 'All current stack-wecare-digital-* project tables have point-in-time recovery enabled, and AWS Backup has an active wecare-backup-plan with recovery points in wecare-backup-vault. S3 recovery remains a separate storage-policy concern.', priority: 'Important', category: 'Infrastructure' },
-  { id: 'R18', title: 'Missing API documentation', description: 'No OpenAPI/Swagger spec found. API endpoints are only documented in scattered code comments and the lambda-functions admin page. New developers have no API reference.', priority: 'Important', category: 'Documentation' },
-  { id: 'R19', title: '✅ FIXED — Amplify production builds healthy', description: 'The wecare.digital production branch is connected to Amplify with auto-build enabled; the recent cleanup deployments completed successfully. Keep failed-build alerting and deployment verification in place.', priority: 'Important', category: 'DevOps' },
-  { id: 'R20', title: '✅ FIXED — dangerouslySetInnerHTML removed from PageShell', description: 'Replaced dangerouslySetInnerHTML with safe React text rendering in PageShell.tsx. XSS vector eliminated.', priority: 'Important', category: 'Security' },
-  { id: 'R21', title: '✅ FIXED — PayU MID removed from all files', description: 'Removed hardcoded PayU MID "8629516" from handler.py, resource.ts, dashboard/index.tsx, whatsapp-business-api/handler.py, outbound-whatsapp/handler.py. All now use env vars.', priority: 'Important', category: 'Configuration' },
-  { id: 'R22', title: '✅ FIXED — Hardcoded GSTIN removed from constants.ts', description: 'Removed the hardcoded DEFAULT_GSTIN fallback. Now defaults to empty string if env var missing.', priority: 'Important', category: 'Security' },
-  { id: 'R23', title: '✅ FIXED — Calling verification token server-side only', description: 'The browser export and all reveal/copy controls were removed. Meta verification remains in the calling Lambda.', priority: 'Important', category: 'Security' },
-  { id: 'R25', title: 'react-router-dom potentially unused', description: 'react-router-dom ^7.13.0 is installed but Next.js has built-in routing. This adds ~45KB to the bundle. Verify if it is actually used or can be removed.', priority: 'Important', category: 'Dependencies' },
-  { id: 'R26', title: '✅ FIXED — @capacitor/cli moved out of production dependencies', description: 'Recorded here as cosmetic install weight, it turned out to have a security consequence: @capacitor/cli was the only path by which xcode@3.0.1 → uuid@7.0.3 entered the production tree, and a Dependabot security update for uuid then failed because no update path could reach the patched 14.0.0 (aws-amplify pins uuid ^11.1.1, xcode pins ^7.0.3). The CLI is now a devDependency, so the production tree resolves only uuid@11.1.1. The advisory itself (GHSA-w5hq-g745-h8pq) is not reachable here: it affects only the v3/v5/v6 APIs with a caller-supplied buffer, and every consumer in this tree imports only v4.', priority: 'Important', category: 'Dependencies' },
-  { id: 'R27', title: 'No input validation on frontend forms', description: 'Contact forms, payment forms, and GSTIN inputs have maxLength but no regex validation. Invalid data can reach the backend.', priority: 'Important', category: 'Frontend' },
-  { id: 'R28', title: '✅ FIXED — Cognito OAuth domain no longer depends on our own DNS or certificate', description: 'Moved from a retired custom sign-in hostname to the Cognito-provided prefix domain, which AWS operates. The prefix domain was upgraded to managed login v2 first so the sign-in page is unchanged. This removes the ACM-certificate and Route 53 single point of failure for all authentication.', priority: 'Important', category: 'Auth' },
-  { id: 'R29', title: 'GA and FB tracking IDs empty', description: 'NEXT_PUBLIC_GA_MEASUREMENT_ID and NEXT_PUBLIC_FB_APP_ID are empty. Analytics scripts still load (googletagmanager, connect.facebook.net) but send no data — wasted bandwidth and privacy concern.', priority: 'Important', category: 'Configuration' },
-  { id: 'R30', title: '✅ FIXED — Client password comparison removed', description: 'Edit and payment gates use Cognito Admin verification; no shared unlock password is evaluated in browser code.', priority: 'Important', category: 'Security' },
-
-  // ── NICE TO HAVE (8) ──
-  { id: 'R31', title: 'Single region deployment (us-east-1)', description: 'All resources in us-east-1 (Virginia). For an India-focused service, ap-south-1 (Mumbai) would provide 50-100ms lower latency for all API calls.', priority: 'Nice to have', category: 'Infrastructure' },
-  { id: 'R32', title: 'No rate limiting on frontend API calls', description: 'Frontend API client (src/api/client.ts) has retry logic but no client-side rate limiting or request deduplication. Rapid clicks can flood the backend.', priority: 'Nice to have', category: 'Frontend' },
-  { id: 'R33', title: 'No service worker cache strategy', description: 'Service worker registered in _app.tsx but sw.js implementation unknown. No offline-first strategy for the PWA.', priority: 'Nice to have', category: 'Frontend' },
-  { id: 'R34', title: 'Duplicate data across InfraTab and system-architecture', description: 'AWS resource data, secrets list, and table definitions exist in both dashboard/tabs/InfraTab.tsx and admin/system-architecture.tsx. Should be a single source of truth.', priority: 'Nice to have', category: 'Code Quality' },
-  { id: 'R35', title: 'No request tracing across Lambda functions', description: 'No X-Ray or OpenTelemetry tracing configured. Debugging cross-function issues requires manual CloudWatch log correlation.', priority: 'Nice to have', category: 'Monitoring' },
-  { id: 'R36', title: 'No feature flags system', description: 'No feature flag mechanism found. All features are either fully deployed or not. Risky for gradual rollouts.', priority: 'Nice to have', category: 'DevOps' },
-  { id: 'R37', title: 'No WebSocket for real-time messaging', description: 'Frontend polls for new messages. No API Gateway WebSocket or AppSync subscription for real-time delivery.', priority: 'Nice to have', category: 'Frontend' },
-  { id: 'R38', title: 'lodash and fast-xml-parser pinned via overrides', description: 'package.json uses overrides to pin lodash@4.17.21 and fast-xml-parser@5.3.4 for security. These overrides need periodic review as new CVEs emerge.', priority: 'Nice to have', category: 'Dependencies' },
-];
-
-const IMPROVEMENTS: RiskItem[] = [
-  // ── CRITICAL (5) ──
-  { id: 'I3', title: 'Add staging environment', description: 'Create a separate staging stack with isolated DynamoDB tables (stack-staging-*), S3 prefix (staging/), and Lambda aliases. Use Amplify branch-based environments or a separate AWS account.', priority: 'Critical', category: 'Infrastructure' },
-  { id: 'I4', title: '✅ DONE — Amplify build pipeline restored', description: 'Production builds now run automatically from wecare.digital and deploy the static export successfully. Preserve the current buildSpec and post-deploy verification.', priority: 'Critical', category: 'DevOps' },
-  { id: 'I5', title: 'Keep Amplify as the single production deployment path', description: 'Use the production Amplify build, TypeScript validation, linting, and targeted operational checks without recreating a second workflow-based deploy path.', priority: 'Critical', category: 'DevOps' },
-
-  // ── IMPORTANT (12) ──
-  { id: 'I7', title: '✅ DONE — DynamoDB PITR enabled', description: 'Point-in-time recovery is enabled on every current stack-wecare-digital-* project table. Keep the PITR verification gate for newly provisioned tables.', priority: 'Important', category: 'Database' },
-  { id: 'I9', title: 'Generate OpenAPI spec for all endpoints', description: 'Document all 30+ API endpoints with OpenAPI 3.0. Include request/response schemas, auth requirements, error codes. Publish at /api/docs for developer customer-service.', priority: 'Important', category: 'Documentation' },
-  { id: 'I10', title: '✅ DONE — Removed dangerouslySetInnerHTML from PageShell', description: 'Replaced dangerouslySetInnerHTML={{__html: tab.icon}} with safe React text rendering {tab.icon} in src/components/PageShell.tsx. XSS vector eliminated.', priority: 'Important', category: 'Security' },
-  { id: 'I11', title: 'Add error handling to all empty catch blocks', description: 'Replace 15+ empty catch blocks with proper error logging. At minimum: console.error for dev, toast.error for user-facing, and structured logging for production monitoring. Files: whatsapp/scripts.tsx, auto-response.tsx, flow-responses.tsx, pay/flow/index.tsx, contacts/index.tsx, dashboard/index.tsx.', priority: 'Important', category: 'Frontend' },
-  { id: 'I12', title: '✅ DONE — Fixed CORS wildcard on URL shortener API', description: 'Live shared API CORS now allows https://wecare.digital plus localhost development only; the deleted stack Amplify hostname was removed during branch cleanup.', priority: 'Important', category: 'Security' },
-  { id: 'I12b', title: '✅ DONE — Added security headers to next.config.js', description: 'Added X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection, Referrer-Policy: strict-origin-when-cross-origin, and Permissions-Policy headers to next.config.js.', priority: 'Important', category: 'Security' },
-  { id: 'I13', title: 'Add Lambda startup validation for Secrets Manager', description: 'Add a validate_secrets() function that runs on cold start to verify all required Secrets Manager entries exist and have expected keys. Fail fast with clear error messages.', priority: 'Important', category: 'Backend' },
-  { id: 'I15', title: 'Remove or conditionally load analytics scripts', description: 'GA and FB scripts load on every page but IDs are empty. Either configure the IDs or remove the Script tags to save bandwidth and improve privacy compliance.', priority: 'Important', category: 'Frontend' },
-  { id: 'I16', title: 'Add frontend input validation', description: 'Add regex validation for: phone numbers (E.164), email addresses, GSTIN (15-char alphanumeric), PIN codes (6 digits). Validate before API calls to reduce backend load.', priority: 'Important', category: 'Frontend' },
-  { id: 'I17', title: 'Add request tracing with X-Ray', description: 'Enable AWS X-Ray on all Lambda functions and API Gateway. Add correlation IDs to requests for end-to-end tracing across the 42-function architecture.', priority: 'Important', category: 'Monitoring' },
-
-  // ── NICE TO HAVE (8) ──
-  { id: 'I18', title: 'Migrate to ap-south-1 (Mumbai)', description: 'All resources are in us-east-1. For an India-focused service, Mumbai region would reduce API latency by 50-100ms. Plan a phased migration starting with new resources.', priority: 'Nice to have', category: 'Infrastructure' },
-  { id: 'I19', title: 'Add WebSocket for real-time messaging', description: 'Replace polling with API Gateway WebSocket or AppSync subscriptions for real-time message delivery. Reduces API calls and improves UX for the inbox.', priority: 'Nice to have', category: 'Frontend' },
-  { id: 'I20', title: 'Implement feature flags', description: 'Add a feature flag system (SystemConfig table or LaunchDarkly) for safe rollouts. Priority flags: payment features, AI auto-response, new channels.', priority: 'Nice to have', category: 'DevOps' },
-  { id: 'I21', title: 'Consolidate duplicate data sources', description: 'AWS resource data exists in both InfraTab.tsx and system-architecture.tsx. Create a single shared data module (src/data/architecture.ts) imported by both.', priority: 'Nice to have', category: 'Code Quality' },
-  { id: 'I22', title: 'Add structured JSON logging to all Lambdas', description: 'Replace print() statements with structured JSON logging using a shared logger. Include request_id, function_name, duration, and error details for CloudWatch Insights queries.', priority: 'Nice to have', category: 'Monitoring' },
-  { id: 'I23', title: '✅ DONE — @capacitor/cli is a devDependency', description: 'See R26. Done for a stronger reason than install size: it was the only route by which a vulnerable transitive uuid reached the production dependency tree.', priority: 'Nice to have', category: 'Dependencies' },
-  { id: 'I24', title: 'Evaluate react-router-dom necessity', description: 'react-router-dom ^7.13.0 is installed but Next.js provides built-in routing. If not used, removing it saves ~45KB from the bundle.', priority: 'Nice to have', category: 'Dependencies' },
-  { id: 'I25', title: 'Add PWA offline strategy', description: 'Implement a proper service worker cache strategy: cache-first for static assets, network-first for API calls, with offline fallback pages.', priority: 'Nice to have', category: 'Frontend' },
-];
+// ─── Risks & Improvements ───
+// Kept in private docs, not in this file: it ships to the browser (audit WEB-4).
 
 // ─── Data: Dependencies ───
 interface DepInfo { name: string; version: string; type: 'prod' | 'dev'; status: 'ok' | 'outdated' | 'warning'; note: string; }
@@ -324,26 +253,24 @@ const STORAGE_PATHS: StoragePath[] = [
 ];
 
 // ─── Data: Environment Config ───
-interface EnvVar { key: string; value: string; sensitive: boolean; category: string; risk?: string; }
+interface EnvVar { key: string; value: string; sensitive: boolean; category: string; }
 const ENV_VARS: EnvVar[] = [
   // Auth
-  { key: 'NEXT_PUBLIC_COGNITO_USER_POOL_ID', value: 'us-east-1_cSx0RHCIR', sensitive: false, category: 'Auth' },
-  { key: 'NEXT_PUBLIC_COGNITO_CLIENT_ID', value: '1j8kbi48m4v2rped3n224rlevb', sensitive: false, category: 'Auth' },
-  { key: 'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID', value: 'us-east-1:471c2c38-5645-4ccd-aea1-7a008e906db5', sensitive: false, category: 'Auth' },
-  { key: 'NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN', value: 'wecare-digital-auth.auth.us-east-1.amazoncognito.com', sensitive: false, category: 'Auth' },
+  { key: 'NEXT_PUBLIC_COGNITO_USER_POOL_ID', value: '(build environment)', sensitive: false, category: 'Auth' },
+  { key: 'NEXT_PUBLIC_COGNITO_CLIENT_ID', value: '(build environment)', sensitive: false, category: 'Auth' },
+  { key: 'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID', value: '(build environment)', sensitive: false, category: 'Auth' },
+  { key: 'NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN', value: '(build environment)', sensitive: false, category: 'Auth' },
   // App
   { key: 'NEXT_PUBLIC_APP_URL', value: 'https://wecare.digital/', sensitive: false, category: 'App' },
   { key: 'NEXT_PUBLIC_API_BASE', value: 'https://wecare.digital/api', sensitive: false, category: 'App' },
   { key: 'NEXT_PUBLIC_SEND_MODE', value: 'LIVE', sensitive: false, category: 'App' },
   { key: 'NEXT_PUBLIC_ENV', value: 'production', sensitive: false, category: 'App' },
-  // ⚠️ SECRETS EXPOSED IN CLIENT BUNDLE
-  { key: 'NEXT_PUBLIC_INTERNAL_AGENT_URL', value: '(Lambda Function URL — bypasses API Gateway)', sensitive: true, category: 'AI', risk: 'Direct Lambda URL exposed in browser, bypasses API Gateway throttling and the handler auth path' },
-  { key: 'NEXT_PUBLIC_AWS_ACCOUNT_ID', value: '775261844268', sensitive: true, category: 'AWS', risk: 'AWS Account ID exposed in client bundle' },
+  // Other build-time values
+  { key: 'NEXT_PUBLIC_INTERNAL_AGENT_URL', value: '(build environment)', sensitive: true, category: 'AI' },
   { key: 'NEXT_PUBLIC_AWS_REGION', value: 'us-east-1', sensitive: false, category: 'AWS' },
-  { key: 'NEXT_PUBLIC_PAYMENT_UNLOCK_PASSWORD', value: '(plaintext password in JS bundle)', sensitive: true, category: 'Payment', risk: 'CRITICAL: Password shipped to every browser' },
-  { key: 'NEXT_PUBLIC_DEFAULT_GSTIN', value: '(real business tax ID in code)', sensitive: true, category: 'Payment', risk: 'Real GSTIN hardcoded as fallback in constants.ts' },
+  { key: 'NEXT_PUBLIC_DEFAULT_GSTIN', value: '(build environment)', sensitive: true, category: 'Payment' },
   // Payment
-  { key: 'NEXT_PUBLIC_PAYMENT_PHONE_ID', value: 'phone-number-id-waba-t-direct-1055232054343117', sensitive: false, category: 'Payment' },
+  { key: 'NEXT_PUBLIC_PAYMENT_PHONE_ID', value: '(build environment)', sensitive: false, category: 'Payment' },
   { key: 'NEXT_PUBLIC_PAYMENT_PHONE_DISPLAY', value: '+91 93309 94400', sensitive: false, category: 'Payment' },
   { key: 'NEXT_PUBLIC_PAYMENT_PHONE_NAME', value: 'WECARE.DIGITAL', sensitive: false, category: 'Payment' },
   // Analytics (empty)
@@ -364,17 +291,17 @@ const ENV_VARS: EnvVar[] = [
   // double-counting every pageview; the snippet was removed and the id went with it. The
   // lesson stands: a dashboard must not present stale ids as live — a reader trusts it
   // instead of measuring, and then looks for analytics data in a property that receives none.
-  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78; authoritative Measurement ID G-6GW8JXKKT7)', sensitive: false, category: 'Analytics', risk: 'Was listed as G-S3G6REP6Q7 (retired, in no container). G-6GW8JXKKT7 is sent by the Google tag AW-18396505964 (container v11); nothing is collected while consent stays denied, and there is no consent UI' },
-  { key: 'NEXT_PUBLIC_FB_APP_ID', value: '(empty — SDK still loads)', sensitive: false, category: 'Analytics', risk: 'FB SDK loads but sends no data' },
+  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78; authoritative Measurement ID G-6GW8JXKKT7)', sensitive: false, category: 'Analytics' },
+  { key: 'NEXT_PUBLIC_FB_APP_ID', value: '(unused; the Facebook SDK is not loaded)', sensitive: false, category: 'Analytics' },
   // Payment identifiers — env-sourced (RAZORPAY_MID / RAZORPAY_UPI_ID), not secrets. A merchant
   // id and a UPI payee address are public by construction (they appear in every deep link and QR).
   // Authoritative values owner-confirmed 2026-09-30 against the live Meta config; an earlier
   // merchant-id / UPI-VPA pair was stale and has been retired.
-  { key: 'Razorpay MID (env RAZORPAY_MID)', value: 'acc_TTFSyolquKEZEy', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret merchant id; matched against Meta config by payment_readiness' },
-  { key: 'Razorpay UPI VPA', value: '(env RAZORPAY_UPI_ID)', sensitive: false, category: 'Payments — Identifier', risk: 'Configured server-side and used in payment deep links/QR' },
+  { key: 'Razorpay MID (env RAZORPAY_MID)', value: '(server-side)', sensitive: false, category: 'Payments — Identifier' },
+  { key: 'Razorpay UPI VPA', value: '(env RAZORPAY_UPI_ID)', sensitive: false, category: 'Payments — Identifier' },
   // Secrets Manager entries (server-side, properly stored)
-  { key: 'wecare/meta-system-user-token', value: '(Secrets Manager — 7 keys)', sensitive: true, category: 'Secrets Manager ✓' },
-  { key: 'wecare/flow-private-key', value: '(Secrets Manager — 1 key)', sensitive: true, category: 'Secrets Manager ✓' },
+  { key: 'Meta system-user token', value: '(Secrets Manager)', sensitive: true, category: 'Secrets Manager ✓' },
+  { key: 'WhatsApp Flow private key', value: '(Secrets Manager)', sensitive: true, category: 'Secrets Manager ✓' },
 ];
 
 // ─── Data: Frontend Routes ───
@@ -470,43 +397,43 @@ const CODE_MAP: CodeFolder[] = [
 // ─── Data: Lambda Detailed (with env vars, runtime, memory) ───
 interface LambdaDetailed { name: string; displayName: string; category: string; runtime: string; timeout: number; memory: number; description: string; apiRoute: string; envVars: Record<string, string>; triggers: string[]; status: 'active' | 'warning' | 'error'; }
 const LAMBDA_DETAILED: LambdaDetailed[] = [
-  { name: 'wecare-contacts', displayName: 'Contacts', category: 'Core', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'CRUD operations for contacts', apiRoute: '/contacts', envVars: { CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable', INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-auth-middleware', displayName: 'Auth Middleware', category: 'Core', runtime: 'Python 3.12', timeout: 10, memory: 128, description: 'Cognito token validation for API Gateway', apiRoute: '/auth', envVars: { USER_POOL_ID: 'us-east-1_*', CLIENT_ID: '*' }, triggers: [ 'API Gateway Authorizer' ], status: 'active' },
-  { name: 'wecare-messages-read', displayName: 'Messages Read', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Read messages from all channels', apiRoute: '/messages', envVars: { INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-messages-delete', displayName: 'Messages Delete', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Delete messages by ID', apiRoute: '/messages/{id}', envVars: { INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-faq-handler', displayName: 'FAQ Handler', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'FAQ auto-response engine', apiRoute: '/faq', envVars: { FAQ_TABLE: 'stack-wecare-digital-FAQTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-inbound-whatsapp', displayName: 'Inbound WhatsApp', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'Process incoming WhatsApp messages, media, reactions', apiRoute: '/webhook/whatsapp', envVars: { INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
-  { name: 'wecare-outbound-whatsapp', displayName: 'Outbound WhatsApp', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Send WhatsApp messages via Cloud API', apiRoute: '/whatsapp/send', envVars: { OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway', 'SQS' ], status: 'active' },
-  { name: 'wecare-outbound-sms', displayName: 'Outbound SMS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send SMS via AWS End User Messaging', apiRoute: '/sms/send', envVars: { MESSAGES_TABLE: 'stack-wecare-digital-MessagesTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-outbound-email', displayName: 'Outbound Email', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send email via Amazon SES', apiRoute: '/email/send', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-plivo-answer', displayName: 'Plivo Answer', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Plivo PSTN voice webhooks; writes the voice CDR', apiRoute: '/plivo/*', envVars: { VOICE_CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
-  { name: 'wecare-whatsapp-calling', displayName: 'WhatsApp Calling', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'WhatsApp voice/video call handling', apiRoute: '/whatsapp-calling', envVars: { CALLING_TABLE: 'stack-wecare-digital-WhatsAppVoiceTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
-  { name: 'wecare-scheduled-messages', displayName: 'Scheduled Messages', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Schedule and send messages at specific times', apiRoute: '/scheduled', envVars: { SCHEDULED_TABLE: 'stack-wecare-digital-ScheduledMessageTable' }, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
-  { name: 'wecare-bulk-worker', displayName: 'Bulk Worker', category: 'Operations', runtime: 'Python 3.12', timeout: 300, memory: 512, description: 'Process bulk message queue items', apiRoute: '-', envVars: { QUEUE_URL: 'stack-wecare-digital-bulk-queue' }, triggers: [ 'SQS' ], status: 'active' },
-  { name: 'wecare-razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '(env var)', PAYMENTS_TABLE: 'stack-wecare-digital-RazorpayWebhookLogTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
-  { name: 'wecare-invoice-engine', displayName: 'Invoice Engine', category: 'Payments', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Invoice creation, PDF generation, payment links', apiRoute: '/invoices', envVars: { INVOICE_TABLE: 'stack-wecare-digital-InvoiceTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp Commerce catalog sync', apiRoute: '-', envVars: {}, triggers: [ 'Direct invoke (operator)' ], status: 'active' },
-  { name: 'wecare-product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'AI product image generation via Bedrock', apiRoute: '/store/image-gen', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-whatsapp-voice', displayName: 'WhatsApp Voice', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'TTS voice notes via Polly, audio processing', apiRoute: '/whatsapp-voice', envVars: { VOICE_TABLE: 'stack-wecare-digital-WhatsAppVoiceTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-whatsapp-templates', displayName: 'WhatsApp Templates', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template CRUD via Meta Graph API', apiRoute: '/whatsapp/templates', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-whatsapp-template-mgmt', displayName: 'Template Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Advanced template operations', apiRoute: '/whatsapp/template-mgmt', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-whatsapp-business-api', displayName: 'WhatsApp Business API', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Meta Graph API wrapper — flows, payments, checkout', apiRoute: '/whatsapp/api', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-waba-management', displayName: 'WABA Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WABA config, phone management, groups', apiRoute: '/waba', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-sms-aws', displayName: 'SMS AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws', envVars: { SMS_TABLE: 'stack-wecare-digital-SmsAwsTable' }, triggers: [ 'API Gateway', 'SNS' ], status: 'active' },
-  { name: 'wecare-voice-aws', displayName: 'Voice AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS voice call handler', apiRoute: '/voice-aws', envVars: { VOICE_TABLE: 'stack-wecare-digital-VoiceAwsTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-voice-cdr-read', displayName: 'Voice CDR Read', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read voice CDR records', apiRoute: '/voice-cdr-read', envVars: { CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
-  { name: 'wecare-push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-payments-read', displayName: 'Payments Read', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read payment records', apiRoute: '/payments', envVars: { PAYMENTS_TABLE: 'stack-wecare-digital-PaymentTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-bulk-job-create', displayName: 'Bulk Job Create', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Create bulk messaging jobs', apiRoute: '/bulk/create', envVars: { BULK_TABLE: 'stack-wecare-digital-BulkJobTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-bulk-job-control', displayName: 'Bulk Job Control', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Pause/resume/cancel bulk jobs', apiRoute: '/bulk/control', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-dlq-replay', displayName: 'DLQ Replay', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Replay failed messages from DLQ', apiRoute: '/dlq/replay', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-system-cleanup', displayName: 'System Cleanup', category: 'Operations', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'TTL cleanup and maintenance', apiRoute: '-', envVars: {}, triggers: [ 'EventBridge Daily' ], status: 'active' },
-  { name: 'wecare-billing', displayName: 'Billing', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS billing and usage tracking', apiRoute: '/billing', envVars: {}, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
+  { name: 'contacts', displayName: 'Contacts', category: 'Core', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'CRUD operations for contacts', apiRoute: '/contacts', envVars: { CONTACTS_TABLE: 'Contacts table', INBOUND_TABLE: 'WhatsAppInbound table', OUTBOUND_TABLE: 'WhatsAppOutbound table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'auth-middleware', displayName: 'Auth Middleware', category: 'Core', runtime: 'Python 3.12', timeout: 10, memory: 128, description: 'Cognito token validation for API Gateway', apiRoute: '/auth', envVars: { USER_POOL_ID: '(staff user pool)', CLIENT_ID: '*' }, triggers: [ 'API Gateway Authorizer' ], status: 'active' },
+  { name: 'messages-read', displayName: 'Messages Read', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Read messages from all channels', apiRoute: '/messages', envVars: { INBOUND_TABLE: 'WhatsAppInbound table', OUTBOUND_TABLE: 'WhatsAppOutbound table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'messages-delete', displayName: 'Messages Delete', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Delete messages by ID', apiRoute: '/messages/{id}', envVars: { INBOUND_TABLE: 'WhatsAppInbound table', OUTBOUND_TABLE: 'WhatsAppOutbound table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'faq-handler', displayName: 'FAQ Handler', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'FAQ auto-response engine', apiRoute: '/faq', envVars: { FAQ_TABLE: 'FAQ table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'inbound-whatsapp', displayName: 'Inbound WhatsApp', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'Process incoming WhatsApp messages, media, reactions', apiRoute: '/webhook/whatsapp', envVars: { INBOUND_TABLE: 'WhatsAppInbound table', CONTACTS_TABLE: 'Contacts table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
+  { name: 'outbound-whatsapp', displayName: 'Outbound WhatsApp', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Send WhatsApp messages via Cloud API', apiRoute: '/whatsapp/send', envVars: { OUTBOUND_TABLE: 'WhatsAppOutbound table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway', 'SQS' ], status: 'active' },
+  { name: 'outbound-sms', displayName: 'Outbound SMS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send SMS via AWS End User Messaging', apiRoute: '/sms/send', envVars: { MESSAGES_TABLE: 'Messages table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'outbound-email', displayName: 'Outbound Email', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send email via Amazon SES', apiRoute: '/email/send', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'plivo-answer', displayName: 'Plivo Answer', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Plivo PSTN voice webhooks; writes the voice CDR', apiRoute: '/plivo/*', envVars: { VOICE_CDR_TABLE: 'VoiceCDR table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
+  { name: 'whatsapp-calling', displayName: 'WhatsApp Calling', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'WhatsApp voice/video call handling', apiRoute: '/whatsapp-calling', envVars: { CALLING_TABLE: 'WhatsAppVoice table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
+  { name: 'scheduled-messages', displayName: 'Scheduled Messages', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Schedule and send messages at specific times', apiRoute: '/scheduled', envVars: { SCHEDULED_TABLE: 'ScheduledMessage table' }, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
+  { name: 'bulk-worker', displayName: 'Bulk Worker', category: 'Operations', runtime: 'Python 3.12', timeout: 300, memory: 512, description: 'Process bulk message queue items', apiRoute: '-', envVars: { QUEUE_URL: 'bulk job queue' }, triggers: [ 'SQS' ], status: 'active' },
+  { name: 'razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '(env var)', PAYMENTS_TABLE: 'RazorpayWebhookLog table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
+  { name: 'invoice-engine', displayName: 'Invoice Engine', category: 'Payments', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Invoice creation, PDF generation, payment links', apiRoute: '/invoices', envVars: { INVOICE_TABLE: 'Invoice table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp Commerce catalog sync', apiRoute: '-', envVars: {}, triggers: [ 'Direct invoke (operator)' ], status: 'active' },
+  { name: 'product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'AI product image generation via Bedrock', apiRoute: '/store/image-gen', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'whatsapp-voice', displayName: 'WhatsApp Voice', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'TTS voice notes via Polly, audio processing', apiRoute: '/whatsapp-voice', envVars: { VOICE_TABLE: 'WhatsAppVoice table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'whatsapp-templates', displayName: 'WhatsApp Templates', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template CRUD via Meta Graph API', apiRoute: '/whatsapp/templates', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'whatsapp-template-mgmt', displayName: 'Template Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Advanced template operations', apiRoute: '/whatsapp/template-mgmt', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'whatsapp-business-api', displayName: 'WhatsApp Business API', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Meta Graph API wrapper — flows, payments, checkout', apiRoute: '/whatsapp/api', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'waba-management', displayName: 'WABA Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WABA config, phone management, groups', apiRoute: '/waba', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'sms-aws', displayName: 'SMS AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws', envVars: { SMS_TABLE: 'SmsAws table' }, triggers: [ 'API Gateway', 'SNS' ], status: 'active' },
+  { name: 'voice-aws', displayName: 'Voice AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS voice call handler', apiRoute: '/voice-aws', envVars: { VOICE_TABLE: 'VoiceAws table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'voice-cdr-read', displayName: 'Voice CDR Read', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read voice CDR records', apiRoute: '/voice-cdr-read', envVars: { CDR_TABLE: 'VoiceCDR table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
+  { name: 'push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'payments-read', displayName: 'Payments Read', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read payment records', apiRoute: '/payments', envVars: { PAYMENTS_TABLE: 'Payment table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'bulk-job-create', displayName: 'Bulk Job Create', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Create bulk messaging jobs', apiRoute: '/bulk/create', envVars: { BULK_TABLE: 'BulkJob table' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'bulk-job-control', displayName: 'Bulk Job Control', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Pause/resume/cancel bulk jobs', apiRoute: '/bulk/control', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'dlq-replay', displayName: 'DLQ Replay', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Replay failed messages from DLQ', apiRoute: '/dlq/replay', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'system-cleanup', displayName: 'System Cleanup', category: 'Operations', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'TTL cleanup and maintenance', apiRoute: '-', envVars: {}, triggers: [ 'EventBridge Daily' ], status: 'active' },
+  { name: 'billing', displayName: 'Billing', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS billing and usage tracking', apiRoute: '/billing', envVars: {}, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
 ];
 const LAMBDA_DETAIL_CATEGORIES = [ 'All', ...Array.from( new Set( LAMBDA_DETAILED.map( l => l.category ) ) ) ];
 
@@ -622,8 +549,6 @@ function buildSearchIndex (): SearchEntry[] {
   FRONTEND_ROUTES.forEach( f => entries.push( { type: 'Route', name: f.path, detail: f.label, category: 'Frontend' } ) );
   CODE_MAP.forEach( c => entries.push( { type: 'Code', name: c.path, detail: c.purpose, category: 'Codebase' } ) );
   ENV_VARS.forEach( e => entries.push( { type: 'Env', name: e.key, detail: e.value, category: e.category } ) );
-  RISKS.forEach( r => entries.push( { type: 'Risk', name: r.title, detail: r.description, category: r.category } ) );
-  IMPROVEMENTS.forEach( i => entries.push( { type: 'Improvement', name: i.title, detail: i.description, category: i.category } ) );
   BOT_MENU.forEach( m => entries.push( { type: 'Bot Menu', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
   CUSTOMER_SERVICE_FORMS.forEach( m => entries.push( { type: 'Customer Service', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
   return entries;
@@ -640,7 +565,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
   const [ searchQuery, setSearchQuery ] = useState( '' );
   const [ tableFilter, setTableFilter ] = useState( 'All' );
   const [ lambdaFilter, setLambdaFilter ] = useState( 'All' );
-  const [ riskFilter, setRiskFilter ] = useState( 'All' );
   const [ expandedItems, setExpandedItems ] = useState<Set<string>>( new Set() );
   const [ lambdaDetailFilter, setLambdaDetailFilter ] = useState( 'All' );
   const [ lambdaDetailSearch, setLambdaDetailSearch ] = useState( '' );
@@ -697,7 +621,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           { label: 'Dependencies', value: `${DEPENDENCIES.length}`, color: C.amberBg, text: C.amber },
           { label: 'Bot Menu Items', value: `${BOT_MENU.length}`, color: '#f5f3ff', text: '#7c3aed' },
           { label: 'Customer Service Flows', value: `${CUSTOMER_SERVICE_FORMS.length}`, color: C.greenBg, text: C.green },
-          { label: 'Risks Found', value: `${RISKS.length}`, color: C.redBg, text: C.red },
         ].map( s => (
           <div key={ s.label } style={ statCard( s.color, s.text ) }>
             <div style={ { fontSize: 'var(--h1)', fontWeight: 800, color: s.text } }>{ s.value }</div>
@@ -716,7 +639,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </div>
           <div>
             <div style={ label }>AWS Account</div>
-            <div style={ { marginTop: 4, ...mono } }>775261844268 (us-east-1)</div>
+            <div style={ { marginTop: 4 } }>Production account (us-east-1)</div>
           </div>
           <div>
             <div style={ label }>Domain</div>
@@ -736,7 +659,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </div>
           <div>
             <div style={ label }>Storage</div>
-            <div style={ { marginTop: 4 } }>S3 (wecare-digital-get) — secure/u/ + secure/d/public/ + o/stream/media/</div>
+            <div style={ { marginTop: 4 } }>S3 media bucket — secure/u/ + secure/d/public/ + o/stream/media/</div>
           </div>
           <div>
             <div style={ label }>Channels</div>
@@ -761,27 +684,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         </div>
       </div>
 
-      {/* Quick Risk Summary */ }
-      <div style={ card() }>
-        <h3 style={ sectionTitle }>Risk Summary</h3>
-        <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap' } }>
-          <span style={ pill( C.redBg, C.red ) }>{ RISKS.filter( r => r.priority === 'Critical' ).length } Critical</span>
-          <span style={ pill( C.amberBg, C.amber ) }>{ RISKS.filter( r => r.priority === 'Important' ).length } Important</span>
-          <span style={ pill( C.blueBg, C.blue ) }>{ RISKS.filter( r => r.priority === 'Nice to have' ).length } Nice to have</span>
-        </div>
-        <div style={ { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 } }>
-          { RISKS.filter( r => r.priority === 'Critical' ).map( r => (
-            <div key={ r.id } style={ { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 'var(--text-sm)' } }>
-              <span style={ { color: C.red, fontSize: 'var(--text-xs)', marginTop: 4, flexShrink: 0 } }>●</span>
-              <div>
-                <span style={ { fontWeight: 600, color: C.textDark } }>{ r.title }</span>
-                <span style={ { ...pill( 'var(--bg-secondary)', C.textMuted ), marginLeft: 6 } }>{ r.category }</span>
-                <div style={ { fontSize: 'var(--text-xs)', color: C.textMuted, marginTop: 2 } }>{ r.description.slice( 0, 120 ) }...</div>
-              </div>
-            </div>
-          ) ) }
-        </div>
-      </div>
       {/* WhatsApp Bot Menu */ }
       <div style={ card() }>
         <h3 style={ sectionTitle }>WhatsApp Bot Menu (Persistent Menu)</h3>
@@ -860,7 +762,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 │                                     │                                               │
 │                          ┌──────────▼──────────┐                                    │
 │                          │   CloudFront (CDN)   │                                    │
-│                          │   (no WAF — removed) │                                    │
+│                          │   (Amplify Hosting)  │                                    │
 │                          └──────────┬──────────┘                                    │
 │                                     │                                               │
 │                          ┌──────────▼──────────┐                                    │
@@ -888,7 +790,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 │         ▼                           ▼                           ▼                   │
 │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐                       │
 │  │  DynamoDB     │    │  S3 Bucket        │    │  SQS Queues  │                       │
-│  │  (49 tables)  │    │  wecare-digital-get│    │  (4 queues)  │                       │
+│  │  (49 tables)  │    │  (media files)    │    │  (4 queues)  │                       │
 │  └──────────────┘    └──────────────────┘    └──────────────┘                       │
 │                                                                                     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
@@ -1053,7 +955,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>AWS Resources ({ AWS_RESOURCES.length } services)</h3>
-        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>All AWS resources used by the platform. Account: 775261844268 | Region: us-east-1</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>All AWS resources used by the platform. Region: us-east-1</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
         <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
@@ -1085,13 +987,13 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
   const renderAWSTree = () => {
     const tree = [
       {
-        name: 'WECARE.DIGITAL (775261844268)', children: [
+        name: 'WECARE.DIGITAL (production)', children: [
           {
             name: '🔐 Authentication', children: [
               {
-                name: 'Cognito User Pool (us-east-1_cSx0RHCIR)', children: [
+                name: 'Cognito User Pool (staff)', children: [
                   { name: 'Groups: Viewer, Operator, Admin' },
-                  { name: 'OAuth Domain: wecare-digital-auth.auth.us-east-1.amazoncognito.com (managed login v2)' },
+                  { name: 'OAuth domain (Cognito-hosted, managed login v2)' },
                 ]
               },
               { name: 'Cognito Identity Pool' },
@@ -1105,7 +1007,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   { name: 'wecare.digital' }, { name: 'mta-sts.wecare.digital' }, { name: 'sip.wecare.digital' },
                 ]
               },
-              { name: 'CloudFront E2GP22R4BIFGQ3 (wecare.digital/get → wecare-digital-get)' },
+              { name: 'CloudFront (wecare.digital/get → media bucket)' },
               { name: 'ACM Certificates (SSL/TLS)' },
             ]
           },
@@ -1133,7 +1035,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           {
             name: '📦 Storage — S3', children: [
               {
-                name: 'wecare-digital-get', children: [
+                name: 'Media bucket', children: [
                   { name: 'o/stream/media/ (static/CDN assets: m/, ivr/, reports/, docs/)' },
                   { name: 'secure/u/ (uploads as received — gated, presigned access only)' },
                   { name: 'secure/d/public/ (deliverables: Invoice/, receipts/, whatsapp/, blog/, catalog-deploy/ — served publicly)' },
@@ -1166,7 +1068,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           {
             name: '🔒 Security', children: [
               { name: 'Secrets Manager (API keys, webhook secrets)' },
-              { name: 'Rate limiting (handler-side; WAF removed 2026-09-28)' },
+              { name: 'Rate limiting (handler-side)' },
               { name: 'ACM (SSL certificates)' },
             ]
           },
@@ -1198,7 +1100,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
   const renderStorage = () => (
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
-        <h3 style={ sectionTitle }>S3 Bucket: wecare-digital-get</h3>
+        <h3 style={ sectionTitle }>S3 media bucket</h3>
         <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Two top-level roots: <code style={ mono }>o/</code> (public) and <code style={ mono }>secure/</code> (gated at the edge, presigned access only). <code style={ mono }>o/</code> is a location, not a permission — everything outside <code style={ mono }>secure/</code> is public. Within <code style={ mono }>o/</code>: <code style={ mono }>stack/</code> is user data (wipeable) and <code style={ mono }>stream/</code> is static assets (permanent). Served as <code style={ mono }>wecare.digital/get/&lt;key&gt;</code>; the bucket name is not a hostname.</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
@@ -1227,10 +1129,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         <h3 style={ sectionTitle }>SQS Queues (4)</h3>
         <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10 } }>
           { [
-            { name: 'stack-wecare-digital-bulk-queue', purpose: 'Bulk message job processing', retention: '1 day', visibility: '5 min' },
-            { name: 'stack-wecare-digital-inbound-dlq', purpose: 'Failed inbound processing', retention: '7 days', visibility: '5 min' },
-            { name: 'stack-wecare-digital-bulk-dlq', purpose: 'Failed bulk chunks', retention: '7 days', visibility: '5 min' },
-            { name: 'stack-wecare-digital-outbound-dlq', purpose: 'Failed outbound messages', retention: '7 days', visibility: '5 min' },
+            { name: 'Bulk job queue', purpose: 'Bulk message job processing', retention: '1 day', visibility: '5 min' },
+            { name: 'Inbound DLQ', purpose: 'Failed inbound processing', retention: '7 days', visibility: '5 min' },
+            { name: 'Bulk DLQ', purpose: 'Failed bulk chunks', retention: '7 days', visibility: '5 min' },
+            { name: 'Outbound DLQ', purpose: 'Failed outbound messages', retention: '7 days', visibility: '5 min' },
           ].map( q => (
             <div key={ q.name } style={ { padding: 12, background: C.bgSoft, borderRadius: C.radiusSm } }>
               <div style={ { ...mono, fontSize: 'var(--text-xs)', fontWeight: 600, color: C.textDark, wordBreak: 'break-all' } }>{ q.name }</div>
@@ -1287,7 +1189,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         <input
           value={ searchQuery }
           onChange={ e => setSearchQuery( e.target.value ) }
-          placeholder="Search tables, Lambda functions, AWS resources, routes, env vars, risks... (Ctrl+K)"
+          placeholder="Search tables, Lambda functions, AWS resources, routes, env vars... (Ctrl+K)"
           aria-label="Search system architecture"
           style={ { width: '100%', padding: '12px 16px 12px 40px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 'var(--text-md)', outline: 'none', boxSizing: 'border-box' } }
           autoFocus
@@ -1316,7 +1218,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       { !searchQuery && (
         <div style={ card() }>
           <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>
-            Search across { searchIndex.length } indexed items: { DB_TABLES.length } tables, { LAMBDAS.length } Lambda functions, { AWS_RESOURCES.length } AWS resources, { FRONTEND_ROUTES.length } routes, { STORAGE_PATHS.length } storage paths, { CODE_MAP.length } code folders, { ENV_VARS.length } env vars, { RISKS.length } risks, { IMPROVEMENTS.length } improvements.
+            Search across { searchIndex.length } indexed items: { DB_TABLES.length } tables, { LAMBDAS.length } Lambda functions, { AWS_RESOURCES.length } AWS resources, { FRONTEND_ROUTES.length } routes, { STORAGE_PATHS.length } storage paths, { CODE_MAP.length } code folders, { ENV_VARS.length } env vars.
           </p>
         </div>
       ) }
@@ -1349,18 +1251,15 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         <h3 style={ sectionTitle }>Environment Configuration</h3>
         <div style={ { display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' } }>
           <span style={ pill( C.greenBg, C.green ) }>Production (active)</span>
-          <span style={ pill( C.redBg, C.red ) }>No staging detected</span>
-          <span style={ pill( C.redBg, C.red ) }>No dev detected</span>
-          <span style={ pill( C.redBg, C.red ) }>{ ENV_VARS.filter( e => e.risk ).length } issues found</span>
           <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>Values permanently redacted</span>
         </div>
-        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Inventory contains variable names and risk metadata only. Secret values are never embedded in or revealed by the browser.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Inventory contains variable names only. Values are never embedded in or revealed by the browser.</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
         <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
-              { [ 'Variable', 'Value', '', 'Category', 'Sensitive', 'Risk' ].map( ( h, i ) => (
+              { [ 'Variable', 'Value', '', 'Category', 'Sensitive' ].map( ( h, i ) => (
                 <th key={ h || `eye-${i}` } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, width: h === '' ? 36 : undefined } }>{ h }</th>
               ) ) }
             </tr>
@@ -1369,13 +1268,12 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             { ENV_VARS.map( e => {
               const displayValue = e.sensitive ? 'Server-side / redacted' : e.value;
               return (
-                <tr key={ e.key } style={ { borderBottom: `1px solid ${C.border}`, background: e.risk?.startsWith( 'CRITICAL' ) ? '#f5f5f5' : 'transparent' } }>
+                <tr key={ e.key } style={ { borderBottom: `1px solid ${C.border}` } }>
                   <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 'var(--text-xs)' } }>{ e.key }</td>
                   <td style={ { padding: '10px 12px', ...mono, color: e.sensitive ? C.amber : C.textMuted, fontSize: 'var(--text-xs)', wordBreak: 'break-all', maxWidth: 340 } }>{ displayValue }</td>
                   <td style={ { padding: '4px 6px', width: 36 } } />
                   <td style={ { padding: '10px 12px' } }><span style={ pill( e.category.includes( 'Hardcoded' ) ? C.redBg : e.category.includes( '✓' ) ? C.greenBg : 'var(--bg-secondary)', e.category.includes( 'Hardcoded' ) ? C.red : e.category.includes( '✓' ) ? C.green : C.textMuted ) }>{ e.category }</span></td>
                   <td style={ { padding: '10px 12px' } }>{ e.sensitive ? <span style={ pill( C.amberBg, C.amber ) }>Sensitive</span> : <span style={ { color: C.textLight } }>—</span> }</td>
-                  <td style={ { padding: '10px 12px', fontSize: 'var(--text-xs)', color: e.risk?.startsWith( 'CRITICAL' ) ? C.red : C.amber, fontWeight: e.risk ? 600 : 400 } }>{ e.risk || <span style={ { color: C.textLight } }>—</span> }</td>
                 </tr>
               );
             } ) }
@@ -1458,59 +1356,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </tbody>
         </table>
       </div>
-    </div>
-  );
-
-  // ─── Risks / Gaps ───
-  const renderRisks = () => (
-    <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
-      <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 } }>
-        { [ 'All', 'Critical', 'Important', 'Nice to have' ].map( p => (
-          <button key={ p } onClick={ () => setRiskFilter( p ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${riskFilter === p ? C.bgDark : C.border}`, background: riskFilter === p ? C.bgDark : C.bg, color: riskFilter === p ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>
-            { p } { p !== 'All' && `(${RISKS.filter( r => r.priority === p ).length})` }
-          </button>
-        ) ) }
-      </div>
-      { ( riskFilter === 'All' ? RISKS : RISKS.filter( r => r.priority === riskFilter ) ).map( r => (
-        <div key={ r.id } style={ card() }>
-          <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-            <span style={ pill(
-              r.priority === 'Critical' ? C.redBg : r.priority === 'Important' ? C.amberBg : C.blueBg,
-              r.priority === 'Critical' ? C.red : r.priority === 'Important' ? C.amber : C.blue
-            ) }>{ r.priority }</span>
-            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ r.title }</span>
-            <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.category }</span>
-          </div>
-          <p style={ { margin: '8px 0 0', fontSize: 'var(--text-sm)', color: C.text } }>{ r.description }</p>
-        </div>
-      ) ) }
-    </div>
-  );
-
-  // ─── Improvements ───
-  const renderImprovements = () => (
-    <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
-      <div style={ card() }>
-        <h3 style={ sectionTitle }>Improvement Recommendations ({ IMPROVEMENTS.length })</h3>
-        <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
-          <span style={ pill( C.redBg, C.red ) }>{ IMPROVEMENTS.filter( i => i.priority === 'Critical' ).length } Critical</span>
-          <span style={ pill( C.amberBg, C.amber ) }>{ IMPROVEMENTS.filter( i => i.priority === 'Important' ).length } Important</span>
-          <span style={ pill( C.blueBg, C.blue ) }>{ IMPROVEMENTS.filter( i => i.priority === 'Nice to have' ).length } Nice to have</span>
-        </div>
-      </div>
-      { IMPROVEMENTS.map( imp => (
-        <div key={ imp.id } style={ card() }>
-          <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-            <span style={ pill(
-              imp.priority === 'Critical' ? C.redBg : imp.priority === 'Important' ? C.amberBg : C.blueBg,
-              imp.priority === 'Critical' ? C.red : imp.priority === 'Important' ? C.amber : C.blue
-            ) }>{ imp.priority }</span>
-            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ imp.title }</span>
-            <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ imp.category }</span>
-          </div>
-          <p style={ { margin: '8px 0 0', fontSize: 'var(--text-sm)', color: C.text } }>{ imp.description }</p>
-        </div>
-      ) ) }
     </div>
   );
 
@@ -1636,8 +1481,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       case 'env': return renderEnv();
       case 'logs': return renderLogs();
       case 'deps': return renderDeps();
-      case 'risks': return renderRisks();
-      case 'improvements': return renderImprovements();
       case 'lambda-detail': return renderLambdaDetail();
       case 'code-repo': return renderCodeRepo();
       default: return renderOverview();
