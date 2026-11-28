@@ -2924,22 +2924,38 @@ def _send_group_message(phone_id: str, group_id: str, body: Dict) -> Dict:
         msg_id = msgs[0].get('id', '')
     return _resp(200, {'success': True, 'messageId': msg_id, 'type': msg_type})
 
+#: Meta's group profile picture limits: image/jpeg only, at most 5 MB.
+GROUP_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: the SSRF check covers only the URL it was given."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _set_group_image(group_id: str, image_url: str) -> Dict:
     """Set group profile picture from a URL. Downloads the image then uploads via multipart form."""
     if not group_id:
         return _resp(400, {'error': 'groupId required'})
     if not image_url:
         return _resp(400, {'error': 'imageUrl required'})
-    # Download image
+    if not str(image_url).lower().startswith('https://') or not _is_ssrf_safe_url(image_url):
+        return _resp(400, {'error': 'imageUrl must be a public https URL'})
+    # Download image: no redirects, read at most one byte past the cap
     try:
         img_req = urllib.request.Request(image_url)
-        with urllib.request.urlopen(img_req, timeout=10) as img_resp:
-            image_bytes = img_resp.read()
+        with urllib.request.build_opener(_NoRedirect).open(img_req, timeout=10) as img_resp:
+            ct = (img_resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            image_bytes = img_resp.read(GROUP_IMAGE_MAX_BYTES + 1)
     except Exception as e:
         return _resp(400, {'error': f'Failed to download image: {str(e)}'})
-    # Determine content type
-    ct = 'image/png' if image_url.lower().endswith('.png') else 'image/jpeg'
-    ext = 'png' if 'png' in ct else 'jpg'
+    if len(image_bytes) > GROUP_IMAGE_MAX_BYTES:
+        return _resp(400, {'error': 'Group picture must be at most 5 MB'})
+    if ct != 'image/jpeg' or not image_bytes.startswith(b'\xff\xd8\xff'):
+        return _resp(400, {'error': 'Group picture must be a JPEG image'})
+    ext = 'jpg'
     # Upload via multipart
     token = _get_meta_token()
     app_secret = _get_app_secret()
