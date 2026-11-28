@@ -9,7 +9,7 @@ only an extra section using the existing detail styles. No new primary navigatio
 | Provider | Contract | Hard shared upstream attempts (UTC day / month) |
 |---|---|---|
 | Google Elevation | Single selected coordinate, meters/resolution, no result cache | 100 / 3,100 |
-| CPCB via data.gov.in | One complete bounded national snapshot (up to 10 sequential pages, 1,000 records each, every page consumes one attempt); nearest reporting station within 25 km, per-pollutant timestamp and average; no invented units or AQI | 24 / 744 |
+| CPCB via data.gov.in | One bounded national snapshot, nearest reporting station within 25 km, per-pollutant timestamp and average; no invented units or AQI | 24 / 744 |
 | EC JRC PVGIS 5.3 | Regional 3 kWp, 14% loss, optimized tilt, actual annual generation/irradiation, optional complete monthly profile | 250 / 7,750 |
 | Google Solar Building Insights | Precise viewport only, nearest building DC estimate; no Data Layers, GeoTIFF, detected arrays or experimental API | 250 / 7,750 |
 | SPARTAN | Verified Delhi/Jaipur filter-based files and Kanpur daily estimated PM2.5, within 50 km, historical dates and sample hours | 12 / 372 |
@@ -48,14 +48,13 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   GetParameter on the exact ARN and scopes KMS decrypt to that key, SSM service
   and parameter encryption context. The Lambda reserves its existing budget
   before a cache-miss decrypt and provider attempt, then checks the full snapshot.
-  The first staged invoke returned unavailable despite a successful SSM role read.
-  The provider may cap pages below the national row count. Each sequential page
-  consumes the unchanged shared budget; a 10-page / 10,000-row / 6 MiB limit,
-  deadline, exact count/offset and stable revision checks reject incomplete or
-  changing snapshots. A multi-page refresh therefore consumes several of the
-  24 daily attempts; the one-hour cache remains, with no quota increase or
-  automatic retry. Safe logs report status/counts, never URLs or credential data.
-  No demo/shared key or fallback to plaintext. Verify on $LATEST before promotion.
+  Keep one request at limit=10000: PR #2540 reports a complete 3,934-row upstream
+  snapshot and the live avg_value field. The separately staged Lambda still
+  returned unavailable (provider failure 502). Log only actual HTTP status,
+  transport exception class, JSON/size classification and bounded counts to
+  diagnose the Lambda-specific failure; never the key, URL or response text.
+  No pagination, retries, quota increase, demo/shared key or plaintext fallback.
+  Verify on $LATEST before promotion.
 - PVGIS requires server-side GET (AJAX is prohibited). SPARTAN uses public
   verified CSV object keys and credits the network. Both need no new provider key.
 - Run the existing Node 24 typecheck/lint/test/build plus

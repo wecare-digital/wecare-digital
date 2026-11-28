@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Upgrade only dependencies currently declared in the web root.
-# Backend dependencies remain owned by amplify/package.json.
+# This is the only npm install root (the Amplify Gen 2 backend root was removed 2026-11-28).
 # --plan prints the exact groups without network or file changes.
 # No branch creation, force audit, commit, push or deployment.
 set -euo pipefail

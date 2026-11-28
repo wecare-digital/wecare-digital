@@ -572,10 +572,6 @@ EXTRA_LIMITS = {
 }
 BUDGET_PREFIX = "nano-climate:environment:"
 CPCB_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
-CPCB_PAGE_SIZE = 1000
-CPCB_MAX_PAGES = 10
-CPCB_MAX_RECORDS = 10000
-CPCB_SNAPSHOT_SECONDS = 16
 PVGIS_URL = "https://re.jrc.ec.europa.eu/api/v5_3/PVcalc"
 ELEVATION_URL = "https://maps.googleapis.com/maps/api/elevation/json"
 BUILDING_INSIGHTS_URL = "https://solar.googleapis.com/v1/buildingInsights:findClosest"
@@ -624,7 +620,10 @@ def _extra_read(url: str, headers: Optional[Mapping[str, str]] = None,
         raise ProviderFailure(404 if exc.code == 404 else 502) from None
     except Exception as exc:
         if url.startswith(CPCB_URL + "?"):
-            logger.warning("nano_climate_cpcb_transport type=%s", type(exc).__name__)
+            # The reason itself can contain the request URL. Log only types.
+            reason = exc.reason if isinstance(exc, urllib.error.URLError) else None
+            logger.warning("nano_climate_cpcb_transport type=%s reason_type=%s",
+                           type(exc).__name__, type(reason).__name__)
         raise ProviderFailure(502) from None
     if len(body) > limit:
         if url.startswith(CPCB_URL + "?"):
@@ -767,11 +766,6 @@ def _cpcb_key() -> str:
     raise ProviderUnavailable("CPCB API key unavailable")
 
 
-def _cpcb_page_int(value: Any, maximum: int) -> Optional[int]:
-    number = _finite(value, 0, maximum)
-    return int(number) if number is not None and number.is_integer() else None
-
-
 def _cpcb_snapshot() -> list:
     cached = _extra_cached("cpcb:national", 3600)
     if cached is not None:
@@ -780,65 +774,23 @@ def _cpcb_snapshot() -> list:
     # unbounded SSM/KMS lookup or upstream request when the shared cap is exhausted.
     _reserve_extra("cpcb")
     key = _cpcb_key()
-    # data.gov.in resources can cap pages below the national row count. Request
-    # fixed sequential pages, each separately reserved against the SAME 24/744
-    # limits. No caller filters, per-station fan-out, partial cache, or retries.
-    rows: list = []
-    seen: set = set()
-    total: Optional[int] = None
-    revision: Optional[tuple] = None
-    total_bytes = 0
-    deadline = time.monotonic() + CPCB_SNAPSHOT_SECONDS
-    for page in range(CPCB_MAX_PAGES):
-        if time.monotonic() >= deadline:
-            logger.warning("nano_climate_cpcb_snapshot_invalid reason=deadline")
-            raise ProviderFailure()
-        if page:
-            _reserve_extra("cpcb")
-        response = _extra_json(_query(CPCB_URL, {
-            "api-key": key, "format": "json", "limit": CPCB_PAGE_SIZE, "offset": len(rows),
-        }))
-        batch = response.get("records")
-        count = _cpcb_page_int(response.get("count"), CPCB_PAGE_SIZE)
-        offset = _cpcb_page_int(response.get("offset"), CPCB_MAX_RECORDS)
-        reported_total = _cpcb_page_int(response.get("total"), CPCB_MAX_RECORDS)
-        current_revision = tuple(
-            (field, str(response[field])) for field in ("updated", "updated_date")
-            if isinstance(response.get(field), (str, int)) and 0 < len(str(response[field])) <= 80
-        )
-        # Never return an incomplete/changed national snapshot as the nearest
-        # station. Log bounded metadata only, never keys, URLs or response text.
-        if (response.get("status") != "ok" or not isinstance(batch, list)
-                or reported_total is None or count != len(batch) or offset != len(rows)
-                or len(rows) + len(batch) > reported_total
-                or (total is not None and total != reported_total)
-                or (revision is not None and revision != current_revision)):
-            logger.warning("nano_climate_cpcb_snapshot_invalid reason=envelope page=%d count=%s total=%s",
-                           page + 1, count, reported_total)
-            raise ProviderFailure()
-        total = reported_total
-        revision = current_revision
-        if len(rows) + len(batch) < total and (not batch or not revision):
-            logger.warning("nano_climate_cpcb_snapshot_invalid reason=missing_revision_or_page")
-            raise ProviderFailure()
-        # The total serialized records remain bounded by the existing upstream
-        # response limit, even when several pages are needed.
-        for row in batch:
-            if not isinstance(row, dict):
-                raise ProviderFailure()
-            canonical = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-            total_bytes += len(canonical) + 1
-            if total_bytes > MAX_UPSTREAM_BYTES or canonical in seen:
-                logger.warning("nano_climate_cpcb_snapshot_invalid reason=duplicate_or_size")
-                raise ProviderFailure()
-            seen.add(canonical)
-        rows.extend(batch)
-        if len(rows) == total:
-            _extra_store("cpcb:national", rows)
-            logger.info("nano_climate_cpcb_snapshot_complete pages=%d records=%d", page + 1, total)
-            return rows
-    logger.warning("nano_climate_cpcb_snapshot_invalid reason=page_cap")
-    raise ProviderFailure()
+    # One bounded nationwide snapshot: no caller-controlled filters, no
+    # station-by-station fan-out or unbounded pagination.
+    response = _extra_json(_query(CPCB_URL, {
+        "api-key": key, "format": "json", "limit": 10000, "offset": 0,
+    }))
+    rows = response.get("records")
+    total = _finite(response.get("total"), 0, 10000)
+    # Never silently choose a "nearest" station from a truncated snapshot.
+    if (response.get("status") != "ok" or not isinstance(rows, list)
+            or total is None or total != len(rows) or len(rows) > 10000):
+        logger.warning("nano_climate_cpcb_snapshot_invalid status_ok=%s total=%s records=%s",
+                       response.get("status") == "ok", total,
+                       len(rows) if isinstance(rows, list) else None)
+        raise ProviderFailure()
+    logger.info("nano_climate_cpcb_snapshot_complete records=%d", len(rows))
+    _extra_store("cpcb:national", rows)
+    return rows
 
 
 def _cpcb_timestamp(value: Any) -> Optional[dt.datetime]:
@@ -868,14 +820,9 @@ def _cpcb_context(lat: float, lng: float, rows: list,
             continue
         code = "PM2.5" if code == "PM25" else code
         observed = _cpcb_timestamp(row.get("last_update"))
-        # The published resource has used pollutant_avg and avg_value. Accept
-        # an explicitly supplied numeric average only; conflicting values fail
-        # closed rather than being silently preferred or converted to AQI.
-        primary = _finite(row.get("pollutant_avg"), 0)
-        alternate = _finite(row.get("avg_value"), 0)
-        if primary is not None and alternate is not None and primary != alternate:
-            continue
-        average = primary if primary is not None else alternate
+        # The live data.gov.in resource returns avg_value (verified 2026-11-28);
+        # pollutant_avg is the older documented name. "NA" is skipped as missing.
+        average = _finite(row.get("avg_value", row.get("pollutant_avg")), 0)
         if observed is None or average is None:
             continue
         age = (now - observed).total_seconds()
@@ -1082,6 +1029,8 @@ def _location_context(lat: float, lng: float, region_code: str,
         except ExtraBudgetExhausted:
             return source, {"status": "budget_limited"}
         except ProviderFailure as exc:
+            # Source and status class only: never the URL, which can carry a key.
+            logger.warning("nano_climate_source_failed source=%s status=%s", source, exc.status)
             return source, {"status": "no_data" if exc.status == 404 else "unavailable"}
         except Exception as exc:
             logger.warning("nano_climate_source_unavailable source=%s type=%s", source, type(exc).__name__)

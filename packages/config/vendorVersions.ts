@@ -270,18 +270,6 @@ export const TYPESCRIPT: VendorVersion = {
   drift: 'must-be-latest',
   rederive: 'npm view typescript version',
 } as const;
-export const AWS_CDK: VendorVersion = {
-  name: 'aws-cdk-lib',
-  configured: '2.278.0',
-  verifiedLatest: '2.278.0',
-  verifiedOn: '2026-11-27',
-  evidence: 'LIVE',
-  drift: 'pinned',
-  upgradeBlockedReason:
-    'Pinned exactly (no caret) on purpose: Amplify Gen 2 resolves CDK transitively and a ' +
-    'floating range has produced construct-version conflicts here before.',
-  rederive: 'npm view aws-cdk-lib version',
-} as const;
 
 /** Browser automation, required by the brief for cross-browser tests. Not yet installed. */
 export const PLAYWRIGHT: VendorVersion = {
@@ -307,7 +295,6 @@ export const VENDOR_VERSIONS = {
   nodeRuntime: NODE_RUNTIME,
   frontendFramework: FRONTEND_FRAMEWORK,
   typescript: TYPESCRIPT,
-  awsCdk: AWS_CDK,
   playwright: PLAYWRIGHT,
 } as const;
 

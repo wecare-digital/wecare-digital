@@ -271,7 +271,6 @@ const IMPROVEMENTS: RiskItem[] = [
 // ─── Data: Dependencies ───
 interface DepInfo { name: string; version: string; type: 'prod' | 'dev'; status: 'ok' | 'outdated' | 'warning'; note: string; }
 const DEPENDENCIES: DepInfo[] = [
-  { name: '@aws-amplify/backend', version: '^1.8.0', type: 'prod', status: 'ok', note: 'Core Amplify Gen 2 backend' },
   { name: '@aws-amplify/ui-react', version: '^6.12.0', type: 'prod', status: 'ok', note: 'Amplify UI components (Authenticator)' },
   { name: 'aws-amplify', version: '^6.14.0', type: 'prod', status: 'ok', note: 'Amplify client library' },
   { name: 'next', version: '^16.1.6', type: 'prod', status: 'ok', note: 'Next.js framework' },

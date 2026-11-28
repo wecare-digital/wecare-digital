@@ -147,6 +147,20 @@ def test_cpcb_snapshot_cache_skips_decrypt_and_reservation(monkeypatch):
     forbidden.assert_not_called()
 
 
+def test_cpcb_reads_live_avg_value_field():
+    # Live data.gov.in schema (2026-11-28): avg_value, with "NA" for missing.
+    now = dt.datetime(2026, 11, 28, 4, 0, tzinfo=dt.timezone.utc)
+    base = {"country": "India", "state": "Delhi", "city": "Delhi", "station": "Shadipur, Delhi - CPCB",
+            "last_update": "28-11-2026 09:00:00", "latitude": "28.6514781", "longitude": "77.1473105",
+            "min_value": "117", "max_value": "448"}
+    rows = [dict(base, pollutant_id="PM10", avg_value="300"),
+            dict(base, pollutant_id="PM2.5", avg_value="NA")]
+    data = h._cpcb_context(28.6139, 77.209, rows, now)
+    assert data["status"] == "ok"
+    assert data["station"] == "Shadipur, Delhi - CPCB"
+    assert [(r["pollutant"], r["average"]) for r in data["readings"]] == [("PM10", 300)]
+
+
 def test_cpcb_rejects_incomplete_snapshot(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
@@ -284,66 +298,38 @@ def test_configure_cpcb_requires_standard_encrypted_parameter(monkeypatch):
     assert variables["VAYULOK_EXTENDED_SOURCES"] == "cpcb,pvgis,spartan"
     clients["ssm"].get_parameter.assert_not_called()
 
-def _cpcb_page(rows, total, offset, revision="2026-11-28T04:00:00Z"):
-    return {"status": "ok", "total": total, "offset": offset, "count": len(rows),
-            "updated_date": revision, "records": rows}
+def test_cpcb_diagnostics_never_log_url_key_or_provider_message(monkeypatch, caplog):
+    import urllib.error
+    url = h.CPCB_URL + "?api-key=unit-test-placeholder&format=json"
+    fake = Mock()
+    fake.open.side_effect = urllib.error.HTTPError(url, 403, "unit-test-placeholder", {}, None)
+    monkeypatch.setattr(h.urllib.request, "build_opener", lambda *_: fake)
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert "nano_climate_cpcb_upstream_http status=403" in caplog.text
+    assert "unit-test-placeholder" not in caplog.text
+    assert h.CPCB_URL not in caplog.text
+    fake.open.side_effect = urllib.error.URLError("unit-test-placeholder")
+    with pytest.raises(h.ProviderFailure):
+        h._extra_read(url)
+    assert "nano_climate_cpcb_transport type=URLError reason_type=str" in caplog.text
+    assert "unit-test-placeholder" not in caplog.text
 
 
-def test_cpcb_complete_bounded_pages_charge_every_request(monkeypatch):
-    from urllib.parse import parse_qs, urlsplit
+def test_cpcb_complete_single_snapshot_and_provider_error_fail_closed(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     reserve = Mock()
-    key = Mock(return_value="unit-test-placeholder")
     monkeypatch.setattr(h, "_reserve_extra", reserve)
-    monkeypatch.setattr(h, "_cpcb_key", key)
-    provider = Mock(side_effect=[_cpcb_page([{"station": "A"}, {"station": "B"}], 3, 0),
-                                 _cpcb_page([{"station": "C"}], 3, 2)])
-    monkeypatch.setattr(h, "_extra_json", provider)
-    assert h._cpcb_snapshot() == [{"station": "A"}, {"station": "B"}, {"station": "C"}]
-    assert reserve.call_count == 2
-    key.assert_called_once()
-    urls = [x.args[0] for x in provider.call_args_list]
-    assert [parse_qs(urlsplit(url).query)["offset"] for url in urls] == [["0"], ["2"]]
-    assert all(parse_qs(urlsplit(url).query)["limit"] == ["1000"] for url in urls)
-    assert len(h._cpcb_snapshot()) == 3
-    assert reserve.call_count == 2 and provider.call_count == 2
-
-
-@pytest.mark.parametrize("second", [
-    _cpcb_page([{"station": "B"}], 3, 1, "changed"),
-    _cpcb_page([{"station": "B"}], 2, 0),
-    _cpcb_page([{"station": "A"}], 2, 1),
-    _cpcb_page([{"station": "B"}], 3, 1),
-])
-def test_cpcb_rejects_changed_or_duplicate_page(monkeypatch, second):
-    monkeypatch.setattr(h, "_extra_cache", {})
-    monkeypatch.setattr(h, "_reserve_extra", Mock())
     monkeypatch.setattr(h, "_cpcb_key", Mock(return_value="unit-test-placeholder"))
-    monkeypatch.setattr(h, "_extra_json", Mock(side_effect=[_cpcb_page([{"station": "A"}], 2, 0), second]))
+    provider = Mock(return_value={"status": "error", "total": 0, "records": []})
+    monkeypatch.setattr(h, "_extra_json", provider)
     with pytest.raises(h.ProviderFailure):
         h._cpcb_snapshot()
     assert h._extra_cached("cpcb:national", 3600) is None
-
-
-def test_cpcb_later_budget_failure_does_not_fetch_or_cache(monkeypatch):
-    monkeypatch.setattr(h, "_extra_cache", {})
-    reserve = Mock(side_effect=[None, h.ExtraBudgetExhausted("limit")])
-    monkeypatch.setattr(h, "_reserve_extra", reserve)
-    monkeypatch.setattr(h, "_cpcb_key", Mock(return_value="unit-test-placeholder"))
-    provider = Mock(return_value=_cpcb_page([{"station": "A"}], 2, 0))
-    monkeypatch.setattr(h, "_extra_json", provider)
-    with pytest.raises(h.ExtraBudgetExhausted):
-        h._cpcb_snapshot()
-    provider.assert_called_once()
-    assert h._extra_cached("cpcb:national", 3600) is None
-
-
-def test_cpcb_accepts_explicit_average_alias_without_inventing_units():
-    now = dt.datetime(2026, 11, 28, 4, 30, tzinfo=dt.timezone.utc)
-    row = {"country": "India", "city": "Delhi", "station": "Near", "latitude": "28.6",
-           "longitude": "77.2", "pollutant_id": "PM2.5",
-           "last_update": "28-11-2026 09:00:00", "avg_value": "31"}
-    result = h._cpcb_context(28.6, 77.2, [row], now)
-    assert result["readings"][0]["average"] == 31
-    assert result["readings"][0]["unit"] is None
-    assert h._cpcb_context(28.6, 77.2, [dict(row, pollutant_avg="99")], now)["status"] == "no_data"
+    provider.return_value = {"status": "ok", "total": 2, "records": [{"station": "A"}, {"station": "B"}]}
+    assert len(h._cpcb_snapshot()) == 2
+    assert reserve.call_count == 2
+    assert provider.call_count == 2
+    assert "limit=10000" in provider.call_args.args[0]
+    assert len(h._cpcb_snapshot()) == 2
+    assert provider.call_count == 2
