@@ -4,7 +4,11 @@ Documentation Scraper — WECARE.DIGITAL
 Fetches external documentation (e.g. Meta Business/WhatsApp docs), renders it
 with headless Chromium (Playwright), cleans it to Markdown (BeautifulSoup),
 detects changes via content hashing, keeps an append-only changelog, and stores
-everything in the single media bucket under o/stream/media/docs/.
+everything in the single media bucket under the private secure/d/docs-scraper/.
+
+Only https URLs on ALLOWED_HOSTS whose addresses are all public are fetched. That is
+checked when a source is added, before every page load and, through page.route, for
+every browser request; redirects are refused. Chromium runs without the AWS credentials.
 
 Runs as a container Lambda (see Dockerfile). Invoked by:
   - EventBridge daily cron        -> {}  or  {"action": "scrape"}   (scrape all sources)
@@ -14,20 +18,24 @@ Runs as a container Lambda (see Dockerfile). Invoked by:
   - Frontend "list sources"       -> {"action": "list_sources"}
   - Frontend "changelog"          -> {"action": "changelog", "limit": 50}
 
-S3 layout (bucket: wecare-digital-get; was wecare-digital-get until 2026-09-28).
-The `o/` root below is part of the key, matching PREFIX = media_paths.public(...):
-  o/stream/media/docs/_sources.json                 list of sources (frontend-editable)
-  o/stream/media/docs/_index.json                   {url: {hash, key, source, lastSeen}}
-  o/stream/media/docs/_changelog.jsonl              append-only change log (one JSON per line)
-  o/stream/media/docs/<source-slug>/<page-slug>.md  cleaned page content
+S3 layout (bucket: wecare-digital-get), PREFIX = media_paths.SCRAPED_DOCS_PREFIX. It was
+the public o/stream/media/docs/ until 2026-11-28:
+  secure/d/docs-scraper/_sources.json                 list of sources (frontend-editable)
+  secure/d/docs-scraper/_index.json                   {url: {hash, key, source, lastSeen}}
+  secure/d/docs-scraper/_changelog.jsonl              append-only change log (one JSON per line)
+  secure/d/docs-scraper/<source-slug>/<page-slug>.md  cleaned page content
 """
 
 import os
 import re
 import json
+import socket
 import hashlib
 import datetime
+import functools
+import ipaddress
 from typing import Any, Dict, List
+from urllib.parse import urlsplit
 
 import boto3
 
@@ -36,12 +44,95 @@ from lambda_utils.response import cors_headers, options_response, extract_origin
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
 BUCKET = os.environ.get('DOCS_BUCKET', media_paths.BUCKET)
-PREFIX = os.environ.get('DOCS_PREFIX', media_paths.PUBLIC_STREAM_MEDIA_DOCS_PREFIX).rstrip('/')
+# A configured DOCS_PREFIX the CDN serves is ignored; the live value may still be o/stream/media/docs/.
+_CONFIGURED_PREFIX = os.environ.get('DOCS_PREFIX', '').strip('/')
+PREFIX = (_CONFIGURED_PREFIX
+          if _CONFIGURED_PREFIX and media_paths.is_gated(_CONFIGURED_PREFIX + '/')
+          else media_paths.SCRAPED_DOCS_PREFIX.rstrip('/'))
 SOURCES_KEY = f'{PREFIX}/_sources.json'
 INDEX_KEY = f'{PREFIX}/_index.json'
 CHANGELOG_KEY = f'{PREFIX}/_changelog.jsonl'
 
 s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+
+#: Exact hostnames a source, a discovered page and every browser request may use.
+ALLOWED_HOSTS = frozenset(
+    h.strip().lower().rstrip('.')
+    for h in os.environ.get('DOCS_ALLOWED_HOSTS', 'developers.facebook.com').split(',')
+    if h.strip())
+
+#: Non-secret variables Chromium may need. Nothing else, AWS_* included, reaches the browser.
+_BROWSER_ENV_KEYS = ('PATH', 'LANG', 'LC_ALL', 'TZ', 'LD_LIBRARY_PATH',
+                     'FONTCONFIG_PATH', 'FONTCONFIG_FILE')
+
+
+# ─── fetch policy ──────────────────────────────────────────────────────────
+@functools.lru_cache(maxsize=256)
+def _host_is_public(host: str) -> bool:
+    """True when every address the host resolves to is public unicast."""
+    try:
+        infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+    except (OSError, UnicodeError):
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(str(info[4][0]).split('%', 1)[0])
+        except ValueError:
+            return False
+        if ip.version == 6 and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        # is_global is False for private, loopback, link-local (169.254.169.254 included),
+        # shared and reserved ranges.
+        if not ip.is_global or ip.is_multicast:
+            return False
+    return True
+
+
+def _url_problem(url: str) -> str:
+    """'' when the scraper may fetch `url`, otherwise the reason it may not."""
+    try:
+        parts = urlsplit(str(url or ''))
+        port = parts.port
+    except ValueError:
+        return 'invalid URL'
+    if parts.scheme != 'https':
+        return 'only https URLs are allowed'
+    if parts.username or parts.password or port not in (None, 443):
+        return 'credentials and ports are not allowed in the URL'
+    host = (parts.hostname or '').rstrip('.')
+    if host not in ALLOWED_HOSTS:
+        return f'host {host or "(none)"} is not on the allowlist'
+    if not _host_is_public(host):
+        return f'host {host} does not resolve to public addresses only'
+    return ''
+
+
+def _guard_route(route) -> None:
+    """page.route handler: allowlisted requests only, and no redirects.
+
+    Playwright calls a route handler only for the first URL of a redirect chain, so the
+    request is fetched here with redirects off and a 3xx answer is refused, not followed.
+    """
+    if _url_problem(route.request.url):
+        route.abort('blockedbyclient')
+        return
+    try:
+        response = route.fetch(max_redirects=0)
+    except Exception:  # noqa: BLE001 - a failed fetch is a failed request
+        route.abort('failed')
+        return
+    if 300 <= response.status < 400:
+        route.abort('blockedbyclient')
+        return
+    route.fulfill(response=response)
+
+
+def _browser_env() -> Dict[str, str]:
+    env = {k: os.environ[k] for k in _BROWSER_ENV_KEYS if os.environ.get(k)}
+    env.update({'HOME': '/tmp', 'TMPDIR': '/tmp'})
+    return env
 
 
 # ─── helpers ───────────────────────────────────────────────────────────────
@@ -130,12 +221,25 @@ def _scrape_source(source: Dict[str, Any], index: Dict[str, Any]) -> List[Dict[s
     path_prefix = source.get('pathPrefix') or _default_prefix(root)
     changes: List[Dict[str, Any]] = []
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-        page = browser.new_page()
+    # Re-checked at every scrape: the stored sources file is not trusted.
+    _host_is_public.cache_clear()
+    problem = _url_problem(root) or _url_problem(path_prefix)
+    if problem:
+        return [{'ts': _now(), 'source': name, 'url': root, 'type': 'error',
+                 'error': f'blocked: {problem}'}]
 
-        page.goto(root, wait_until='networkidle', timeout=45000)
-        root_html = page.content()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'],
+                                    env=_browser_env())
+        page = browser.new_context(service_workers='block').new_page()
+        page.route('**/*', _guard_route)
+
+        try:
+            page.goto(root, wait_until='networkidle', timeout=45000)
+            root_html = page.content()
+        except Exception as e:
+            browser.close()
+            return [{'ts': _now(), 'source': name, 'url': root, 'type': 'error', 'error': str(e)}]
         urls = [root] + [u for u in _discover_links(root_html, root, path_prefix) if u != root]
         # Limit breadth per run to stay within Lambda timeout; cron catches the rest next day.
         urls = urls[: int(os.environ.get('MAX_PAGES_PER_RUN', '40'))]
@@ -145,6 +249,9 @@ def _scrape_source(source: Dict[str, Any], index: Dict[str, Any]) -> List[Dict[s
                 if url == root:
                     html = root_html
                 else:
+                    problem = _url_problem(url)
+                    if problem:
+                        raise ValueError(f'blocked: {problem}')
                     page.goto(url, wait_until='networkidle', timeout=45000)
                     html = page.content()
                 text = _clean_html(html, content_selector)
@@ -198,6 +305,11 @@ def _scrape(event) -> Dict[str, Any]:
 def _add_source(event) -> Dict[str, Any]:
     if not event.get('rootUrl') or not event.get('name'):
         return {'statusCode': 400, 'body': json.dumps({'error': 'name and rootUrl required'})}
+    _host_is_public.cache_clear()
+    for field in ('rootUrl', 'pathPrefix'):
+        problem = _url_problem(event[field]) if event.get(field) else ''
+        if problem:
+            return {'statusCode': 400, 'body': json.dumps({'error': f'{field}: {problem}'})}
     sources = _s3_get_json(SOURCES_KEY, [])
     if any(s.get('name') == event['name'] for s in sources):
         return {'statusCode': 409, 'body': json.dumps({'error': 'source already exists'})}
