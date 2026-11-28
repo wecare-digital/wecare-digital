@@ -20,6 +20,10 @@ What it creates (all idempotent)
    script also APPLIES that tag to every `stack-wecare-digital-*` DynamoDB table,
    the two retained CDK tables, and the media bucket — so a newly provisioned
    table joins the plan the moment it carries the tag (the design in §4.2/§4.6).
+4b. An ARN-PATTERN selection `wecare-backup-selection-ddb-arn` for
+   `table/stack-wecare-digital-*`, same role. Tags were missed in practice (audit
+   AWS-16: 4 tables untagged on 2026-11-28), so a prefix table is covered even if
+   nobody tags it. Live since 2026-11-28.
 5. SNS notifications to `stack-wecare-digital` on BACKUP_JOB_FAILED /
    RESTORE_JOB_FAILED / COPY_JOB_FAILED.
 
@@ -57,12 +61,14 @@ ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE}"
 VAULT = "wecare-backup-vault"
 PLAN_NAME = "wecare-backup-plan"
 SELECTION = "wecare-backup-selection"
+ARN_SELECTION = "wecare-backup-selection-ddb-arn"
 SNS_ARN = f"arn:aws:sns:{REGION}:{ACCOUNT}:stack-wecare-digital"
 
 BACKUP_TAG_KEY = "backup"
 BACKUP_TAG_VALUE = "daily"
 
 DDB_PREFIX = "stack-wecare-digital-"
+DDB_PREFIX_ARN = f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{DDB_PREFIX}*"
 EXTRA_DDB: set[str] = set()
 MEDIA_BUCKET = "wecare-digital-get"
 
@@ -254,6 +260,27 @@ def ensure_selection(apply: bool, pid: str) -> None:
         print(f"    created tag-based selection ({BACKUP_TAG_KEY}={BACKUP_TAG_VALUE})")
 
 
+def ensure_arn_selection(apply: bool, pid: str) -> None:
+    """Prefix selection, so an untagged project table is still backed up."""
+    c = backup()
+    for page in c.get_paginator("list_backup_selections").paginate(BackupPlanId=pid):
+        for sel in page.get("BackupSelectionsList", []):
+            if sel["SelectionName"] == ARN_SELECTION:
+                print(f"  selection {ARN_SELECTION}: present")
+                return
+    print(f"  selection {ARN_SELECTION}: MISSING")
+    if apply:
+        c.create_backup_selection(
+            BackupPlanId=pid,
+            BackupSelection={
+                "SelectionName": ARN_SELECTION,
+                "IamRoleArn": ROLE_ARN,
+                "Resources": [DDB_PREFIX_ARN],
+            },
+        )
+        print(f"    created ARN selection ({DDB_PREFIX_ARN})")
+
+
 def ensure_notifications(apply: bool) -> None:
     c = backup()
     if apply:
@@ -359,6 +386,7 @@ def main() -> int:
     pid = ensure_plan(apply)
     if pid:
         ensure_selection(apply, pid)
+        ensure_arn_selection(apply, pid)
     ensure_notifications(apply)
     if args.lock_governance:
         print("\n--- Vault Lock (governance) ---")
