@@ -1,4 +1,11 @@
 import type { AppointmentPlan } from './appointmentPlan';
+import type { AssistanceReceipt } from './hospitalAssistance';
+
+interface AppointmentResponse {
+  draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean;
+  phoneVerified?: boolean; accountKey?: string; nextAfter?: string | null;
+  request?: AssistanceReceipt; requests?: AssistanceReceipt[];
+}
 
 export interface SavedAppointmentDraft {
   draftId: string;
@@ -19,7 +26,7 @@ export class AppointmentApiError extends Error {
 /** Exact deployment URL comes from the public deployment configuration; no patient data goes in a URL. */
 export async function appointmentDraftAction (
   endpoint: string, token: string, body: Record<string, unknown>,
-): Promise<{ draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string; nextAfter?: string | null }> {
+): Promise<AppointmentResponse> {
   if ( !/^https:\/\/[a-z0-9-]+\.lambda-url\.us-east-1\.on\.aws\/$/.test( endpoint ) ) throw new Error( 'Saved appointments are not available yet.' );
   const controller = new AbortController();
   const timeout = setTimeout( () => controller.abort(), 20000 );
@@ -31,9 +38,9 @@ export async function appointmentDraftAction (
       signal: controller.signal,
     } );
   } finally { clearTimeout( timeout ); }
-  let value: { error?: string; code?: string; draft?: SavedAppointmentDraft; drafts?: SavedAppointmentDraft[]; deleted?: boolean; phoneVerified?: boolean; accountKey?: string; nextAfter?: string | null };
+  let value: AppointmentResponse & { error?: string; code?: string };
   try { value = await response.json(); }
-  catch { throw new AppointmentApiError( 'Appointment storage is temporarily unavailable. Check My saved drafts before saving again.', response.status ); }
+  catch { throw new AppointmentApiError( 'Request storage is temporarily unavailable. Check your submitted requests before retrying.', response.status ); }
   if ( !response.ok ) throw new AppointmentApiError( typeof value.error === 'string' ? value.error : 'Appointment storage is temporarily unavailable. Please try again.', response.status, typeof value.code === 'string' ? value.code : undefined );
   return value;
 }
