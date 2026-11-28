@@ -9,7 +9,7 @@ only an extra section using the existing detail styles. No new primary navigatio
 | Provider | Contract | Hard shared upstream attempts (UTC day / month) |
 |---|---|---|
 | Google Elevation | Single selected coordinate, meters/resolution, no result cache | 100 / 3,100 |
-| CPCB via data.gov.in | One bounded national snapshot, nearest reporting station within 25 km, per-pollutant timestamp and average; no invented units or AQI | 24 / 744 |
+| CPCB via data.gov.in | Bounded national snapshot via up to 10 pages (1,000 records/page); nearest reporting station within 25 km, per-pollutant timestamp and average; no invented units or AQI | 24 / 744 (per page) |
 | EC JRC PVGIS 5.3 | Regional 3 kWp, 14% loss, optimized tilt, actual annual generation/irradiation, optional complete monthly profile | 250 / 7,750 |
 | Google Solar Building Insights | Precise viewport only, nearest building DC estimate; no Data Layers, GeoTIFF, detected arrays or experimental API | 250 / 7,750 |
 | SPARTAN | Verified Delhi/Jaipur filter-based files and Kanpur daily estimated PM2.5, within 50 km, historical dates and sample hours | 12 / 372 |
@@ -48,12 +48,25 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   GetParameter on the exact ARN and scopes KMS decrypt to that key, SSM service
   and parameter encryption context. The Lambda reserves its existing budget
   before a cache-miss decrypt and provider attempt, then checks the full snapshot.
-  Keep one request at limit=10000: PR #2540 reports a complete 3,934-row upstream
-  snapshot and the live avg_value field. The separately staged Lambda still
-  returned unavailable (provider failure 502). Log only actual HTTP status,
-  transport exception class, JSON/size classification and bounded counts to
-  diagnose the Lambda-specific failure; never the key, URL or response text.
-  No pagination, retries, quota increase, demo/shared key or plaintext fallback.
+  The owner supplied the official resource Swagger 2.0: host api.data.gov.in,
+  HTTPS, basePath /, limit maximum 1000. It supersedes the earlier assumption
+  that a single limit=10000 request was supported. PR #2540 reported 3,934 rows
+  in a prior snapshot and avg_value; a snapshot of that size now needs four
+  pages if the API returns full pages. Every page consumes one of the unchanged
+  24/day and 744/month attempts (at most six four-page refreshes per UTC day,
+  fewer if other attempts occur). The one-hour in-memory cache remains.
+  Cap a refresh at ten pages, 10,000 rows and the existing aggregate response
+  size limit. Require consistent total, page count/offset and provider revision
+  metadata on multipage reads, reject duplicates and never cache a partial
+  snapshot. Check an 18-second monotonic deadline before/after requests and cap
+  each socket timeout by the remaining time; this is not a guaranteed wall-clock
+  deadline for a slow stream. Provider-side atomic snapshot semantics are
+  unverified; validate actual response metadata before production activation.
+  The staged Lambda logs ConnectionRefusedError; pagination does not repair a
+  TCP connection refusal. Keep CPCB disabled until actual HTTPS access and data
+  have been verified. Log only sanitized status/classes/counts, never keys,
+  URLs or response text. No retries, quota increase, sample/shared key,
+  plaintext fallback or manual CSV source.
   The decrypted key is cached in Lambda memory for 300 seconds, never logged or
   returned. Verify on $LATEST before promotion.
 - PVGIS requires server-side GET (AJAX is prohibited). SPARTAN uses public
