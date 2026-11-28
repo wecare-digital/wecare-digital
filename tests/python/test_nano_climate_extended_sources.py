@@ -147,6 +147,20 @@ def test_cpcb_snapshot_cache_skips_decrypt_and_reservation(monkeypatch):
     forbidden.assert_not_called()
 
 
+def test_cpcb_reads_live_avg_value_field():
+    # Live data.gov.in schema (2026-11-28): avg_value, with "NA" for missing.
+    now = dt.datetime(2026, 11, 28, 4, 0, tzinfo=dt.timezone.utc)
+    base = {"country": "India", "state": "Delhi", "city": "Delhi", "station": "Shadipur, Delhi - CPCB",
+            "last_update": "28-11-2026 09:00:00", "latitude": "28.6514781", "longitude": "77.1473105",
+            "min_value": "117", "max_value": "448"}
+    rows = [dict(base, pollutant_id="PM10", avg_value="300"),
+            dict(base, pollutant_id="PM2.5", avg_value="NA")]
+    data = h._cpcb_context(28.6139, 77.209, rows, now)
+    assert data["status"] == "ok"
+    assert data["station"] == "Shadipur, Delhi - CPCB"
+    assert [(r["pollutant"], r["average"]) for r in data["readings"]] == [("PM10", 300)]
+
+
 def test_cpcb_rejects_incomplete_snapshot(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
