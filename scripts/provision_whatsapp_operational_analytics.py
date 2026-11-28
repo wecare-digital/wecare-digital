@@ -139,7 +139,8 @@ def smoke_policy() -> dict:
 
 
 def table_input(name: str, dataset: str, columns: list[tuple[str,str]]) -> dict:
-    location=f"s3://{BUCKET}/{PREFIX}/{dataset}/"
+    # The exporter writes the gated prefix (OPS-1); run this after deploying it.
+    location=f"s3://{BUCKET}/{GATED_PREFIX}/{dataset}/"
     return {
         "Name":name,
         "Description":"Privacy-bounded WhatsApp operational analytics; excludes customer PII/content.",
