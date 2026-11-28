@@ -54,7 +54,8 @@ persisted. Existing 2 rps / 4 burst public route throttle is unchanged.
   transport exception class, JSON/size classification and bounded counts to
   diagnose the Lambda-specific failure; never the key, URL or response text.
   No pagination, retries, quota increase, demo/shared key or plaintext fallback.
-  Verify on $LATEST before promotion.
+  The decrypted key is cached in Lambda memory for 300 seconds, never logged or
+  returned. Verify on $LATEST before promotion.
 - PVGIS requires server-side GET (AJAX is prohibited). SPARTAN uses public
   verified CSV object keys and credits the network. Both need no new provider key.
 - Run the existing Node 24 typecheck/lint/test/build plus

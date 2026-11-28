@@ -562,6 +562,8 @@ EXTRA_SOURCES = frozenset(
 EXTRA_BUDGET_TABLE = os.environ.get("VAYULOK_EXTENDED_BUDGET_TABLE", "")
 CPCB_PARAMETER_NAME = "/wecare/nano-climate/cpcb"
 CPCB_PARAMETER = os.environ.get("VAYULOK_CPCB_PARAMETER", "")
+CPCB_KEY_TTL_SECONDS = 300
+_cpcb_key_cache: Dict[str, Any] = {}
 RATE_TABLE = "stack-wecare-digital-RateLimitTable"
 EXTRA_LIMITS = {
     "elevation": (100, 3100),
@@ -752,6 +754,10 @@ def _cpcb_key() -> str:
     global _cpcb_ssm
     if CPCB_PARAMETER != CPCB_PARAMETER_NAME:
         raise ProviderUnavailable("CPCB parameter not configured")
+    now = time.monotonic()
+    if _cpcb_key_cache.get("key") and now - _cpcb_key_cache.get("at", 0) < CPCB_KEY_TTL_SECONDS:
+        return _cpcb_key_cache["key"]
+    _cpcb_key_cache.clear()
     try:
         if _cpcb_ssm is None:
             _cpcb_ssm = boto3.client("ssm", region_name=REGION)
@@ -760,6 +766,7 @@ def _cpcb_key() -> str:
         if (data.get("Name") == CPCB_PARAMETER_NAME and data.get("Type") == "SecureString"
                 and isinstance(key, str) and 16 <= len(key) <= 256
                 and key.isascii() and all(c.isalnum() or c in "_-" for c in key)):
+            _cpcb_key_cache.update({"key": key, "at": now})
             return key
     except Exception:
         # Never log the exception (SDK/provider messages may contain credentials).

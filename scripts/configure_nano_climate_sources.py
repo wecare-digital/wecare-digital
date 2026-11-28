@@ -96,6 +96,8 @@ def main():
             or actual.get("VAYULOK_CPCB_PARAMETER") != (CPCB if "cpcb" in wanted else None)
             or "VAYULOK_CPCB_SECRET" in actual):
         raise SystemExit("Configuration read-back did not match")
+    print("Rollback: re-run with --apply --sources pvgis spartan (drops the CPCB parameter variable "
+          "and the ssm:GetParameter statement), or point the live alias at the prior version.")
     print("Configured $LATEST only; verify and use the owning Lambda alias release process.")
 
 
