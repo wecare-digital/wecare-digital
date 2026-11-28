@@ -79,14 +79,6 @@ const dedupTable = dynamodb.Table.fromTableName(
 dedupTable.grantWriteData( seoLambda );
 
 seoLambda.addToRolePolicy( new iam.PolicyStatement( {
-  actions: [ 'bedrock:InvokeModel' ],
-  resources: [
-    'arn:aws:bedrock:*::foundation-model/*',
-    `arn:aws:bedrock:*:${dataStack.account}:inference-profile/*`,
-    `arn:aws:bedrock:*:${dataStack.account}:application-inference-profile/*`,
-  ],
-} ) );
-seoLambda.addToRolePolicy( new iam.PolicyStatement( {
   actions: [ 'cognito-idp:GetUser', 'cognito-idp:AdminListGroupsForUser' ],
   resources: [ backend.auth.resources.userPool.userPoolArn ],
 } ) );

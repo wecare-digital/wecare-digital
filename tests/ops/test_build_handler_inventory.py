@@ -213,10 +213,10 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         self.assertNotIn("arn:aws", blob)
         # A known recorded VALUE from the manifest must not be present...
         self.assertNotIn("stack-wecare-digital-ContactsTable", blob)
-        # ...while the KEY name for it should be (agent-action-group references it).
-        agent = self._find("ai", "wecare-agent-action-group")
+        # ...while the KEY name for it should be (ai-config-management references it).
+        agent = self._find("ai", "wecare-ai-config-management")
         if agent is not None:
-            self.assertIn("CONTACTS_TABLE", agent["manifest_env_keys"])
+            self.assertIn("SYSTEM_CONFIG_TABLE", agent["manifest_env_keys"])
             for key in agent["manifest_env_keys"]:
                 # key names are upper snake identifiers, not resource values
                 self.assertNotIn(":", key)

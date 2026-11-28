@@ -187,9 +187,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
   const ivrHref = useMemo( () => safeHttpHref( ivrUrl ), [ ivrUrl ] );
 
   // IVR SMS state
-  const [ smsOnCall, setSmsOnCall ] = useState( false );
-  // Auto 👍 reaction toggle (all messages, templates & call notifications)
-  const [ autoThumb, setAutoThumb ] = useState( true );
   const [ smsTestPhone, setSmsTestPhone ] = useState( '+919903300044' );
   const [ smsTestSending, setSmsTestSending ] = useState<'idle' | 'aws'>( 'idle' );
   const [ smsTestResult, setSmsTestResult ] = useState<{ aws?: string } | null>( null );
@@ -590,8 +587,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
         {
           setAutoPickupMode( data.autoPickupMode );
         }
-        if ( data.smsOnCall !== undefined ) setSmsOnCall( data.smsOnCall === true );
-        if ( data.autoThumb !== undefined ) setAutoThumb( data.autoThumb !== false );
       }
     } catch ( e ) { console.error( 'Config load error:', e ); }
   };
@@ -1209,28 +1204,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
             <div style={ { ...s.card, marginTop: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } }>
               <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } }>
                 <h4 style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>IVR SMS (requires verified sender registration)</h4>
-                <label style={ { display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: '#374151', cursor: 'pointer' } }>
-                  <input type="checkbox" checked={ smsOnCall } onChange={ async () => {
-                    const newVal = !smsOnCall;
-                    try
-                    {
-                      const response = await fetch( `${API_BASE}/whatsapp/config`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify( { smsOnCall: newVal } ),
-                      } );
-                      if ( !response.ok ) {
-                        toast.error( newVal
-                          ? 'SMS sender WDBEEP is not registered or its status could not be verified.'
-                          : 'SMS setting could not be saved.' );
-                        return;
-                      }
-                      setSmsOnCall( newVal );
-                      toast.success( `SMS on call ${newVal ? 'enabled' : 'disabled'}` );
-                    } catch { toast.error( 'SMS setting could not be saved.' ); }
-                  } }
-                    style={ { width: '14px', height: '14px', accentColor: 'var(--accent)' } } />
-                  SMS on call
-                </label>
               </div>
               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: 'var(--text-xs)' } }>
                 <div style={ { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' } }>
@@ -1271,35 +1244,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
               </div>
             </div>
 
-            <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-              Post-call WhatsApp follow-up messages are always enabled.
-            </p>
-
-            {/* Auto 👍 reaction toggle (global: all messages, templates & calls) */ }
-            <div style={ { ...s.card, marginTop: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } }>
-              <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }>
-                <div>
-                  <h4 style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>Auto 👍 reaction</h4>
-                  <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Send a thumbs-up reaction on every WhatsApp message and template — inbound (received), outbound (sent), and call notifications — from the same number. Applies across both WABA numbers. Changes take effect within ~5 minutes.</p>
-                </div>
-                <label style={ { display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' } }>
-                  <input type="checkbox" checked={ autoThumb } onChange={ async () => {
-                    const newVal = !autoThumb;
-                    setAutoThumb( newVal );
-                    try
-                    {
-                      await fetch( `${API_BASE}/whatsapp/config`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify( { autoThumb: newVal } ),
-                      } );
-                      toast.success( `Auto 👍 reaction ${newVal ? 'enabled' : 'disabled'}` );
-                    } catch { toast.error( 'Failed to save' ); }
-                  } }
-                    style={ { width: '14px', height: '14px', accentColor: 'var(--accent)' } } />
-                  Auto 👍
-                </label>
-              </div>
-            </div>
             <div style={ { ...s.card, marginTop: '12px' } }>
               <h4 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--text)' } }>
                 Active Calls { activeCalls.length > 0 && <span style={ { ...badge( 'active' ), marginLeft: '8px' } }>{ activeCalls.length }</span> }

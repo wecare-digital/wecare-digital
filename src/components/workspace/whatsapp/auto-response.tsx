@@ -3,7 +3,6 @@
  *
  * Manages all automated WhatsApp responses from one place:
  * - Flow Triggers: keyword → WhatsApp Flow form mapping
- * - Welcome Message: first-time greeting for new contacts
  *
  * All configs stored in SystemConfigTable, read by wecare-inbound-whatsapp Lambda.
  */
@@ -40,7 +39,7 @@ const S = {
 
 const AutoResponsePageBody: React.FC<Props> = () => {
   const toast = useToastContext();
-  const [tab, setTab] = useState<'triggers' | 'welcome' | 'subscribe'>('triggers');
+  const [tab, setTab] = useState<'triggers' | 'subscribe'>('triggers');
   const [saving, setSaving] = useState(false);
 
   // ── Flow Triggers ──
@@ -48,30 +47,15 @@ const AutoResponsePageBody: React.FC<Props> = () => {
   const [trigLoading, setTrigLoading] = useState(false);
   const [editTrig, setEditTrig] = useState<string | null>(null);
 
-  // ── Welcome ──
-  const [welcomeText, setWelcomeText] = useState('');
-  const [welcomeEnabled, setWelcomeEnabled] = useState(true);
-  const [welLoading, setWelLoading] = useState(false);
-
   // Loaders
   const loadTriggers = useCallback(async () => {
     setTrigLoading(true);
     try { const r = await api.getSystemConfig('flow_triggers_config'); if (r) setTriggers(r as any); } catch {}
     setTrigLoading(false);
   }, []);
-  const loadWelcome = useCallback(async () => {
-    setWelLoading(true);
-    try {
-      const r = await api.getSystemConfig('wa_auto_response');
-      if (r) { setWelcomeText((r as any).welcomeMessage || ''); setWelcomeEnabled((r as any).welcomeEnabled !== false); }
-    } catch {}
-    setWelLoading(false);
-  }, []);
-
   useEffect(() => {
     if (tab === 'triggers') loadTriggers();
-    if (tab === 'welcome') loadWelcome();
-  }, [tab, loadTriggers, loadWelcome]);
+  }, [tab, loadTriggers]);
 
   // Keep the draft when either the write or its read-back cannot be confirmed.
   const saveSetting = async (key: string, value: any, message: string) => {
@@ -103,7 +87,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     if (storedSubscribe !== undefined) next[F001_TRIGGER_KEY] = storedSubscribe;
     await saveSetting('flow_triggers_config', next, 'Flow triggers saved');
   };
-  const saveWelcome = () => saveSetting('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }, 'Welcome saved');
 
   // Trigger helpers
   const updateTrig = (k: string, f: string, v: any) => setTriggers(p => ({ ...p, [k]: { ...p[k], [f]: v } }));
@@ -115,7 +98,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     <div style={{ padding: '12px 0' }}>
       <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 14, display: 'flex', gap: 2 }}>
         <button style={S.tab(tab === 'triggers')} onClick={() => setTab('triggers')}>Flow Triggers</button>
-        <button style={S.tab(tab === 'welcome')} onClick={() => setTab('welcome')}>Welcome</button>
         <button style={S.tab(tab === 'subscribe')} onClick={() => setTab('subscribe')}>Subscribe</button>
       </div>
 
@@ -169,25 +151,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* ── WELCOME ── */}
-      {tab === 'welcome' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>Greeting sent to brand-new contacts on first message.</p>
-            <button style={S.btnP} onClick={saveWelcome} disabled={saving}>{saving ? '...' : 'Save'}</button>
-          </div>
-          {welLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
-          <div style={S.card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)' }}>Welcome Message</label>
-              <button style={S.toggle(welcomeEnabled)} onClick={() => setWelcomeEnabled(!welcomeEnabled)}><span style={S.dot(welcomeEnabled)} /></button>
-            </div>
-            <textarea style={{ ...S.textarea, minHeight: 80 }} value={welcomeText} onChange={e => setWelcomeText(e.target.value)} placeholder="Hi there! 👋 Welcome to WECARE.DIGITAL..." />
-            <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '6px 0 0' }}>This setting controls the plain-text greeting only.</p>
-          </div>
         </div>
       )}
     </div>

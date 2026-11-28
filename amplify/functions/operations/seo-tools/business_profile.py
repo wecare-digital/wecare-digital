@@ -87,7 +87,7 @@ def _truthy(value: Any) -> bool:
 def business_profile_enabled() -> bool:
     """Whether the GBP LocalBusiness enrichment is switched on. Defaults OFF (fail-safe).
 
-    Mirrors seo_config.py's posture: a public read path must never be one environment-variable
+    A public read path must never be one environment-variable
     typo away from an active integration. GBP_LOCALBUSINESS_ENABLED must be spelled correctly and
     set on purpose; anything else - unset, blank, a typo - resolves to off, and off means this
     module performs no network call and returns no data.

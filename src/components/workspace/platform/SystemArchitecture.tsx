@@ -91,7 +91,7 @@ const DB_TABLES: TableDef[] = [
   { name: 'MediaFile', purpose: 'WhatsApp media file metadata', keyFields: 'fileId', indexes: 'messageId', usedBy: 'inbound-whatsapp, media-cleanup', category: 'Core' },
   { name: 'DLQMessage', purpose: 'Failed message retry queue', keyFields: 'dlqMessageId', ttl: '7d', indexes: '-', usedBy: 'dlq-replay', category: 'Operations' },
   { name: 'AuditLog', purpose: 'System audit trail', keyFields: 'logId', ttl: '180d', indexes: '-', usedBy: 'all services', category: 'Core' },
-  { name: 'AIInteraction', purpose: 'AI query/response logs', keyFields: 'interactionId', indexes: 'messageId', usedBy: 'ai-query-kb', category: 'AI' },
+  { name: 'AIInteraction', purpose: 'Retired AI query/response logs (historical data)', keyFields: 'interactionId', indexes: 'messageId', usedBy: 'none (retired)', category: 'AI' },
   { name: 'RateLimitTracker', purpose: 'Rate limiting counters', keyFields: 'channel + windowStart', ttl: '24h', indexes: '-', usedBy: 'outbound-whatsapp', category: 'Core' },
   { name: 'SystemConfig', purpose: 'System configuration key-value store', keyFields: 'configKey', indexes: '-', usedBy: 'ai-config-management', category: 'Core' },
   { name: 'SmsAws', purpose: 'AWS Pinpoint SMS messages', keyFields: 'messageId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'sms-aws', category: 'SMS' },
@@ -106,7 +106,7 @@ const DB_TABLES: TableDef[] = [
   { name: 'WhatsAppOutbound', purpose: 'Outbound WhatsApp messages', keyFields: 'id', ttl: '30d', indexes: 'contactId, whatsappMessageId, templateName', usedBy: 'outbound-whatsapp', category: 'WhatsApp' },
   { name: 'TemplateAnalytics', purpose: 'WhatsApp template send/delivery tracking', keyFields: 'id', indexes: 'templateName', usedBy: 'template-analytics', category: 'WhatsApp' },
   { name: 'SubmitRequest', purpose: 'WhatsApp Flow submit request submissions', keyFields: 'id', indexes: 'phone, orderId, paymentStatus, paymentReferenceId', usedBy: 'inbound-whatsapp-handler', category: 'Payments' },
-  { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'retired legacy AI (historical)', category: 'AI' },
+  { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'none (retired)', category: 'AI' },
   { name: 'FlowRegistry', purpose: 'WhatsApp Flow config registry (type, payment, screens, A/B)', keyFields: 'flowId', indexes: 'flowCode, wabaId, category, status', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowSubmission', purpose: 'All flow submissions (generic, all flow types)', keyFields: 'submissionId', indexes: 'phone, flowCode, paymentStatus, paymentRefId, submissionNumber, status, orderId, flowId', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowLog', purpose: 'Audit trail for every flow screen interaction', keyFields: 'logId', ttl: '90d', indexes: 'phone, flowId, flowCode', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
@@ -150,9 +150,7 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'meta-analytics', category: 'Messaging', trigger: 'API Gateway', tables: 'MetaAnalyticsLog', description: 'Meta conversation analytics', apiRoute: '/meta-analytics' },
   { name: 'media-cleanup', category: 'Messaging', trigger: 'EventBridge Daily', tables: 'MediaFile', description: 'Clean up expired media from S3', apiRoute: '-' },
   { name: 'push-notifications', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Web push notification delivery', apiRoute: '/push' },
-  { name: 'ai-query-kb', category: 'AI', trigger: 'API Gateway', tables: 'AIInteraction', description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query' },
-  { name: 'ai-config-management', category: 'AI', trigger: 'API Gateway', tables: 'SystemConfig', description: 'Manage AI/bot configuration', apiRoute: '/ai/config' },
-  { name: 'agent-action-group', category: 'AI', trigger: 'API Gateway', tables: '-', description: 'Governed internal agent action handler', apiRoute: '/ai/agent' },
+  { name: 'ai-config-management', category: 'Core', trigger: 'API Gateway', tables: 'SystemConfig', description: 'Generic SystemConfig settings API', apiRoute: '/ai/config' },
   { name: 'razorpay-webhook', category: 'Payments', trigger: 'API GW Webhook', tables: 'RazorpayWebhookLog, Payment, InvoicePayment', description: 'Razorpay payment webhook', apiRoute: '/webhook/razorpay' },
   { name: 'payments-read', category: 'Payments', trigger: 'API Gateway', tables: 'Payment', description: 'Read payment records', apiRoute: '/payments' },
   { name: 'invoice-engine', category: 'Payments', trigger: 'API Gateway', tables: 'Invoice, InvoiceItem, InvoiceAsset, InvoicePayment, InvoiceDeliveryLog, InvoiceSequence', description: 'Invoice creation & PDF generation', apiRoute: '/invoices' },
@@ -163,7 +161,7 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'system-cleanup', category: 'Operations', trigger: 'EventBridge Daily', tables: 'SystemEvent', description: 'TTL cleanup and maintenance', apiRoute: '-' },
   { name: 'billing', category: 'Operations', trigger: 'API GW, EventBridge', tables: '-', description: 'AWS billing and usage tracking', apiRoute: '/billing' },
   { name: 'catalog-management', category: 'Ecommerce', trigger: 'Direct invoke (operator)', tables: 'CatalogCache', description: 'WhatsApp catalog sync', apiRoute: '-' },
-  { name: 'product-image-gen', category: 'Ecommerce', trigger: 'API Gateway', tables: '-', description: 'AI product image generation', apiRoute: '/store/image-gen' },
+  { name: 'product-image-gen', category: 'Ecommerce', trigger: 'API Gateway', tables: '-', description: 'Branded product image generation (Pillow)', apiRoute: '/store/image-gen' },
 ];
 
 // ─── Data: AWS Resources ───
@@ -184,7 +182,6 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'EventBridge Rules', type: 'EventBridge', purpose: 'Scheduled triggers (cleanup, billing, scheduled-messages)', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon SES', type: 'SES', purpose: 'Outbound email delivery', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon Pinpoint', type: 'Pinpoint', purpose: 'SMS delivery (AWS channel)', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
-  { name: 'Amazon Bedrock', type: 'Bedrock', purpose: 'AI response generation (Claude 3 Sonnet)', module: 'AI', env: 'Production', status: 'Active', risk: '' },
   { name: 'IAM Roles (Lambda)', type: 'IAM', purpose: 'Lambda execution roles with least-privilege', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'Secrets Manager', type: 'Secrets Manager', purpose: 'API keys, webhook secrets, payment credentials', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'CloudFront media distribution', type: 'CloudFront', purpose: 'Serves wecare.digital/get/<key> from the media bucket', module: 'Frontend', env: 'Production', status: 'Active', risk: '' },
@@ -265,7 +262,6 @@ const ENV_VARS: EnvVar[] = [
   { key: 'NEXT_PUBLIC_SEND_MODE', value: 'LIVE', sensitive: false, category: 'App' },
   { key: 'NEXT_PUBLIC_ENV', value: 'production', sensitive: false, category: 'App' },
   // Other build-time values
-  { key: 'NEXT_PUBLIC_INTERNAL_AGENT_URL', value: '(build environment)', sensitive: true, category: 'AI' },
   { key: 'NEXT_PUBLIC_AWS_REGION', value: 'us-east-1', sensitive: false, category: 'AWS' },
   { key: 'NEXT_PUBLIC_DEFAULT_GSTIN', value: '(build environment)', sensitive: true, category: 'Payment' },
   // Payment
@@ -320,8 +316,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'WA Calling', backend: 'whatsapp-calling', tables: 'WhatsAppCalling' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=groups', label: 'WA Groups', backend: 'waba-management', tables: 'WhatsAppGroup' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'WA Scripts', backend: 'outbound-whatsapp', tables: '-' },
-  { path: '/workspace/communications?view=manage&section=whatsapp&tool=welcome', label: 'WA Welcome', backend: 'outbound-whatsapp', tables: 'Contact' },
-  { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'WA Auto Response', backend: 'ai-config-management', tables: 'ConversationHistory, SystemConfig' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'WA Auto Response', backend: 'ai-config-management', tables: 'SystemConfig' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=waba', label: 'WABA Dashboard', backend: 'waba-management, meta-analytics', tables: 'MetaAnalyticsLog' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=profile', label: 'WA Business Profile', backend: 'whatsapp-business-api', tables: '-' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=webhooks', label: 'WA Webhooks', backend: 'inbound-whatsapp-handler', tables: 'WebhookDedup, SystemEvent' },
@@ -384,7 +379,7 @@ const CODE_MAP: CodeFolder[] = [
   // header of amplify/data/resource.ts.
   { path: 'amplify/data/', purpose: 'Data model document — 58 models, 0 deployed', files: '1 file', linkedTo: 'DynamoDB' },
   { path: 'amplify/storage/', purpose: 'S3 storage + SQS queue config', files: '1 file', linkedTo: 'S3, SQS' },
-  { path: 'amplify/functions/ai/', purpose: 'AI Lambda functions (4)', files: '4 dirs', linkedTo: 'Bedrock, DynamoDB' },
+  { path: 'amplify/functions/ai/', purpose: 'MCP servers and the settings API (5)', files: '5 dirs', linkedTo: 'DynamoDB' },
   { path: 'amplify/functions/core/', purpose: 'Core Lambda functions (6)', files: '6 dirs', linkedTo: 'DynamoDB, S3' },
   { path: 'amplify/functions/messaging/', purpose: 'Messaging Lambda functions (22)', files: '22 dirs', linkedTo: 'DynamoDB, S3, SQS, SES, Pinpoint' },
   { path: 'amplify/functions/payments/', purpose: 'Payment Lambda functions (3)', files: '3 dirs', linkedTo: 'DynamoDB, Razorpay' },
@@ -412,7 +407,7 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '(env var)', PAYMENTS_TABLE: 'RazorpayWebhookLog table' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
   { name: 'invoice-engine', displayName: 'Invoice Engine', category: 'Payments', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Invoice creation, PDF generation, payment links', apiRoute: '/invoices', envVars: { INVOICE_TABLE: 'Invoice table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp Commerce catalog sync', apiRoute: '-', envVars: {}, triggers: [ 'Direct invoke (operator)' ], status: 'active' },
-  { name: 'product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'AI product image generation via Bedrock', apiRoute: '/store/image-gen', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Branded product image generation (Pillow)', apiRoute: '/store/image-gen', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'whatsapp-voice', displayName: 'WhatsApp Voice', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'TTS voice notes via Polly, audio processing', apiRoute: '/whatsapp-voice', envVars: { VOICE_TABLE: 'WhatsAppVoice table', MEDIA_BUCKET: 'media bucket' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'whatsapp-templates', displayName: 'WhatsApp Templates', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template CRUD via Meta Graph API', apiRoute: '/whatsapp/templates', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'whatsapp-template-mgmt', displayName: 'Template Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Advanced template operations', apiRoute: '/whatsapp/template-mgmt', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
@@ -424,9 +419,7 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'media bucket' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
   { name: 'push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'ai-config-management', displayName: 'Settings API', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Generic SystemConfig settings API', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'payments-read', displayName: 'Payments Read', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read payment records', apiRoute: '/payments', envVars: { PAYMENTS_TABLE: 'Payment table' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'bulk-job-create', displayName: 'Bulk Job Create', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Create bulk messaging jobs', apiRoute: '/bulk/create', envVars: { BULK_TABLE: 'BulkJob table' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'bulk-job-control', displayName: 'Bulk Job Control', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Pause/resume/cancel bulk jobs', apiRoute: '/bulk/control', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
@@ -484,9 +477,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-scheduled', category: 'Messaging Lambdas', name: 'Scheduled Messages', description: 'Schedule and send messages at specific times.', path: 'amplify/functions/messaging/scheduled-messages/handler.py', type: 'Lambda' },
   { id: 'l-push', category: 'Messaging Lambdas', name: 'Push Notifications', description: 'Web push notification delivery.', path: 'amplify/functions/messaging/push-notifications/handler.py', type: 'Lambda' },
   // AI
-  { id: 'l-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query the static FAQ knowledge base.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'Lambda' },
-  { id: 'l-ai-config', category: 'AI', name: 'AI Config Management', description: 'Manage AI/bot configuration and auto-reply settings.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'Lambda' },
-  { id: 'l-ai-agent', category: 'AI', name: 'Agent Action Group', description: 'Governed internal agent action handler for approved operations.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'Lambda' },
+  { id: 'l-ai-config', category: 'Core', name: 'Settings API', description: 'Generic SystemConfig settings API', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'Lambda' },
   // Payments
   { id: 'l-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'Lambda' },
   { id: 'l-payments-read', category: 'Payments', name: 'Payments Read', description: 'Read payment records and transaction history.', path: 'amplify/functions/payments/payments-read/handler.py', type: 'Lambda' },
@@ -500,7 +491,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-billing', category: 'Operations', name: 'Billing', description: 'AWS billing and usage tracking.', path: 'amplify/functions/operations/billing/handler.py', type: 'Lambda' },
   // Ecommerce
   { id: 'l-catalog', category: 'Ecommerce', name: 'Catalog Management', description: 'WhatsApp Commerce catalog sync and product management.', path: 'amplify/functions/ecommerce/catalog-management/handler.py', type: 'Lambda' },
-  { id: 'l-img-gen', category: 'Ecommerce', name: 'Product Image Gen', description: 'AI product image generation via Bedrock.', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'Lambda' },
+  { id: 'l-img-gen', category: 'Ecommerce', name: 'Product Image Gen', description: 'Branded product image generation (Pillow).', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'Lambda' },
 ];
 const CODE_ASSET_CATEGORIES = [ 'All', ...Array.from( new Set( CODE_ASSETS.map( a => a.category ) ) ) ];
 
@@ -669,10 +660,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <div style={ { marginTop: 4 } }>Razorpay (WhatsApp Payments)</div>
           </div>
           <div>
-            <div style={ label }>AI</div>
-            <div style={ { marginTop: 4 } }>Amazon Bedrock (Claude 3 Sonnet) + Knowledge Base</div>
-          </div>
-          <div>
             <div style={ label }>Mobile</div>
             <div style={ { marginTop: 4 } }>Capacitor (iOS + Android)</div>
           </div>
@@ -792,10 +779,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 │  │  (49 tables)  │    │  (media files)    │    │  (4 queues)  │                       │
 │  └──────────────┘    └──────────────────┘    └──────────────┘                       │
 │                                                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│  │ Bedrock  │  │ SES      │  │ Pinpoint │  │ Polly    │  │ EventBr. │             │
-│  │ (AI/KB)  │  │ (Email)  │  │ (SMS)    │  │ (TTS)    │  │ (Cron)   │             │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐                           │
+│  │ SES      │  │ Pinpoint │  │ Polly    │  │ EventBr. │                           │
+│  │ (Email)  │  │ (SMS)    │  │ (TTS)    │  │ (Cron)   │                           │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘                           │
 │                                                                                     │
 │  External: Meta WhatsApp API │ Razorpay │ Plivo Voice │ AWS SMS                 │
 └─────────────────────────────────────────────────────────────────────────────────────┘
@@ -808,7 +795,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         { [
           { title: 'Core Services', count: 6, items: [ 'contacts', 'auth-middleware', 'messages-read', 'messages-delete', 'faq-handler', 'url-shortener' ], color: C.green },
           { title: 'Messaging', count: 22, items: [ 'inbound-whatsapp', 'outbound-whatsapp', 'outbound-sms', 'outbound-email', 'plivo-answer', 'whatsapp-calling', '...+16 more' ], color: C.blue },
-          { title: 'AI / ML', count: 3, items: [ 'ai-query-kb', 'ai-config-management', 'agent-action-group' ], color: '#7c3aed' },
           { title: 'Payments', count: 3, items: [ 'razorpay-webhook', 'payments-read', 'invoice-engine' ], color: C.amber },
           { title: 'Operations', count: 6, items: [ 'bulk-job-create', 'bulk-job-control', 'bulk-worker', 'dlq-replay', 'system-cleanup', 'billing' ], color: '#6b7280' },
           { title: 'Ecommerce', count: 3, items: [ 'native-catalog-admin', 'catalog-management', 'product-image-gen' ], color: '#06b6d4' },
@@ -1025,7 +1011,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               { name: 'Core: Contact, Message, User, MediaFile, AuditLog, SystemConfig, WebhookDedup, ...' },
               { name: 'WhatsApp: WhatsAppInbound, WhatsAppOutbound, WhatsAppVoice, WhatsAppCalling, WhatsAppGroup, ...' },
               { name: 'Payments: Payment, Invoice, InvoiceItem, InvoiceAsset, InvoiceDeliveryLog, InvoiceSequence, RazorpayWebhookLog' },
-              { name: 'AI: AIInteraction, ConversationHistory' },
               { name: 'Flows: FlowRegistry, FlowSubmission, FlowLog' },
               { name: 'Operations: BulkJob, BulkRecipient, DLQMessage, ScheduledMessage, SystemEvent, ...' },
               { name: 'Analytics: TemplateAnalytics, MetaAnalyticsLog' },
@@ -1050,11 +1035,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               { name: 'Amazon SES (email)' },
               { name: 'Amazon Pinpoint (SMS)' },
               { name: 'Amazon Polly (TTS)' },
-            ]
-          },
-          {
-            name: '🤖 AI / ML', children: [
-              { name: 'Amazon Bedrock (Claude 3 Sonnet)' },
             ]
           },
           {

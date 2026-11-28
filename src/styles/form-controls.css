@@ -243,8 +243,7 @@ input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.ampli
 
    SCOPE, counted rather than estimated:
      input[type="color"]  4, every one of them in src/components/dashboard/tabs/AppBuilderTab.tsx
-     input[type="range"]  3 - two in src/components/dashboard/tabs/InternalChatTab.tsx and one
-                          in src/pages/workspace/settings/internal-agent.tsx
+     input[type="range"]  2, both in src/components/dashboard/tabs/InternalChatTab.tsx
      input[type="file"]   12 in 10 files. There are THIRTEEN textual matches for type="file" in
                           src/: the thirteenth is prose in src/lib/wa-media.ts:53 and is not a
                           control, so the count is 12 and must not be "corrected" to 13.

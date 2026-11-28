@@ -79,7 +79,6 @@
   "src/components/workspace/whatsapp/templates.tsx": {"react-hooks/exhaustive-deps":4,"react-hooks/set-state-in-effect":1},
   "src/components/workspace/whatsapp/waba-dashboard.tsx": {"react-hooks/exhaustive-deps":2,"react-hooks/set-state-in-effect":2},
   "src/components/workspace/whatsapp/webhooks.tsx": {"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":1},
-  "src/components/workspace/whatsapp/welcome.tsx": {"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":1},
   "src/components/ws/collect/CollectCreatePanel.tsx": {"react-hooks/set-state-in-effect":2},
   "src/components/ws/collect/CollectLogPanel.tsx": {"@next/next/no-img-element":1,"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":1},
   "src/components/ws/collect/VaultPanel.tsx": {"react-hooks/exhaustive-deps":2,"react-hooks/set-state-in-effect":3},
@@ -98,7 +97,6 @@
   "src/pages/workspace/engage/inbox/index.tsx": {"@next/next/no-img-element":2,"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":6},
   "src/pages/workspace/engage/logs/index.tsx": {"react-hooks/set-state-in-effect":2},
   "src/pages/workspace/service/index.tsx": {"react-hooks/exhaustive-deps":1,"react-hooks/set-state-in-effect":1},
-  "src/pages/workspace/settings/internal-agent.tsx": {"react-hooks/set-state-in-effect":1},
   "src/pages/workspace/task/index.tsx": {"react-hooks/set-state-in-effect":1},
   "src/pages/ws/collect/index.tsx": {"@next/next/no-img-element":1}
 }

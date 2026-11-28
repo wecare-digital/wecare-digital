@@ -1379,7 +1379,7 @@ def _() -> None:
         def put(role: str, key: str) -> int:
             body = {'key': key, 'config': {'subscribe': {'enabled': True}}}
             return ai.handler(_staff_event('PUT', '/ai/config', role, body), None)['statusCode']
-        for key in ('flow_triggers_config', 'subscribe_messages_config', 'welcome_message'):
+        for key in ('flow_triggers_config', 'subscribe_messages_config', 'customerservice_menu_config'):
             expect(put('Viewer', key) == 403 and key not in config_rows, f'Viewer changed {key}')
             expect(put('Operator', key) == 200 and key in config_rows, f'Operator could not change {key}')
         expect(put('Admin', 'catalog_flow_map') == 400 and 'catalog_flow_map' not in config_rows,
