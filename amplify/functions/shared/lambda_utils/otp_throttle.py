@@ -64,6 +64,13 @@ DEFAULT_PHONE_WINDOW = 3600
 DEFAULT_IP_MAX = 20
 DEFAULT_IP_WINDOW = 3600
 
+#: Code submissions are counted in their own buckets (scope `verify`), so they never use the
+#: send budget. Above the 5 answers one code allows, so a customer who requests a second code
+#: can still enter it.
+VERIFY_SCOPE = "verify"
+DEFAULT_VERIFY_SUBJECT_MAX = 10
+DEFAULT_VERIFY_IP_MAX = 30
+
 
 class OtpThrottled(RuntimeError):
     """The request exceeded a limit. Carries the axis for metrics, never for the response."""
@@ -181,7 +188,8 @@ def check_and_consume(table: Any, *,
                       phone_window: int = DEFAULT_PHONE_WINDOW,
                       ip_max: int = DEFAULT_IP_MAX,
                       ip_window: int = DEFAULT_IP_WINDOW,
-                      key_attr: str = "grantId") -> Tuple[int, int]:
+                      key_attr: str = "grantId",
+                      scope: str = "") -> Tuple[int, int]:
     """Consume one unit on both axes. Returns `(phone_count, ip_count)`.
 
     Raises `OtpThrottled` on the first axis over budget, or `ThrottleStoreUnavailable` if a
@@ -190,24 +198,40 @@ def check_and_consume(table: Any, *,
     **Phone is checked first, deliberately.** It is the axis that protects a *person* — the human
     whose handset would ring — whereas the IP axis protects our sending reputation and cost. When
     both are over, the phone limit is the one worth reporting.
+
+    `phone_e164` is the subject being protected; an email address works the same way. A
+    non-empty `scope` keeps separate counters for a different action on the same subject and IP.
     """
     if not phone_e164:
         raise ValueError("phone_e164 is required")
 
     moment = int(time.time()) if now is None else int(now)
     resolved_ip = ip if ip is not None else source_ip(event or {})
+    tag = f"{scope}#" if scope else ""
 
     phone_count = _consume(
-        table, PHONE_PREFIX + _hashed(phone_e164),
+        table, PHONE_PREFIX + tag + _hashed(phone_e164),
         max_count=phone_max, window=phone_window, axis="phone",
         now=moment, key_attr=key_attr,
     )
     ip_count = _consume(
-        table, IP_PREFIX + _hashed(_ip_bucket(resolved_ip)),
+        table, IP_PREFIX + tag + _hashed(_ip_bucket(resolved_ip)),
         max_count=ip_max, window=ip_window, axis="ip",
         now=moment, key_attr=key_attr,
     )
     return phone_count, ip_count
+
+
+def check_verify_attempt(table: Any, *, subject: str,
+                         event: Optional[Dict[str, Any]] = None,
+                         now: Optional[int] = None,
+                         key_attr: str = "grantId") -> Tuple[int, int]:
+    """Count one code submission per subject and per client IP, in the `verify` buckets."""
+    return check_and_consume(
+        table, phone_e164=subject, event=event, now=now,
+        phone_max=DEFAULT_VERIFY_SUBJECT_MAX, ip_max=DEFAULT_VERIFY_IP_MAX,
+        key_attr=key_attr, scope=VERIFY_SCOPE,
+    )
 
 
 def throttled_response(error: OtpThrottled, event: Dict[str, Any]) -> Dict[str, Any]:
@@ -236,9 +260,13 @@ __all__ = [
     "DEFAULT_PHONE_WINDOW",
     "DEFAULT_IP_MAX",
     "DEFAULT_IP_WINDOW",
+    "VERIFY_SCOPE",
+    "DEFAULT_VERIFY_SUBJECT_MAX",
+    "DEFAULT_VERIFY_IP_MAX",
     "OtpThrottled",
     "ThrottleStoreUnavailable",
     "source_ip",
     "check_and_consume",
+    "check_verify_attempt",
     "throttled_response",
 ]
