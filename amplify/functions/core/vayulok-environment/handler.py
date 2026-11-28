@@ -571,6 +571,7 @@ EXTRA_LIMITS = {
     "spartan": (12, 372),
 }
 BUDGET_PREFIX = "nano-climate:environment:"
+CPCB_USER_AGENT = "wecare-nano-climate/1.0 (+https://wecare.digital)"
 CPCB_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
 PVGIS_URL = "https://re.jrc.ec.europa.eu/api/v5_3/PVcalc"
 ELEVATION_URL = "https://maps.googleapis.com/maps/api/elevation/json"
@@ -763,9 +764,11 @@ def _cpcb_snapshot() -> list:
     key = _cpcb_key()
     # One bounded nationwide snapshot: no caller-controlled filters, no
     # station-by-station fan-out or unbounded pagination.
+    # data.gov.in stalls the default Python-urllib User-Agent until the read
+    # times out (verified 2026-11-28); a named client gets an immediate 200.
     response = _extra_json(_query(CPCB_URL, {
         "api-key": key, "format": "json", "limit": 10000, "offset": 0,
-    }))
+    }), headers={"User-Agent": CPCB_USER_AGENT})
     rows = response.get("records")
     total = _finite(response.get("total"), 0, 10000)
     # Never silently choose a "nearest" station from a truncated snapshot.

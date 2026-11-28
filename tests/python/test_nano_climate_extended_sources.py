@@ -161,6 +161,19 @@ def test_cpcb_reads_live_avg_value_field():
     assert [(r["pollutant"], r["average"]) for r in data["readings"]] == [("PM10", 300)]
 
 
+def test_cpcb_request_sends_named_user_agent(monkeypatch):
+    monkeypatch.setattr(h, "_extra_cache", {})
+    monkeypatch.setattr(h, "_reserve_extra", lambda source: None)
+    monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
+    seen = {}
+    def fake(url, headers=None):
+        seen["headers"] = headers
+        return {"records": [], "total": 0}
+    monkeypatch.setattr(h, "_extra_json", fake)
+    assert h._cpcb_snapshot() == []
+    assert seen["headers"]["User-Agent"].startswith("wecare-nano-climate/")
+
+
 def test_cpcb_rejects_incomplete_snapshot(monkeypatch):
     monkeypatch.setattr(h, "_extra_cache", {})
     monkeypatch.setattr(h, "_cpcb_key", lambda: "unit-test-placeholder")
